@@ -60,6 +60,7 @@ glideVersion = "4.14.2"
 guavaVersion = "33.3.1-android"
 j2objcAnnotationsVersion = "2.8"
 jsr305Version = "3.0.2"
+juniversalchardetVersion = "1.0.3"
 # Use the same JUnit version as the Android repo:
 # https://cs.android.com/android/platform/superproject/main/+/main:external/junit/METADATA
 junitVersion = "4.13.2"
@@ -140,6 +141,7 @@ guava = { group = "com.google.guava", name = "guava", version.ref = "guavaVersio
 guava-testlib = { group = "com.google.guava", name = "guava-testlib", version.ref = "guavaVersion" }
 j2objc-annotations = { group = "com.google.j2objc", name = "j2objc-annotations", version.ref = "j2objcAnnotationsVersion" }
 jsr305 = { group = "com.google.code.findbugs", name = "jsr305", version.ref = "jsr305Version" }
+juniversalchardet = { group = "com.googlecode.juniversalchardet", name = "juniversalchardet", version.ref = "juniversalchardetVersion" }
 junit = { group = "junit", name = "junit", version.ref = "junitVersion" }
 kotlin-annotations-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-annotations-jvm", version.ref = "kotlinAnnotationsVersion" }
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlinGradlePlugin" }

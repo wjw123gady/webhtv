@@ -37,6 +37,7 @@ dependencies {
   api(project(":lib-database"))
   implementation(libs.androidx.annotation)
   implementation(libs.androidx.exifinterface)
+  implementation(libs.juniversalchardet)
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.dexmaker)
   androidTestImplementation(libs.dexmaker.mockito)
