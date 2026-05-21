@@ -75,6 +75,7 @@ playServicesCronetVersion = "18.0.1"
 playServicesTfliteVersion = "16.1.0"
 protobufVersion = "4.31.1"
 robolectricVersion = "4.16"
+smbjVersion = "0.14.0"
 testParameterInjectorVersion = "1.22"
 truthVersion = "1.4.0"
 workRuntimeVersion = "2.8.1"
@@ -163,6 +164,7 @@ play-services-tflite-support = { group = "com.google.android.gms", name = "play-
 protobuf-java = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobufVersion" }
 protobuf-protoc = { group = "com.google.protobuf", name = "protoc", version.ref = "protobufVersion" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectricVersion" }
+smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbjVersion" }
 strict-version-matcher-plugin = { module = "com.google.android.gms:strict-version-matcher-plugin", version.ref = "strictVersionMatcherPlugin" }  # module name contains a colon and cannot be in [plugins]
 test-parameter-injector = { group = "com.google.testparameterinjector", name = "test-parameter-injector", version.ref = "testParameterInjectorVersion" }
 truth = { group = "com.google.truth", name = "truth", version.ref = "truthVersion" }
