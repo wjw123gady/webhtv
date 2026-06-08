@@ -32,6 +32,8 @@ import androidx.media3.common.C;
 import androidx.media3.common.DeviceInfo;
 import androidx.media3.common.Effect;
 import androidx.media3.common.Format;
+import androidx.media3.common.MediaChapter;
+import androidx.media3.common.MediaEdition;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackParameters;
@@ -446,6 +448,18 @@ public class SimpleExoPlayer extends BasePlayer implements ExoPlayer {
   }
 
   @Override
+  public boolean selectChapter(MediaChapter chapter) {
+    blockUntilConstructorFinished();
+    return player.selectChapter(chapter);
+  }
+
+  @Override
+  public boolean selectEdition(MediaEdition edition) {
+    blockUntilConstructorFinished();
+    return player.selectEdition(edition);
+  }
+
+  @Override
   public void setVideoScalingMode(@C.VideoScalingMode int videoScalingMode) {
     blockUntilConstructorFinished();
     player.setVideoScalingMode(videoScalingMode);
@@ -735,6 +749,7 @@ public class SimpleExoPlayer extends BasePlayer implements ExoPlayer {
     blockUntilConstructorFinished();
     return player.getAudioFormat();
   }
+
 
   @Override
   @Nullable
