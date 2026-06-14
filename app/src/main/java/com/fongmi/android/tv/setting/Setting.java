@@ -150,6 +150,18 @@ public class Setting {
         Prefers.put("drive_check", driveCheck);
     }
 
+    public static int getSiteColumn() {
+        return clampSiteColumn(Prefers.getInt("site_column", 1));
+    }
+
+    public static void putSiteColumn(int column) {
+        Prefers.put("site_column", clampSiteColumn(column));
+    }
+
+    private static int clampSiteColumn(int column) {
+        return column == 2 ? 2 : 1;
+    }
+
     public static boolean isSiteHealthSort() {
         return Prefers.getBoolean("site_health_sort", true);
     }
