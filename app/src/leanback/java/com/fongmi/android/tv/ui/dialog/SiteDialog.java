@@ -311,12 +311,17 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         button.setFocusable(true);
         button.setClickable(true);
         button.setNextFocusDownId(binding.recycler.getId());
-        button.setOnClickListener(v -> onGroupClick(group, button));
+        // 焦点监听：获取焦点时自动切换分组
+        button.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) onGroupFocus(group, button);
+        });
         return button;
     }
 
-    private void onGroupClick(String group, View view) {
-        selectedGroup = group.equals(selectedGroup) ? "" : group;
+    private void onGroupFocus(String group, View view) {
+        // 如果已经是当前选中的分组，不需要重复处理
+        if (group.equals(selectedGroup)) return;
+        selectedGroup = group;
         updateGroupView();
         adapter.filter(selectedGroup, "");
         // 临时阻止 RecyclerView 的子 View 获取焦点
