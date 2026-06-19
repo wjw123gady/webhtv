@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowManager;
 
@@ -32,6 +33,7 @@ import com.fongmi.android.tv.ui.adapter.SiteAdapter;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
+import com.github.catvod.crawler.SpiderDebug;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     private static final int ITEM_HEIGHT = 46;
     private static final int ITEM_SPACE = 12;
     private static final int MAX_HEIGHT = 344;
+    private static final int INITIAL_BATCH = 48;
 
     private static String selectedGroup = "";
 
@@ -56,6 +59,7 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     private List<String> groups;
     private long showStart;
     private boolean action;
+    private boolean listLoaded;
     private int type;
 
     public static SiteDialog create() {
@@ -77,6 +81,7 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         this.activity = activity;
         if (activity instanceof SiteListener) listener = (SiteListener) activity;
         if (activity.isFinishing() || activity.isDestroyed()) return;
+        log("click received action=%s type=%s", action, type);
         showDirect(activity);
     }
 
@@ -110,31 +115,43 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     }
 
     private void showDirect(FragmentActivity activity) {
+        long start = System.currentTimeMillis();
+        log("inflate start");
         binding = DialogSiteBinding.inflate(activity.getLayoutInflater());
+        log("inflate end cost=%sms", cost(start));
+        long dialogStart = System.currentTimeMillis();
         directDialog = new Dialog(activity);
         directDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         directDialog.setContentView(binding.getRoot());
-        initView();
+        log("dialog content ready cost=%sms total=%sms", cost(dialogStart), cost());
+        long initStart = System.currentTimeMillis();
+        initShellView();
         initEvent();
-        if (adapter.getItemCount() == 0) {
-            directDialog = null;
-            return;
-        }
+        log("shell init end cost=%sms total=%sms", cost(initStart), cost());
         directDialog.setOnDismissListener(d -> {
             directDialog = null;
             binding = null;
             this.activity = null;
         });
+        runAfterFirstPreDraw("shell preDraw", () -> loadList(false));
+        long showDialogStart = System.currentTimeMillis();
+        log("show call start total=%sms", cost());
         directDialog.show();
+        log("show call end cost=%sms total=%sms", cost(showDialogStart), cost());
         applyWindow(directDialog.getWindow());
+        log("window applied total=%sms", cost());
     }
 
     @Override
     protected void initView() {
-        adapter = new SiteAdapter(this);
-        groups = getGroups();
+        initShellView();
+        loadList(true);
+    }
+
+    private void initShellView() {
+        long start = System.currentTimeMillis();
         setRootWidth();
-        setRecyclerHeight();
+        setRecyclerHeight(INITIAL_BATCH);
         binding.keyword.setVisibility(View.GONE);
         binding.action.setVisibility(action ? View.VISIBLE : View.GONE);
         binding.search.setVisibility(action ? View.VISIBLE : View.GONE);
@@ -142,10 +159,43 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         binding.select.setVisibility(action ? View.VISIBLE : View.GONE);
         binding.cancel.setVisibility(action ? View.VISIBLE : View.GONE);
         binding.mode.setVisibility(View.GONE);
+        setActionEnabled(false);
+        binding.recycler.setAdapter(null);
+        binding.recycler.setItemAnimator(null);
+        binding.recycler.setHasFixedSize(true);
+        log("shell configured cost=%sms total=%sms", cost(start), cost());
+    }
+
+    private void loadList(boolean immediate) {
+        if (binding == null || listLoaded) return;
+        listLoaded = true;
+        long start = System.currentTimeMillis();
+        adapter = new SiteAdapter(this);
+        adapter.setDisplayLimit(INITIAL_BATCH);
+        groups = getGroups();
+        normalizeSelectedGroup();
+        if (!TextUtils.isEmpty(selectedGroup)) {
+            adapter.filter(selectedGroup, "");
+            adapter.setDisplayLimit(INITIAL_BATCH);
+        }
+        log("adapter created cost=%sms items=%s action=%s immediate=%s", cost(start), adapter.getTotalCount(), action, immediate);
+        if (adapter.getTotalCount() == 0) {
+            log("dismiss empty total=%sms", cost());
+            dismiss();
+            return;
+        }
+        long layoutStart = System.currentTimeMillis();
         setType(type);
         setRecyclerView();
+        setRecyclerHeight(adapter.getItemCount());
         setMode();
         setGroupView();
+        setActionEnabled(true);
+        log("view configured cost=%sms total=%sms", cost(layoutStart), cost());
+        runAfterFirstPreDraw("list preDraw", () -> {
+            if (adapter != null) adapter.showAll();
+            log("list expanded total=%sms items=%s", cost(), adapter == null ? -1 : adapter.getItemCount());
+        });
     }
 
     @Override
@@ -156,15 +206,21 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
             App.post(() -> HistoryDialog.create().vod().readOnly().show(activity, item -> loadConfig(activity, item)), 100);
         });
         binding.mode.setOnClickListener(this::onMode);
-        binding.select.setOnClickListener(v -> adapter.selectAll());
-        binding.cancel.setOnClickListener(v -> adapter.cancelAll());
+        binding.select.setOnClickListener(v -> {
+            if (adapter != null) adapter.selectAll();
+        });
+        binding.cancel.setOnClickListener(v -> {
+            if (adapter != null) adapter.cancelAll();
+        });
         binding.search.setOnClickListener(v -> setType(v.isSelected() ? 0 : 1));
         binding.change.setOnClickListener(v -> setType(v.isSelected() ? 0 : 2));
         binding.keyword.addTextChangedListener(new com.fongmi.android.tv.ui.custom.CustomTextListener() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (adapter == null) return;
                 adapter.filter(selectedGroup, s.toString());
                 setRecyclerView();
+                setRecyclerHeight(adapter.getItemCount());
                 setMode();
                 setWidth();
             }
@@ -177,10 +233,11 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         binding.recycler.setItemAnimator(null);
         if (decoration == null) binding.recycler.addItemDecoration(decoration = new SpaceItemDecoration(getCount(), 16));
         if (binding.recycler.getLayoutManager() == null) binding.recycler.setLayoutManager(new GridLayoutManager(getDialogActivity(), getCount()));
+        log("recycler ready adapter=%s layout=%s total=%sms", binding.recycler.getAdapter() != null, binding.recycler.getLayoutManager() != null, cost());
     }
 
-    private void setRecyclerHeight() {
-        int rows = Math.max(1, (int) Math.ceil((double) adapter.getItemCount() / getCount()));
+    private void setRecyclerHeight(int count) {
+        int rows = Math.max(1, (int) Math.ceil((double) Math.max(1, count) / getCount()));
         int height = rows * ResUtil.dp2px(ITEM_HEIGHT) + Math.max(0, rows - 1) * ResUtil.dp2px(ITEM_SPACE);
         ViewGroup.LayoutParams params = binding.recycler.getLayoutParams();
         params.height = Math.min(height, ResUtil.dp2px(MAX_HEIGHT));
@@ -199,7 +256,9 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         binding.change.setSelected(type == 2);
         binding.select.setClickable(type > 0);
         binding.cancel.setClickable(type > 0);
-        adapter.setType(this.type = type);
+        this.type = type;
+        if (adapter != null) adapter.setType(type);
+        setActionEnabled(listLoaded && adapter != null);
     }
 
     private void setMode() {
@@ -214,6 +273,13 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         setRecyclerView();
         setMode();
         setWidth();
+    }
+
+    private void setActionEnabled(boolean enabled) {
+        binding.search.setEnabled(enabled);
+        binding.change.setEnabled(enabled);
+        binding.select.setEnabled(enabled && type > 0);
+        binding.cancel.setEnabled(enabled && type > 0);
     }
 
     @Override
@@ -258,6 +324,36 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         window.setAttributes(params);
     }
 
+    private void runAfterFirstPreDraw(String label, Runnable action) {
+        View root = binding == null ? null : binding.getRoot();
+        if (root == null) {
+            if (action != null) action.run();
+            return;
+        }
+        root.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                if (root.getViewTreeObserver().isAlive()) root.getViewTreeObserver().removeOnPreDrawListener(this);
+                log("%s total=%sms items=%s", label, cost(), adapter == null ? -1 : adapter.getItemCount());
+                if (action != null) root.post(action);
+                return true;
+            }
+        });
+    }
+
+    private long cost() {
+        return cost(showStart);
+    }
+
+    private long cost(long start) {
+        return System.currentTimeMillis() - start;
+    }
+
+    private void log(String msg, Object... args) {
+        if (!SpiderDebug.isEnabled()) return;
+        SpiderDebug.log(TAG, msg, args);
+    }
+
     @Override
     public void dismiss() {
         if (directDialog != null) directDialog.dismiss();
@@ -276,16 +372,20 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         return new ArrayList<>(Site.getGroups(VodConfig.get().getSites()));
     }
 
+    private void normalizeSelectedGroup() {
+        if (groups == null || groups.isEmpty()) {
+            selectedGroup = "";
+            return;
+        }
+        if (!TextUtils.isEmpty(selectedGroup) && !groups.contains(selectedGroup)) selectedGroup = "";
+    }
+
     private void setGroupView() {
-        if (groups.isEmpty()) {
+        if (groups == null || groups.isEmpty()) {
             selectedGroup = "";
             binding.groupScroll.setVisibility(View.GONE);
             return;
         }
-        if (!TextUtils.isEmpty(selectedGroup) && !groups.contains(selectedGroup)) selectedGroup = "";
-        adapter.filter(selectedGroup, "");
-        setRecyclerHeight();
-        scrollRecyclerToTop();
         binding.groupScroll.setVisibility(View.VISIBLE);
         binding.groupList.removeAllViews();
         binding.groupList.addView(getGroupView("", getDialogActivity().getString(R.string.site_group_all)));
@@ -343,7 +443,7 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         selectedGroup = group;
         updateGroupView();
         adapter.filter(selectedGroup, "");
-        setRecyclerHeight();
+        setRecyclerHeight(adapter.getItemCount());
         scrollRecyclerToTop();
         if (!TextUtils.isEmpty(selectedGroup)) centerGroup(view);
     }
