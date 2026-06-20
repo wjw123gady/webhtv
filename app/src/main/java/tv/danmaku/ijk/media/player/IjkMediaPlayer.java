@@ -20,7 +20,6 @@ import java.lang.ref.WeakReference;
 import java.net.URLEncoder;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -847,22 +846,15 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     }
 
     public void setDataSource(String str, Map<String, String> map) {
-        for (String str2 : Arrays.asList("User-Agent", "User-Agent".toLowerCase())) {
-            if (map.containsKey(str2)) {
-                setOption(1, "user_agent", map.get(str2));
-                map.remove(str2);
+        if (map != null && !map.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            for (Map.Entry<String, String> entry : map.entrySet()) {
+                if (TextUtils.isEmpty(entry.getKey())) continue;
+                builder.append(entry.getKey()).append(":");
+                if (!TextUtils.isEmpty(entry.getValue())) builder.append(entry.getValue());
+                builder.append("\r\n");
             }
-        }
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : map.entrySet()) {
-            String value = entry.getValue();
-            sb.append(entry.getKey());
-            sb.append(":");
-            if (!TextUtils.isEmpty(value)) {
-                sb.append(value);
-            }
-            sb.append("\r\n");
-            setOption(1, "headers", sb.toString());
+            if (builder.length() > 0) setOption(OPT_CATEGORY_FORMAT, "headers", builder.toString());
         }
         setDataSource(str);
     }

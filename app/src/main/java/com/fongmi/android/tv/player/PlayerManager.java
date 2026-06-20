@@ -45,6 +45,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import tv.danmaku.ijk.media.player.exceptions.IjkMediaException;
+
 public class PlayerManager implements ParseCallback {
 
     private static final long LOCAL_PROXY_READY_TIMEOUT_MS = 5000;
@@ -65,6 +67,7 @@ public class PlayerManager implements ParseCallback {
     private int retry;
     private int localProxyRetry;
     private int prepareSeq;
+    private boolean ijkFallbackRetry;
 
     public PlayerManager(Callback callback) {
         this.runnable = () -> callback.onError(ResUtil.getString(R.string.error_play_timeout));
@@ -427,6 +430,7 @@ public class PlayerManager implements ParseCallback {
         float speed = getSpeed();
         boolean repeat = isRepeatOne();
         int decode = engine.getDecode();
+        ijkFallbackRetry = false;
         engine.release();
         playerType = type;
         PlayerSetting.putPlayer(type);
@@ -459,6 +463,7 @@ public class PlayerManager implements ParseCallback {
     public void start(PlaySpec spec, long timeout) {
         this.spec = spec;
         localProxyRetry = 0;
+        ijkFallbackRetry = false;
         setMediaItem(timeout);
     }
 
@@ -466,6 +471,7 @@ public class PlayerManager implements ParseCallback {
         stopParse();
         spec = PlaySpec.fromParse(result, key, metadata);
         localProxyRetry = 0;
+        ijkFallbackRetry = false;
         parseJob = ParseJob.create(this).start(result, useParse);
     }
 
@@ -647,6 +653,7 @@ public class PlayerManager implements ParseCallback {
                 return;
             }
             if (action == PlayerEngine.ErrorAction.FATAL) {
+                if (fallbackIjkToExo(e)) return;
                 callback.onError(engine.getErrorMessage(e));
             } else if (++retry > 1) {
                 callback.onError(engine.getErrorMessage(e));
@@ -669,5 +676,31 @@ public class PlayerManager implements ParseCallback {
             setMediaItem();
         }, LOCAL_PROXY_RETRY_DELAY_MS);
         return true;
+    }
+
+    private boolean fallbackIjkToExo(PlaybackException e) {
+        if (playerType != PlayerSetting.IJK || ijkFallbackRetry || !hasCause(e, IjkMediaException.class)) return false;
+        if (spec == null || spec.getUrl() == null || engine == null) return false;
+        ijkFallbackRetry = true;
+        int decode = engine.getDecode();
+        SpiderDebug.log("player", "ijk fallback to exo spec=%s cause=%s", debugSpec(), causeChain(e));
+        App.removeCallbacks(runnable);
+        engine.release();
+        playerType = PlayerSetting.EXO;
+        engine = buildEngine(playerType, decode);
+        player = engine.getPlayer();
+        callback.onPlayerRebuild(player);
+        setMediaItemNow(Constant.TIMEOUT_PLAY, true);
+        return true;
+    }
+
+    private static boolean hasCause(Throwable error, Class<? extends Throwable> type) {
+        Throwable current = error;
+        int depth = 0;
+        while (current != null && depth++ < 8) {
+            if (type.isInstance(current)) return true;
+            current = current.getCause();
+        }
+        return false;
     }
 }
