@@ -9,6 +9,7 @@ import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.bean.TmdbPerson;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Path;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -468,19 +469,27 @@ public class TmdbService {
     }
 
     private JsonObject requestJson(String url, TmdbConfig config, String type, long ttl, String emptyMessage, String failurePrefix) throws Exception {
+        long start = System.currentTimeMillis();
         File file = cacheFile(type, url);
         JsonObject cached = readCache(file, ttl);
-        if (cached != null) return cached;
+        if (cached != null) {
+            SpiderDebug.log("tmdb", "requestJson type=%s source=cache cost=%dms", type, System.currentTimeMillis() - start);
+            return cached;
+        }
         try (Response response = execute(url, config)) {
             if (response.body() == null) throw new IllegalStateException(emptyMessage);
             if (!response.isSuccessful()) throw new IllegalStateException(failurePrefix + response.code());
             String body = response.body().string();
             JsonObject object = App.gson().fromJson(body, JsonObject.class);
             writeCache(file, body);
+            SpiderDebug.log("tmdb", "requestJson type=%s source=network cost=%dms", type, System.currentTimeMillis() - start);
             return object;
         } catch (Throwable e) {
             cached = readCache(file, Long.MAX_VALUE);
-            if (cached != null) return cached;
+            if (cached != null) {
+                SpiderDebug.log("tmdb", "requestJson type=%s source=stale-cache cost=%dms error=%s", type, System.currentTimeMillis() - start, e.getMessage());
+                return cached;
+            }
             throw e;
         }
     }

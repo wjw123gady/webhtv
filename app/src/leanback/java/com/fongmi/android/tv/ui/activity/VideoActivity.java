@@ -106,9 +106,14 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, ArrayAdapter.OnClickListener, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, Clock.Callback {
 
@@ -173,6 +178,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private boolean mPersonalDoubanLoading;
     private boolean mNativePersonalTmdbLoading;
     private boolean mNativePersonalDoubanLoading;
+    private final Map<String, java.util.List<String[]>> mTmdbOmdbRatingCache = Collections.synchronizedMap(new HashMap<>());
+    private final Set<String> mTmdbOmdbRatingLoading = Collections.synchronizedSet(new HashSet<>());
     private View mFocus2;
     private Result mPendingDetail;
     private Result mPendingPlayer;
@@ -818,6 +825,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     // TMDB 数据成功返回：揭开内容（仅一次）并应用 TMDB 字段（每次都应用）
     private void finishTmdbDetail() {
         revealTmdbDetail();
+        suppressTmdbNativeTextFields();
         if (mTmdbDetailFieldsApplied) return;
         mTmdbDetailFieldsApplied = true;
         applyTmdbDetailFields();
@@ -835,9 +843,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void applyTmdbDetailFields() {
         // 去掉集数、演员、导演；简介按钮默认隐藏（仅简介显示不全时再显示）
-        mBinding.remark.setVisibility(View.GONE);
-        mBinding.actor.setVisibility(View.GONE);
-        mBinding.director.setVisibility(View.GONE);
+        suppressTmdbNativeTextFields();
         mBinding.content.setVisibility(View.GONE);
         setTmdbRematchVisible(true);
 
@@ -898,6 +904,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (mTmdbDetailRevealed) return;
         SpiderDebug.log("tmdb-tv", "detail loading overlay timeout fallback");
         revealTmdbDetail();
+        suppressTmdbNativeTextFields();
         finishEpisodeLoading();
     }
 
@@ -1963,6 +1970,17 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (name) setPartAdapter();
         PlaybackEventCollector.get().updateHistory(mHistory);
         setText(item);
+        if (shouldUseTmdbLayout()) suppressTmdbNativeTextFields();
+    }
+
+    private boolean shouldUseTmdbLayout() {
+        return mTmdbUIAdapter != null && mTmdbUIAdapter.isReady();
+    }
+
+    private void suppressTmdbNativeTextFields() {
+        mBinding.remark.setVisibility(View.GONE);
+        mBinding.actor.setVisibility(View.GONE);
+        mBinding.director.setVisibility(View.GONE);
     }
 
     private void updateFlag(Flag activated, List<Flag> items) {
@@ -2486,40 +2504,62 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private void bindTmdbOmdbRatings() {
         View label = mBinding.getRoot().findViewById(R.id.tmdbOmdbRatingsLabel);
         ViewGroup container = mBinding.getRoot().findViewById(R.id.tmdbOmdbRatings);
-        if (label != null) label.setVisibility(View.GONE);
-        if (container != null) {
-            container.setVisibility(View.GONE);
-            container.removeAllViews();
+        if (container == null || mTmdbUIAdapter == null) {
+            hideTmdbRatingChips(label, container);
+            return;
         }
-        if (container == null || mTmdbUIAdapter == null) return;
 
         com.google.gson.JsonObject detail = mTmdbUIAdapter.getTmdbDetail();
         if (detail == null) {
+            hideTmdbRatingChips(label, container);
             SpiderDebug.log("tmdb-omdb", "跳过：detail 为空");
             return;
         }
 
         java.util.List<String[]> baseChips = buildTmdbRatingChips();
-        renderTmdbRatingChips(label, container, baseChips);
 
         com.google.gson.JsonObject externalIds = detail.has("external_ids") && !detail.get("external_ids").isJsonNull()
                 ? detail.getAsJsonObject("external_ids") : null;
         if (externalIds == null || !externalIds.has("imdb_id") || externalIds.get("imdb_id").isJsonNull()) {
+            renderTmdbRatingChips(label, container, baseChips);
             SpiderDebug.log("tmdb-omdb", "跳过：无 imdb_id，detail keys=%s", detail.keySet());
             return;
         }
         String imdbId = externalIds.get("imdb_id").getAsString();
-        if (TextUtils.isEmpty(imdbId)) return;
+        if (TextUtils.isEmpty(imdbId)) {
+            renderTmdbRatingChips(label, container, baseChips);
+            return;
+        }
 
         com.fongmi.android.tv.bean.TmdbConfig tmdbConfig = com.fongmi.android.tv.bean.TmdbConfig.objectFrom(Setting.getTmdbConfig());
         String omdbApiKey = tmdbConfig.getOmdbApiKey();
         if (TextUtils.isEmpty(omdbApiKey)) {
+            renderTmdbRatingChips(label, container, baseChips);
             SpiderDebug.log("tmdb-omdb", "跳过：未配置 OMDB API Key");
             return;
         }
 
+        String cacheKey = omdbRatingCacheKey(imdbId, omdbApiKey);
+        java.util.List<String[]> cached = mTmdbOmdbRatingCache.get(cacheKey);
+        if (cached != null) {
+            container.setTag(cacheKey);
+            renderTmdbRatingChips(label, container, cached);
+            return;
+        }
+        if (mTmdbOmdbRatingLoading.contains(cacheKey)) {
+            if (!cacheKey.equals(container.getTag())) {
+                container.setTag(cacheKey);
+                renderTmdbRatingChips(label, container, baseChips);
+            }
+            SpiderDebug.log("tmdb-omdb", "跳过：请求进行中 imdbId=%s", imdbId);
+            return;
+        }
+
+        container.setTag(cacheKey);
+        renderTmdbRatingChips(label, container, baseChips);
+        mTmdbOmdbRatingLoading.add(cacheKey);
         SpiderDebug.log("tmdb-omdb", "开始请求 imdbId=%s", imdbId);
-        fetchTmdbOmdbRatings(imdbId, omdbApiKey, label, container, baseChips);
+        fetchTmdbOmdbRatings(imdbId, omdbApiKey, cacheKey, label, container, baseChips);
     }
 
     private boolean shouldShowAutoTmdbMatchDialog(Vod item) {
@@ -2609,7 +2649,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return mTmdbUIAdapter == null ? name : mTmdbUIAdapter.cleanSearchQuery(name);
     }
 
-    private void fetchTmdbOmdbRatings(String imdbId, String omdbApiKey, View label, ViewGroup container, java.util.List<String[]> baseChips) {
+    private void fetchTmdbOmdbRatings(String imdbId, String omdbApiKey, String cacheKey, View label, ViewGroup container, java.util.List<String[]> baseChips) {
         Task.execute(() -> {
             try {
                 String url = "https://www.omdbapi.com/?i=" + imdbId + "&apikey=" + omdbApiKey;
@@ -2635,15 +2675,31 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 chips.addAll(buildOmdbRatingChips(jsonObj));
                 SpiderDebug.log("tmdb-omdb", "评分卡片数=%d", chips.size());
                 if (chips.isEmpty()) return;
+                mTmdbOmdbRatingCache.put(cacheKey, chips);
 
                 runOnUiThread(() -> {
                     if (isFinishing()) return;
+                    if (!cacheKey.equals(container.getTag())) return;
                     renderTmdbRatingChips(label, container, chips);
                 });
             } catch (Exception e) {
                 SpiderDebug.log("tmdb-omdb", "获取失败: %s", e.getMessage());
+            } finally {
+                mTmdbOmdbRatingLoading.remove(cacheKey);
             }
         });
+    }
+
+    private void hideTmdbRatingChips(View label, ViewGroup container) {
+        if (label != null) label.setVisibility(View.GONE);
+        if (container == null) return;
+        container.setVisibility(View.GONE);
+        container.setTag(null);
+        container.removeAllViews();
+    }
+
+    private String omdbRatingCacheKey(String imdbId, String omdbApiKey) {
+        return imdbId + "|" + omdbApiKey;
     }
 
     private void renderTmdbRatingChips(View label, ViewGroup container, java.util.List<String[]> chips) {

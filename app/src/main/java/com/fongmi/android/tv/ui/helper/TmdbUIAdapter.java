@@ -142,19 +142,27 @@ public class TmdbUIAdapter {
             return;
         }
         Task.execute(() -> {
+            long start = System.currentTimeMillis();
             if (!isCurrentGeneration(generation)) return;
             TmdbItem matched = getCachedMatch(vod);
-            if (matched != null) SpiderDebug.log("tmdb", "use cached match title=%s", matched.getTitle());
-            if (matched == null) matched = tmdbMatcher.searchAndMatch(videoName, vod);
+            if (matched != null) {
+                SpiderDebug.log("tmdb", "auto match cache hit title=%s cost=%dms", matched.getTitle(), System.currentTimeMillis() - start);
+            }
+            if (matched == null) {
+                long searchStart = System.currentTimeMillis();
+                matched = tmdbMatcher.searchAndMatch(videoName, vod);
+                SpiderDebug.log("tmdb", "auto match search cost=%dms hit=%s name=%s", System.currentTimeMillis() - searchStart, matched != null, videoName);
+            }
             if (!isCurrentGeneration(generation)) return;
             if (matched == null) {
-                SpiderDebug.log("tmdb", "auto match miss name=%s", videoName);
+                SpiderDebug.log("tmdb", "auto match miss name=%s total=%dms", videoName, System.currentTimeMillis() - start);
                 tmdbItem = null;
                 notifyLoadComplete(vod, generation);
                 return;
             }
             saveMatch(vod, matched);
             tmdbItem = matched;
+            SpiderDebug.log("tmdb", "auto match ready title=%s total=%dms", matched.getTitle(), System.currentTimeMillis() - start);
             loadDetailSync(vod, matched, generation);
         });
     }
@@ -205,9 +213,15 @@ public class TmdbUIAdapter {
     }
 
     private void loadDetailSync(Vod vod, TmdbItem item, int generation) {
+        long start = System.currentTimeMillis();
         try {
+            SpiderDebug.log("tmdb", "detail core start title=%s media=%s id=%d", item.getTitle(), item.getMediaType(), item.getTmdbId());
+            long detailStart = System.currentTimeMillis();
             JsonObject detail = tmdbService.detail(item, tmdbConfig, false);
+            SpiderDebug.log("tmdb", "detail core tmdbDetail cost=%dms title=%s", System.currentTimeMillis() - detailStart, item.getTitle());
+            long castStart = System.currentTimeMillis();
             List<TmdbPerson> cast = tmdbService.cast(detail, tmdbConfig);
+            SpiderDebug.log("tmdb", "detail core castParse cost=%dms count=%d title=%s", System.currentTimeMillis() - castStart, cast.size(), item.getTitle());
             if (!isCurrentGeneration(generation)) return;
             this.vod = vod;
             tmdbDetail = detail;
@@ -222,16 +236,19 @@ public class TmdbUIAdapter {
             personalDoubanRecommendations = personalDoubanPage.getItems();
             loaded = true;
             if (vod != null) {
+                long enrichStart = System.currentTimeMillis();
                 enrichVod(vod, item, detail);
+                SpiderDebug.log("tmdb", "detail core enrichVod cost=%dms title=%s", System.currentTimeMillis() - enrichStart, item.getTitle());
                 if (!isCurrentGeneration(generation)) return;
                 notifyVodChanged(vod, generation);
+                SpiderDebug.log("tmdb", "detail core first refresh queued cost=%dms title=%s", System.currentTimeMillis() - start, item.getTitle());
             }
             loadEpisodeTitlesAsync(vod, item, generation);
             loadRelatedRecommendationsAsync(vod, item, detail, generation);
             loadPersonalRecommendationsAsync(vod, item, detail, generation);
-            SpiderDebug.log("tmdb", "detail core loaded title=%s cast=%d", item.getTitle(), getCast().size());
+            SpiderDebug.log("tmdb", "detail core loaded title=%s cast=%d total=%dms", item.getTitle(), getCast().size(), System.currentTimeMillis() - start);
         } catch (Exception e) {
-            SpiderDebug.log("tmdb", "detail load failed: %s", e.getMessage());
+            SpiderDebug.log("tmdb", "detail load failed cost=%dms error=%s", System.currentTimeMillis() - start, e.getMessage());
             notifyLoadComplete(vod, generation);
         }
     }
@@ -246,7 +263,9 @@ public class TmdbUIAdapter {
     private void loadEpisodeTitlesAsync(Vod vod, TmdbItem item, int generation) {
         if (vod == null || item == null || !item.isTv()) return;
         Task.execute(() -> {
+            long start = System.currentTimeMillis();
             boolean changed = applyEpisodeTitles(vod, item);
+            SpiderDebug.log("tmdb", "episode titles async cost=%dms changed=%s title=%s", System.currentTimeMillis() - start, changed, item.getTitle());
             if (changed) notifyVodChanged(vod, generation);
         });
     }
@@ -255,11 +274,20 @@ public class TmdbUIAdapter {
         if (item == null || detail == null) return;
         recommendationLoading = true;
         Task.execute(() -> {
+            long start = System.currentTimeMillis();
             List<TmdbItem> ranked = new ArrayList<>();
             boolean more = false;
+            int recommendationCount = 0;
+            int similarCount = 0;
             try {
+                long recommendationsStart = System.currentTimeMillis();
                 List<TmdbItem> pageRecommendations = tmdbService.recommendations(item, tmdbConfig, 1);
+                SpiderDebug.log("tmdb", "related recommendations request cost=%dms count=%d title=%s", System.currentTimeMillis() - recommendationsStart, pageRecommendations.size(), item.getTitle());
+                long similarStart = System.currentTimeMillis();
                 List<TmdbItem> pageSimilar = tmdbService.similar(item, tmdbConfig, 1);
+                SpiderDebug.log("tmdb", "related similar request cost=%dms count=%d title=%s", System.currentTimeMillis() - similarStart, pageSimilar.size(), item.getTitle());
+                recommendationCount = pageRecommendations.size();
+                similarCount = pageSimilar.size();
                 ranked = PersonalRecommendationService.rankTmdbItemsForContext(detail, pageRecommendations, pageSimilar, Integer.MAX_VALUE);
                 more = !pageRecommendations.isEmpty() || !pageSimilar.isEmpty();
             } catch (Throwable e) {
@@ -267,6 +295,7 @@ public class TmdbUIAdapter {
             }
             List<TmdbItem> loadedItems = ranked;
             boolean hasMore = more;
+            SpiderDebug.log("tmdb", "related recommendations async cost=%dms recommendations=%d similar=%d ranked=%d title=%s", System.currentTimeMillis() - start, recommendationCount, similarCount, loadedItems.size(), item.getTitle());
             activity.runOnUiThread(() -> {
                 if (!isCurrentGeneration(generation)) return;
                 recommendationLoading = false;
@@ -282,6 +311,7 @@ public class TmdbUIAdapter {
         if (vod == null || !Setting.isPersonalRecommendation()) return;
         personalRefreshLoading = true;
         Task.execute(() -> {
+            long start = System.currentTimeMillis();
             PersonalRecommendationService.RecommendationPages pages = PersonalRecommendationService.RecommendationPages.empty();
             try {
                 PersonalRecommendationService service = new PersonalRecommendationService(tmdbService, tmdbConfig);
@@ -290,6 +320,7 @@ public class TmdbUIAdapter {
                 SpiderDebug.log("tmdb", "initial personal recommendations failed error=%s", e.getMessage());
             }
             PersonalRecommendationService.RecommendationPages loadedPages = pages;
+            SpiderDebug.log("tmdb", "personal recommendations async cost=%dms tmdb=%d douban=%d title=%s", System.currentTimeMillis() - start, loadedPages.getTmdb().getItems().size(), loadedPages.getDouban().getItems().size(), item == null ? "" : item.getTitle());
             activity.runOnUiThread(() -> {
                 if (!isCurrentGeneration(generation)) return;
                 personalRefreshLoading = false;
