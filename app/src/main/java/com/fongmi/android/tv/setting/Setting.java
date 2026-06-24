@@ -74,6 +74,30 @@ public class Setting {
         Prefers.put("hot", hot);
     }
 
+    public static String getHotTv() {
+        return Prefers.getString("hot_tv");
+    }
+
+    public static void putHotTv(String hot) {
+        Prefers.put("hot_tv", hot);
+    }
+
+    public static String getHotMovie() {
+        return Prefers.getString("hot_movie");
+    }
+
+    public static void putHotMovie(String hot) {
+        Prefers.put("hot_movie", hot);
+    }
+
+    public static String getHotVariety() {
+        return Prefers.getString("hot_variety");
+    }
+
+    public static void putHotVariety(String hot) {
+        Prefers.put("hot_variety", hot);
+    }
+
     public static String getUa() {
         return Prefers.getString("ua");
     }

@@ -78,6 +78,7 @@ public class PlayerManager implements ParseCallback {
 
     private boolean initTrack;
     private boolean exoFallbackTried;
+    private boolean realtimeFallbackTried;
     private boolean videoEffectsActive;
     private boolean videoEffectsDirty;
     private boolean lutAppliedForItem;
@@ -578,6 +579,7 @@ public class PlayerManager implements ParseCallback {
         this.spec = spec;
         retry = 0;
         exoFallbackTried = false;
+        realtimeFallbackTried = false;
         localProxyRetry = 0;
         resetPlayerFallback();
         currentDanmakuUrl = null;
@@ -589,6 +591,7 @@ public class PlayerManager implements ParseCallback {
         spec = PlaySpec.fromParse(result, key, metadata);
         retry = 0;
         exoFallbackTried = false;
+        realtimeFallbackTried = false;
         localProxyRetry = 0;
         resetPlayerFallback();
         currentDanmakuUrl = null;
@@ -1071,6 +1074,7 @@ public class PlayerManager implements ParseCallback {
             LocalProxyDebug.dumpIfLocalFailure(spec == null ? null : spec.getUrl(), e);
             if (retryLutFailure(e)) return;
             if (action == PlayerEngine.ErrorAction.FATAL && retryLocalProxy(e)) return;
+            if (action == PlayerEngine.ErrorAction.FATAL && retryRealtimeFallback(e)) return;
             if (action == PlayerEngine.ErrorAction.FATAL && retryExoFallback(e)) return;
             if (action == PlayerEngine.ErrorAction.RELOAD) {
                 callback.onReload(engine.getErrorMessage(e));
@@ -1094,6 +1098,7 @@ public class PlayerManager implements ParseCallback {
 
     private void onPlaybackTimeout() {
         PlaybackException e = new PlaybackException(ResUtil.getString(R.string.error_play_timeout), null, PlaybackException.ERROR_CODE_TIMEOUT);
+        if (retryRealtimeFallback("timeout")) return;
         if (retryExoFallback("timeout")) return;
         if (fallbackPlayer(e)) return;
         callback.onError(ResUtil.getString(R.string.error_play_timeout));
@@ -1127,6 +1132,33 @@ public class PlayerManager implements ParseCallback {
             setMediaItem();
         }, LOCAL_PROXY_RETRY_DELAY_MS);
         return true;
+    }
+
+    private boolean retryRealtimeFallback(PlaybackException e) {
+        if (!canFallbackRealtimeToIjk()) return false;
+        realtimeFallbackTried = true;
+        exoFallbackTried = true;
+        App.removeCallbacks(runnable);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "exo realtime fallback to ijk code=%d message=%s spec=%s cause=%s", e.errorCode, e.getMessage(), debugSpec(), causeChain(e));
+        switchPlayer(PlayerSetting.IJK, false);
+        return true;
+    }
+
+    private boolean retryRealtimeFallback(String reason) {
+        if (!canFallbackRealtimeToIjk()) return false;
+        realtimeFallbackTried = true;
+        exoFallbackTried = true;
+        App.removeCallbacks(runnable);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "exo realtime fallback to ijk reason=%s spec=%s", reason, debugSpec());
+        switchPlayer(PlayerSetting.IJK, false);
+        return true;
+    }
+
+    private boolean canFallbackRealtimeToIjk() {
+        if (playerType != PlayerSetting.EXO) return false;
+        if (realtimeFallbackTried || spec == null || TextUtils.isEmpty(spec.getUrl())) return false;
+        String scheme = spec.getUri().getScheme();
+        return "rtp".equalsIgnoreCase(scheme) || "udp".equalsIgnoreCase(scheme);
     }
 
     private boolean retryExoFallback(PlaybackException e) {

@@ -824,11 +824,15 @@
 
     <!-- Search -->
     <string name="search_keyword">Keywords…</string>
+    <string name="search_column">Search layout</string>
     <string name="site_search_hint">Search sites…</string>
     <string name="site_group_all">All</string>
     <string name="search_record">History</string>
     <string name="search_suggest">Suggest</string>
     <string name="search_hot">Hot</string>
+    <string name="search_hot_tv">TV</string>
+    <string name="search_hot_movie">Movie</string>
+    <string name="search_hot_variety">Variety</string>
 
     <!-- Dialog -->
     <string name="dialog_edit">Edit</string>

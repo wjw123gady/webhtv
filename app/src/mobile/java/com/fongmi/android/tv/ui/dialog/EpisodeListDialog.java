@@ -19,6 +19,7 @@ import androidx.core.view.WindowCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.Flag;
@@ -142,6 +143,12 @@ public class EpisodeListDialog extends AppCompatDialogFragment implements FlagAd
         binding.episode.addItemDecoration(episodeDecoration = new SpaceItemDecoration(episodeSpanCount, 8));
         binding.episode.setAdapter(episodeAdapter = new EpisodeAdapter(this, ViewType.GRID));
         episodeAdapter.setUseTmdbCard(tmdbCard);
+        binding.episode.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                syncEpisodeGroupByScroll();
+            }
+        });
     }
 
     private Flag getSelectedFlag() {
@@ -153,21 +160,14 @@ public class EpisodeListDialog extends AppCompatDialogFragment implements FlagAd
         if (flag == null) return;
         List<Episode> episodes = flag.getEpisodes();
         groupAdapter.addAll(EpisodeGroupAdapter.build(episodes.size(), getSelectedEpisodePosition(episodes), reverse));
-        EpisodeGroupAdapter.Group group = groupAdapter.isEmpty() ? null : groupAdapter.getItems().get(groupAdapter.getPosition());
-        setEpisodes(episodes, group);
+        setEpisodes(episodes);
         binding.group.scrollToPosition(groupAdapter.getPosition());
+        binding.episode.scrollToPosition(episodeAdapter.getPosition());
     }
 
-    private void setEpisodes(List<Episode> episodes, EpisodeGroupAdapter.Group group) {
-        if (group == null) {
-            setEpisodeItems(episodes);
-            return;
-        }
-        int start = Math.max(0, Math.min(group.start, episodes.size()));
-        int end = Math.max(start, Math.min(group.end, episodes.size()));
-        ArrayList<Episode> visible = new ArrayList<>(episodes.subList(start, end));
-        setEpisodeItems(visible);
-        binding.episode.scrollToPosition(episodeAdapter.getPosition());
+    private void setEpisodes(List<Episode> episodes) {
+        setEpisodeItems(episodes);
+        selectEpisodeGroupByPosition(episodeAdapter.getPosition());
     }
 
     private void setEpisodeItems(List<Episode> episodes) {
@@ -210,9 +210,44 @@ public class EpisodeListDialog extends AppCompatDialogFragment implements FlagAd
     @Override
     public void onItemClick(EpisodeGroupAdapter.Group item) {
         groupAdapter.setSelected(item);
-        Flag flag = getSelectedFlag();
-        if (flag != null) setEpisodes(flag.getEpisodes(), item);
+        scrollEpisodeToPosition(item.start);
         binding.group.scrollToPosition(groupAdapter.getPosition());
+    }
+
+    private void syncEpisodeGroupByScroll() {
+        RecyclerView.LayoutManager manager = binding.episode.getLayoutManager();
+        if (!(manager instanceof GridLayoutManager)) return;
+        int position = getEpisodeGroupSyncPosition((GridLayoutManager) manager);
+        if (position == RecyclerView.NO_POSITION) return;
+        selectEpisodeGroupByPosition(position);
+    }
+
+    private int getEpisodeGroupSyncPosition(GridLayoutManager manager) {
+        if (!binding.episode.canScrollVertically(1) && binding.episode.canScrollVertically(-1)) {
+            return manager.findLastVisibleItemPosition();
+        }
+        return manager.findFirstVisibleItemPosition();
+    }
+
+    private void selectEpisodeGroupByPosition(int position) {
+        if (groupAdapter == null || groupAdapter.isEmpty()) return;
+        int current = groupAdapter.getPosition();
+        List<EpisodeGroupAdapter.Group> groups = groupAdapter.getItems();
+        for (int i = 0; i < groups.size(); i++) {
+            EpisodeGroupAdapter.Group group = groups.get(i);
+            if (position < group.start || position >= group.end) continue;
+            if (i != current) {
+                groupAdapter.setSelected(group);
+                binding.group.scrollToPosition(i);
+            }
+            return;
+        }
+    }
+
+    private void scrollEpisodeToPosition(int position) {
+        RecyclerView.LayoutManager manager = binding.episode.getLayoutManager();
+        if (manager instanceof GridLayoutManager) ((GridLayoutManager) manager).scrollToPositionWithOffset(position, 0);
+        else binding.episode.scrollToPosition(position);
     }
 
     @Override

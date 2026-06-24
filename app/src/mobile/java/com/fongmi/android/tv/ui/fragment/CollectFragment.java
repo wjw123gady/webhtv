@@ -3,6 +3,7 @@ package com.fongmi.android.tv.ui.fragment;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -20,6 +21,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.LinearLayoutCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.view.MenuProvider;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.ViewModelProvider;
@@ -28,6 +30,7 @@ import androidx.viewbinding.ViewBinding;
 
 import com.google.android.material.textview.MaterialTextView;
 
+import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.bean.Collect;
 import com.fongmi.android.tv.bean.Result;
@@ -35,6 +38,7 @@ import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.databinding.FragmentCollectBinding;
 import com.fongmi.android.tv.model.SiteViewModel;
+import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.SiteHealthStore;
 import com.fongmi.android.tv.ui.activity.FolderActivity;
 import com.fongmi.android.tv.ui.activity.VideoActivity;
@@ -64,6 +68,7 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
     private final List<Collect> mAllCollectItems;
     private String mFilterGroup;
     private PopupWindow groupPopup;
+    private int collectWidth;
 
     public CollectFragment() {
         mAllCollectItems = new ArrayList<>();
@@ -147,10 +152,10 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
     @Override
     protected void initView() {
         mScroller = new CustomScroller(this);
-        setRecyclerView();
-        setViewModel();
         setSites();
         setWidth();
+        setRecyclerView();
+        setViewModel();
         search();
     }
 
@@ -171,7 +176,7 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
         mBinding.recycler.setHasFixedSize(true);
         mBinding.recycler.addOnScrollListener(mScroller);
         mBinding.recycler.setAdapter(mSearchAdapter = new SearchAdapter(this));
-        ((GridLayoutManager) (mBinding.recycler.getLayoutManager())).setSpanCount(getCount());
+        setResultLayout(false);
     }
 
     private void setViewModel() {
@@ -202,6 +207,7 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
         int contentWidth = width + space;
         int minWidth = ResUtil.dp2px(120);
         int finalWidth = Math.max(minWidth, Math.min(contentWidth, maxWidth));
+        collectWidth = finalWidth;
         ViewGroup.LayoutParams params = mBinding.collect.getLayoutParams();
         params.width = finalWidth;
         mBinding.collect.setLayoutParams(params);
@@ -216,9 +222,35 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
     }
 
     private int getCount() {
-        int count = ResUtil.isLand(requireActivity()) ? 2 : 1;
-        if (ResUtil.isPad()) count++;
-        return count;
+        int column = Setting.getSearchColumn();
+        if (column == 0) return (ResUtil.isPad() || ResUtil.isLand(requireActivity())) ? 2 : 1;
+        return Math.max(1, Math.min(column, 2));
+    }
+
+    private boolean isGrid() {
+        return getCount() == 2;
+    }
+
+    private int[] getGridSize() {
+        int span = getCount();
+        int space = ResUtil.dp2px(8 + 16 * span);
+        int width = (ResUtil.getScreenWidth(requireActivity()) - collectWidth - space) / span;
+        width = Math.max(ResUtil.dp2px(96), width);
+        return new int[]{width, (int) (width / 0.75f)};
+    }
+
+    private void setResultLayout(boolean scrollTop) {
+        setWidth();
+        int count = getCount();
+        ((GridLayoutManager) (mBinding.recycler.getLayoutManager())).setSpanCount(count);
+        mSearchAdapter.setGrid(isGrid(), getGridSize());
+        if (scrollTop) mBinding.recycler.scrollToPosition(0);
+    }
+
+    private void onColumnToggle() {
+        Setting.putSearchColumn(Setting.getSearchColumn() == 1 ? 2 : 1);
+        setResultLayout(true);
+        requireActivity().invalidateOptionsMenu();
     }
 
     private void setCollect(Result result) {
@@ -290,23 +322,34 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
 
     @Override
     public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
-        menuInflater.inflate(com.fongmi.android.tv.R.menu.menu_collect, menu);
+        menuInflater.inflate(R.menu.menu_collect, menu);
     }
 
     @Override
     public void onPrepareMenu(@NonNull Menu menu) {
-        MenuItem group = menu.findItem(com.fongmi.android.tv.R.id.action_group);
+        MenuItem group = menu.findItem(R.id.action_group);
         if (group != null) {
             group.setVisible(canFilterGroup());
-            group.setTitle(TextUtils.isEmpty(mFilterGroup) ? getString(com.fongmi.android.tv.R.string.search_scope_all) : mFilterGroup);
+            group.setTitle(TextUtils.isEmpty(mFilterGroup) ? getString(R.string.search_scope_all) : mFilterGroup);
         }
+        MenuItem item = menu.findItem(R.id.action_column);
+        if (item == null) return;
+        Drawable icon = ContextCompat.getDrawable(requireContext(), getCount() == 1 ? R.drawable.ic_site_double_column : R.drawable.ic_site_single_column);
+        if (icon == null) return;
+        icon = icon.mutate();
+        icon.setTint(Color.WHITE);
+        item.setIcon(icon);
     }
 
     @Override
     public boolean onMenuItemSelected(@NonNull MenuItem menuItem) {
         if (menuItem.getItemId() == android.R.id.home) requireActivity().getOnBackPressedDispatcher().onBackPressed();
-        if (menuItem.getItemId() == com.fongmi.android.tv.R.id.action_group) {
+        if (menuItem.getItemId() == R.id.action_group) {
             onGroupFilter();
+            return true;
+        }
+        if (menuItem.getItemId() == R.id.action_column) {
+            onColumnToggle();
             return true;
         }
         return true;

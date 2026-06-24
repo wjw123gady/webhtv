@@ -674,8 +674,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void setEpisodeBottomInset(int bottom) {
         mEpisodeBottomInset = bottom;
-        int padding = bottom + ResUtil.dp2px(12);
-        padding = Math.max(padding, ResUtil.dp2px(28));
+        int padding = ResUtil.dp2px(12);
         mBinding.episode.setPaddingRelative(mBinding.episode.getPaddingStart(), mBinding.episode.getPaddingTop(), mBinding.episode.getPaddingEnd(), padding);
         mBinding.episode.post(this::updateEpisodeViewportHeight);
     }
@@ -743,6 +742,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.episode.addItemDecoration(mEpisodeDecoration = new SpaceItemDecoration(mEpisodeSpanCount, 8));
         mBinding.episode.setAdapter(mEpisodeAdapter = new EpisodeAdapter(this, ViewType.GRID));
         installEpisodeLongPressFallback();
+        mBinding.episode.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                syncEpisodeGroupByScroll();
+            }
+        });
         mBinding.quality.setHasFixedSize(true);
         mBinding.quality.setItemAnimator(null);
         mBinding.quality.addItemDecoration(new SpaceItemDecoration(8));
@@ -1189,7 +1194,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     public void onItemClick(EpisodeGroupAdapter.Group item) {
         mEpisodeGroupAdapter.setSelected(item);
-        setVisibleEpisodeAdapter(getFlag().getEpisodes(), item);
+        scrollEpisodeToPosition(item.start);
         scrollToPosition(mBinding.episodeGroup, mEpisodeGroupAdapter.getPosition());
     }
 
@@ -1237,19 +1242,44 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         List<EpisodeGroupAdapter.Group> groups = EpisodeGroupAdapter.build(size, getSelectedEpisodePosition(items), mHistory != null && mHistory.isRevSort());
         mEpisodeGroupAdapter.addAll(groups);
         mBinding.episodeGroup.setVisibility(groups.size() > 1 ? View.VISIBLE : View.GONE);
-        setVisibleEpisodeAdapter(items, mEpisodeGroupAdapter.isEmpty() ? null : mEpisodeGroupAdapter.getItems().get(mEpisodeGroupAdapter.getPosition()));
+        setEpisodeItems(items);
         mBinding.episode.post(this::updateEpisodeViewportHeight);
     }
 
-    private void setVisibleEpisodeAdapter(List<Episode> items, EpisodeGroupAdapter.Group group) {
-        if (group == null) {
-            setEpisodeItems(items);
+    private void syncEpisodeGroupByScroll() {
+        RecyclerView.LayoutManager manager = mBinding.episode.getLayoutManager();
+        if (!(manager instanceof GridLayoutManager)) return;
+        int position = getEpisodeGroupSyncPosition((GridLayoutManager) manager);
+        if (position == RecyclerView.NO_POSITION) return;
+        selectEpisodeGroupByPosition(position);
+    }
+
+    private int getEpisodeGroupSyncPosition(GridLayoutManager manager) {
+        if (!mBinding.episode.canScrollVertically(1) && mBinding.episode.canScrollVertically(-1)) {
+            return manager.findLastVisibleItemPosition();
+        }
+        return manager.findFirstVisibleItemPosition();
+    }
+
+    private void selectEpisodeGroupByPosition(int position) {
+        if (mEpisodeGroupAdapter == null || mEpisodeGroupAdapter.isEmpty()) return;
+        int current = mEpisodeGroupAdapter.getPosition();
+        List<EpisodeGroupAdapter.Group> groups = mEpisodeGroupAdapter.getItems();
+        for (int i = 0; i < groups.size(); i++) {
+            EpisodeGroupAdapter.Group group = groups.get(i);
+            if (position < group.start || position >= group.end) continue;
+            if (i != current) {
+                mEpisodeGroupAdapter.setSelected(group);
+                mBinding.episodeGroup.scrollToPosition(i);
+            }
             return;
         }
-        int start = Math.max(0, Math.min(group.start, items.size()));
-        int end = Math.max(start, Math.min(group.end, items.size()));
-        ArrayList<Episode> visible = new ArrayList<>(items.subList(start, end));
-        setEpisodeItems(visible);
+    }
+
+    private void scrollEpisodeToPosition(int position) {
+        RecyclerView.LayoutManager manager = mBinding.episode.getLayoutManager();
+        if (manager instanceof GridLayoutManager) ((GridLayoutManager) manager).scrollToPositionWithOffset(position, 0);
+        else mBinding.episode.scrollToPosition(position);
     }
 
     private void setEpisodeItems(List<Episode> items) {
@@ -1259,6 +1289,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mEpisodeAdapter.setViewType(useTmdbCard && !mEpisodeGridMode ? ViewType.HORI : ViewType.GRID);
         updateEpisodeLayout(items);
         mEpisodeAdapter.addAll(items);
+        selectEpisodeGroupByPosition(mEpisodeAdapter.getPosition());
         updateEpisodeViewModeButton();
         mBinding.episode.post(this::updateEpisodeViewportHeight);
     }
@@ -3200,8 +3231,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             updateEpisodeLayout(mEpisodeAdapter.getItems());
             mEpisodeAdapter.notifyItemRangeChanged(0, mEpisodeAdapter.getItemCount());
         } else {
-            EpisodeGroupAdapter.Group group = mEpisodeGroupAdapter.isEmpty() ? null : mEpisodeGroupAdapter.getItems().get(mEpisodeGroupAdapter.getPosition());
-            setVisibleEpisodeAdapter(getFlag().getEpisodes(), group);
+            setEpisodeItems(getFlag().getEpisodes());
         }
         scrollToPosition(mBinding.episode, mEpisodeAdapter.getPosition());
         mBinding.episode.post(this::updateEpisodeViewportHeight);

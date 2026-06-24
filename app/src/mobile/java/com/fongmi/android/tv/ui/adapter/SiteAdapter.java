@@ -15,6 +15,7 @@ import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.databinding.AdapterSiteBinding;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.SiteHealthStore;
+import com.fongmi.android.tv.setting.SiteBlockSetting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,8 +27,10 @@ public class SiteAdapter extends RecyclerView.Adapter<SiteAdapter.ViewHolder> {
     private final List<Site> mAllItems;
     private final List<Site> mItems;
     private String group;
+    private String keyword = "";
     private boolean search;
     private boolean change;
+    private boolean block;
     private int column = 1;
 
     public SiteAdapter(OnClickListener listener) {
@@ -62,6 +65,13 @@ public class SiteAdapter extends RecyclerView.Adapter<SiteAdapter.ViewHolder> {
         return this;
     }
 
+    public SiteAdapter block(boolean block) {
+        if (this.block == block) return this;
+        this.block = block;
+        reload();
+        return this;
+    }
+
     public void column(int column) {
         int value = Math.max(1, column);
         if (this.column == value) return;
@@ -69,10 +79,15 @@ public class SiteAdapter extends RecyclerView.Adapter<SiteAdapter.ViewHolder> {
         notifyDataSetChanged();
     }
 
+    private void reload() {
+        mAllItems.clear();
+        addAll();
+    }
+
     private void addAll() {
-        for (Site site : VodConfig.get().getSites()) if (!site.isHide()) mAllItems.add(site);
+        mAllItems.addAll(SiteBlockSetting.filter(VodConfig.get().getSites(), block));
         if (Setting.isSiteHealthDialogSort()) SiteHealthStore.sortSites(mAllItems);
-        filter("", "");
+        filter(group, keyword);
     }
 
     public List<Site> getItems() {
@@ -90,13 +105,14 @@ public class SiteAdapter extends RecyclerView.Adapter<SiteAdapter.ViewHolder> {
 
     public void filter(String group, String keyword) {
         this.group = group;
+        this.keyword = keyword;
         String text = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
         String tag = group == null ? "" : group.trim();
         mItems.clear();
         for (Site site : mAllItems) {
             String name = site.getName();
             String key = site.getKey();
-            boolean matchGroup = TextUtils.isEmpty(tag) || name.contains(tag);
+            boolean matchGroup = site.inGroup(group);
             boolean matchName = !TextUtils.isEmpty(name) && name.toLowerCase(Locale.ROOT).contains(text);
             boolean matchKey = !TextUtils.isEmpty(key) && key.toLowerCase(Locale.ROOT).contains(text);
             boolean matchKeyword = TextUtils.isEmpty(text) || matchName || matchKey;
@@ -119,17 +135,20 @@ public class SiteAdapter extends RecyclerView.Adapter<SiteAdapter.ViewHolder> {
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Site item = mItems.get(position);
-        boolean on = !search || change;
+        boolean blocked = SiteBlockSetting.isBlocked(item);
+        boolean on = block || !search || change;
         boolean singleColumn = column == 1;
         holder.binding.text.setText(item.getName());
         holder.binding.health.setBackgroundTintList(ColorStateList.valueOf(SiteHealthStore.getColor(item)));
         holder.binding.text.setEnabled(on);
         holder.binding.text.setFocusable(false);
-        holder.binding.text.setSelected(on && item.isSelected());
+        holder.binding.text.setSelected(block ? blocked : on && item.isSelected());
+        holder.binding.text.setAlpha(block && blocked ? 0.55f : 1.0f);
+        holder.binding.health.setAlpha(block && blocked ? 0.55f : 1.0f);
         holder.binding.search.setImageResource(getSearchIcon(item));
         holder.binding.change.setImageResource(getChangeIcon(item));
-        holder.binding.search.setVisibility(search && singleColumn ? View.VISIBLE : View.GONE);
-        holder.binding.change.setVisibility(change && singleColumn ? View.VISIBLE : View.GONE);
+        holder.binding.search.setVisibility(!block && search && singleColumn ? View.VISIBLE : View.GONE);
+        holder.binding.change.setVisibility(!block && change && singleColumn ? View.VISIBLE : View.GONE);
         holder.binding.health.setVisibility(singleColumn ? View.VISIBLE : View.GONE);
         holder.binding.text.setOnClickListener(v -> listener.onTextClick(item));
         holder.binding.text.setOnLongClickListener(v -> {

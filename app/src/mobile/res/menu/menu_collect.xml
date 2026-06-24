@@ -8,4 +8,10 @@
         android:visible="false"
         app:showAsAction="always|withText" />
 
+    <item
+        android:id="@+id/action_column"
+        android:icon="@drawable/ic_site_double_column"
+        android:title="@string/search_column"
+        app:showAsAction="always" />
+
 </menu>
