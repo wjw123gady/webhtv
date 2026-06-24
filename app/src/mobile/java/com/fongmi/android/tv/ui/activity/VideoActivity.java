@@ -153,6 +153,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private static final int FUSION_PLAYER_SIDE_MARGIN_DP = 16;
     private static final int FUSION_PLAYER_HEIGHT_DP = 252;
     private static final int FUSION_PLAYER_BOTTOM_GAP_DP = 14;
+    private static final int EPISODE_CARD_HEIGHT_DP = 190;
+    private static final int EPISODE_CARD_VERTICAL_MARGIN_DP = 12;
 
     private ActivityVideoBinding mBinding;
     private ViewGroup.LayoutParams mFrameParams;
@@ -687,10 +689,19 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         int available = root[1] + mBinding.getRoot().getHeight() - mEpisodeBottomInset - ResUtil.dp2px(8) - episode[1];
         int limit = ResUtil.isPad() || ResUtil.isLand(this) ? ResUtil.dp2px(328) : ResUtil.dp2px(280);
         int height = Math.min(limit, available);
+        if (isTmdbEpisodeCardMode()) height = Math.max(height, getEpisodeCardMinHeight());
         if (height <= 0 || height == mEpisodeMaxHeight) return;
         mEpisodeMaxHeight = height;
         mBinding.episode.setMaxHeight(height);
         mBinding.episode.requestLayout();
+    }
+
+    private boolean isTmdbEpisodeCardMode() {
+        return mEpisodeAdapter != null && !mEpisodeAdapter.isEmpty() && shouldUseTmdbEpisodeCards(mEpisodeAdapter.getItems());
+    }
+
+    private int getEpisodeCardMinHeight() {
+        return ResUtil.dp2px(EPISODE_CARD_HEIGHT_DP + EPISODE_CARD_VERTICAL_MARGIN_DP);
     }
 
     private void setRecyclerView() {
@@ -1235,6 +1246,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         updateEpisodeLayout(items);
         mEpisodeAdapter.addAll(items);
         updateEpisodeViewModeButton();
+        mBinding.episode.post(this::updateEpisodeViewportHeight);
     }
 
     private void updateEpisodeLayout(List<Episode> items) {
