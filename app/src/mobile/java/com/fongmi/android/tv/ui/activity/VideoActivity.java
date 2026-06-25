@@ -1977,6 +1977,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (service() == null || isInPictureInPictureMode()) return;
         setOsdSuppressed(true);
         boolean shortDrama = isShortDramaSource();
+        hideWidgetOverlay();
         mBinding.control.danmaku.setVisibility(isLock() || !player().haveDanmaku() ? View.GONE : View.VISIBLE);
         mBinding.control.setting.setVisibility(mHistory == null || isFullscreen() ? View.GONE : View.VISIBLE);
         mBinding.control.right.getRoot().setVisibility(isFullscreen() ? View.VISIBLE : View.GONE);
@@ -2009,6 +2010,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void setOsdSuppressed(boolean suppressed) {
         if (mOsd != null) mOsd.setSuppressed(suppressed);
+    }
+
+    private void hideWidgetOverlay() {
+        mBinding.widget.seek.setVisibility(View.GONE);
+        mBinding.widget.speed.clearAnimation();
+        mBinding.widget.speed.setVisibility(View.GONE);
+        mBinding.widget.bright.setVisibility(View.GONE);
+        mBinding.widget.volume.setVisibility(View.GONE);
     }
 
     private void hideSheet() {
