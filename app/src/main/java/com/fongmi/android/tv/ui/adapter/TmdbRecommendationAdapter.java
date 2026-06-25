@@ -152,13 +152,12 @@ public class TmdbRecommendationAdapter extends RecyclerView.Adapter<TmdbRecommen
         void bind(TmdbItem item, OnItemClickListener listener, OnItemLongClickListener longClickListener, OnItemFocusListener focusListener, boolean cinema, boolean light) {
             TmdbCinemaTheme.Palette palette = TmdbCinemaTheme.palette(light);
             title.setText(item.getTitle());
-            title.setTextColor(0xFFFFFFFF);
             if (subtitle != null) {
                 String value = recommendationSubtitle(item.getSubtitle());
                 subtitle.setText(value);
-                subtitle.setTextColor(0xB3FFFFFF);
                 subtitle.setVisibility(value.isEmpty() ? View.GONE : View.VISIBLE);
             }
+            styleTextSurface(cinema, light);
 
             String image = cinema && item.getBackdropUrl() != null && !item.getBackdropUrl().isEmpty() ? item.getBackdropUrl() : item.getPosterUrl();
             ImgUtil.load(item.getTitle(), image, poster, true, cinema ? 552 : 300, cinema ? 312 : 450);
@@ -166,7 +165,7 @@ public class TmdbRecommendationAdapter extends RecyclerView.Adapter<TmdbRecommen
             double vote = item.getRating();
             if (vote > 0) {
                 rating.setText(String.format(Locale.US, "★ %.1f", vote));
-                rating.setTextColor(cinema ? 0xFFFFFFFF : 0xFFF5C518);
+                rating.setTextColor(cinema ? 0xFFFFFFFF : 0xFFFFD35C);
                 rating.setVisibility(View.VISIBLE);
             } else {
                 rating.setVisibility(View.GONE);
@@ -193,6 +192,26 @@ public class TmdbRecommendationAdapter extends RecyclerView.Adapter<TmdbRecommen
             } else if (!(itemView instanceof MaterialCardView)) {
                 itemView.setOnFocusChangeListener(null);
             }
+        }
+
+        private void styleTextSurface(boolean cinema, boolean light) {
+            if (cinema) {
+                title.setTextColor(0xFFFFFFFF);
+                clearShadow(title);
+                if (subtitle != null) {
+                    subtitle.setTextColor(0xB3FFFFFF);
+                    clearShadow(subtitle);
+                }
+                return;
+            }
+
+            title.setTextColor(0xFFFFFFFF);
+            title.setShadowLayer(2f, 0, 1f, 0xB0000000);
+            if (rating != null) rating.setShadowLayer(2f, 0, 1f, 0xB0000000);
+        }
+
+        private void clearShadow(TextView view) {
+            if (view != null) view.setShadowLayer(0, 0, 0, 0);
         }
 
         private String recommendationSubtitle(String subtitle) {

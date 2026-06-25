@@ -753,9 +753,11 @@ public class TmdbHeaderView {
      * 创建评分 Chip
      */
     private com.google.android.material.textview.MaterialTextView createRatingChip(String platform, String value, String color) {
+        boolean fusion = Setting.isFusionDetailPage();
+        boolean lightChrome = isLightDetailChrome() || (fusion && !isDarkDetailTheme());
         com.google.android.material.textview.MaterialTextView chip = new com.google.android.material.textview.MaterialTextView(activity);
         chip.setText(platform + " ★ " + value);
-        chip.setTextColor(android.graphics.Color.parseColor(color));
+        chip.setTextColor(resolveRatingChipTextColor(color, fusion && lightChrome));
         chip.setTextSize(15);
         chip.setTypeface(null, android.graphics.Typeface.BOLD);
         chip.setSingleLine(true);
@@ -766,10 +768,11 @@ public class TmdbHeaderView {
 
         // 设置圆角背景
         android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
-        background.setColor(isLightDetailChrome() ? 0xD9FFFFFF : 0x30FFFFFF);
+        background.setColor(fusion ? (lightChrome ? 0xDDEAF0F5 : 0xB314171C) : lightChrome ? 0xD9FFFFFF : 0x30FFFFFF);
         background.setCornerRadius(ResUtil.dp2px(6));  // 圆角
-        background.setStroke(ResUtil.dp2px(1), isLightDetailChrome() ? 0x33424B57 : 0x24FFFFFF);
+        background.setStroke(ResUtil.dp2px(1), lightChrome ? 0x55FFFFFF : 0x33FFFFFF);
         chip.setBackground(background);
+        if (fusion && !lightChrome) applyFusionTextShadow(chip);
 
         com.google.android.flexbox.FlexboxLayout.LayoutParams params =
                 new com.google.android.flexbox.FlexboxLayout.LayoutParams(
@@ -779,6 +782,14 @@ public class TmdbHeaderView {
         params.setMargins(0, 0, ResUtil.dp2px(8), ResUtil.dp2px(8));
         chip.setLayoutParams(params);
         return chip;
+    }
+
+    private int resolveRatingChipTextColor(String color, boolean useLightSurface) {
+        if (!useLightSurface) return android.graphics.Color.parseColor(color);
+        if ("#21D07A".equalsIgnoreCase(color) || "#00B51D".equalsIgnoreCase(color)) return 0xFF0F7A4A;
+        if ("#F5C518".equalsIgnoreCase(color) || "#FFCC33".equalsIgnoreCase(color)) return 0xFF8A5A00;
+        if ("#FA320A".equalsIgnoreCase(color)) return 0xFFB42318;
+        return android.graphics.Color.parseColor(color);
     }
 
     private void fetchRatingChipsForDisplay(String imdbId, String omdbApiKey, String cacheKey, String displayKey, ViewGroup container) {
@@ -1244,6 +1255,7 @@ public class TmdbHeaderView {
         TextView powered = findPoweredBy();
         if (powered != null) powered.setTextColor(watermark);
         clearBackdropTextShadows();
+        clearFusionActionStyling();
         tintActions(style);
     }
 
@@ -1254,7 +1266,6 @@ public class TmdbHeaderView {
         setVisibility(R.id.tmdbOverview, View.GONE);
         updateFusionRatingsVisibility();
         moveActionsForFusion();
-        styleFusionActions();
 
         boolean cinema = style == Setting.DETAIL_STYLE_CINEMA;
         boolean light = cinema ? TmdbCinemaTheme.resolveLight(Setting.getTmdbDetailTheme(), isSystemNight()) : !isDarkDetailTheme();
@@ -1276,6 +1287,7 @@ public class TmdbHeaderView {
             crewAdapter.setLight(light);
         }
         setRecommendationCinema(cinemaRows, light);
+        styleFusionActions();
 
         MaterialCardView card = headerRoot.findViewById(R.id.tmdbFusionInfoCard);
         if (card != null) {
@@ -1364,7 +1376,18 @@ public class TmdbHeaderView {
             row.removeView(rematch);
             row.addView(rematch, 1, params);
         }
+        if (row != null) {
+            row.setBackground(null);
+            row.setPadding(0, 0, 0, 0);
+        }
         if (rematch != null) rematch.setText("重新匹配");
+    }
+
+    private void clearFusionActionStyling() {
+        ViewGroup row = headerRoot.findViewById(R.id.tmdbActions);
+        if (row == null) return;
+        row.setBackground(null);
+        row.setPadding(0, 0, 0, 0);
     }
 
     private void styleFusionPlaybackControls(int panel, int line, int textColor) {
@@ -1421,13 +1444,58 @@ public class TmdbHeaderView {
     }
 
     private void styleFusionBackdropLabels(boolean dark) {
-        for (int id : BACKDROP_SECTION_LABELS) styleFusionBackdropText(id, COLOR_FUSION_BACKDROP_TEXT, true);
+        for (int id : BACKDROP_SECTION_LABELS) styleFusionSectionLabel(id, dark);
+    }
+
+    private void styleFusionSectionLabel(int id, boolean dark) {
+        TextView view = headerRoot.findViewById(id);
+        if (view == null) return;
+        view.setTextColor(dark ? COLOR_FUSION_BACKDROP_TEXT : 0xFF12202D);
+        if (dark) applyFusionTextShadow(view);
+        else clearTextShadow(view);
+        android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
+        background.setColor(dark ? 0x6610141A : 0xDDEAF0F5);
+        background.setCornerRadius(ResUtil.dp2px(12));
+        background.setStroke(ResUtil.dp2px(1), dark ? 0x33FFFFFF : 0x55FFFFFF);
+        view.setBackground(background);
+        view.setPadding(ResUtil.dp2px(9), ResUtil.dp2px(3), ResUtil.dp2px(9), ResUtil.dp2px(3));
     }
 
     private void styleFusionExternalLinks(boolean dark) {
         ViewGroup container = headerRoot.findViewById(R.id.tmdbExternalLinks);
         if (container == null) return;
-        for (int i = 0; i < container.getChildCount(); i++) styleFusionExternalLink(container.getChildAt(i), dark);
+        boolean surfaceDark = true;
+        styleFusionExternalLinksPanel(container, surfaceDark);
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View child = container.getChildAt(i);
+            styleFusionExternalLinkRow(child, surfaceDark);
+            styleFusionExternalLink(child, surfaceDark);
+        }
+    }
+
+    private void styleFusionExternalLinksPanel(ViewGroup container, boolean dark) {
+        android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
+        background.setColor(dark ? 0x7310141A : 0x99EAF0F5);
+        background.setCornerRadius(ResUtil.dp2px(14));
+        background.setStroke(ResUtil.dp2px(1), dark ? 0x33FFFFFF : 0x66FFFFFF);
+        container.setBackground(background);
+        container.setPadding(ResUtil.dp2px(6), ResUtil.dp2px(4), ResUtil.dp2px(6), ResUtil.dp2px(4));
+    }
+
+    private void styleFusionExternalLinkRow(View view, boolean dark) {
+        if (!(view instanceof ViewGroup)) return;
+        int horizontal = ResUtil.dp2px(10);
+        int vertical = ResUtil.dp2px(9);
+        view.setPadding(horizontal, vertical, horizontal, vertical);
+
+        android.graphics.drawable.GradientDrawable content = new android.graphics.drawable.GradientDrawable();
+        content.setColor(0x00000000);
+        content.setCornerRadius(ResUtil.dp2px(10));
+        view.setBackground(new android.graphics.drawable.RippleDrawable(
+                ColorStateList.valueOf(dark ? 0x33FFFFFF : 0x1A12202D),
+                content,
+                null
+        ));
     }
 
     private void styleFusionExternalLink(View view, boolean dark) {
@@ -1499,10 +1567,26 @@ public class TmdbHeaderView {
     }
 
     private void clearBackdropTextShadows() {
-        for (int id : BACKDROP_SECTION_LABELS) clearTextShadow(id);
+        for (int id : BACKDROP_SECTION_LABELS) clearFusionSectionLabel(id);
         clearTextShadow(findPoweredBy());
         ViewGroup container = headerRoot.findViewById(R.id.tmdbExternalLinks);
-        if (container != null) clearFusionExternalLinkStyling(container);
+        if (container != null) {
+            clearFusionExternalLinksPanel(container);
+            clearFusionExternalLinkStyling(container);
+        }
+    }
+
+    private void clearFusionExternalLinksPanel(ViewGroup container) {
+        container.setBackground(null);
+        container.setPadding(0, 0, 0, 0);
+    }
+
+    private void clearFusionSectionLabel(int id) {
+        TextView view = headerRoot.findViewById(id);
+        if (view == null) return;
+        clearTextShadow(view);
+        view.setBackground(null);
+        view.setPadding(0, 0, 0, 0);
     }
 
     private void clearFusionExternalLinkStyling(View view) {
@@ -1581,6 +1665,13 @@ public class TmdbHeaderView {
     private void tintAction(int id, int style) {
         MaterialButton button = headerRoot.findViewById(id);
         if (button == null) return;
+        if (Setting.isFusionDetailPage()) {
+            boolean dark = style == Setting.DETAIL_STYLE_CINEMA;
+            button.setTextColor(0xFFFFFFFF);
+            button.setStrokeColor(ColorStateList.valueOf(dark ? 0x66FFFFFF : 0x55FFFFFF));
+            button.setBackgroundTintList(ColorStateList.valueOf(dark ? 0xB314171C : 0xCC2B3036));
+            return;
+        }
         if (style == Setting.DETAIL_STYLE_NATIVE) {
             button.setTextColor(ContextCompat.getColor(activity, R.color.tmdb_action_button_text));
             button.setStrokeColor(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.tmdb_action_button_stroke)));
@@ -1840,18 +1931,25 @@ public class TmdbHeaderView {
      */
     private com.google.android.material.textview.MaterialTextView addExternalLink(ViewGroup container, String name, String url, String rating) {
         // 创建链接项布局
-        boolean lightChrome = isLightDetailChrome();
+        boolean fusion = Setting.isFusionDetailPage();
+        boolean lightChrome = isLightDetailChrome() || (fusion && !isDarkDetailTheme());
         androidx.appcompat.widget.LinearLayoutCompat linkItem = new androidx.appcompat.widget.LinearLayoutCompat(activity);
         linkItem.setOrientation(androidx.appcompat.widget.LinearLayoutCompat.HORIZONTAL);
         linkItem.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        linkItem.setPadding(0, 12, 0, 12);
+        int horizontalPadding = fusion ? ResUtil.dp2px(12) : 0;
+        int verticalPadding = fusion ? ResUtil.dp2px(9) : 12;
+        linkItem.setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
         linkItem.setClickable(true);
         linkItem.setFocusable(true);
         android.graphics.drawable.GradientDrawable contentBackground = null;
-        if (lightChrome) {
+        if (fusion) {
+            contentBackground = new android.graphics.drawable.GradientDrawable();
+            contentBackground.setColor(0x00000000);
+            contentBackground.setCornerRadius(ResUtil.dp2px(10));
+        } else if (lightChrome) {
             contentBackground = new android.graphics.drawable.GradientDrawable();
             contentBackground.setColor(0x40FFFFFF);
-            contentBackground.setCornerRadius(ResUtil.dp2px(10));
+            contentBackground.setCornerRadius(ResUtil.dp2px(12));
         }
         android.graphics.drawable.Drawable background = new android.graphics.drawable.RippleDrawable(
                 android.content.res.ColorStateList.valueOf(lightChrome ? 0x1A12202D : 0x33FFFFFF),
