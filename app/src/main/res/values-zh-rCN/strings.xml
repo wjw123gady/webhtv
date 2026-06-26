@@ -142,6 +142,7 @@
     <string name="setting_play_back_to_detail">播放返回详情</string>
     <string name="setting_home_history">首页最近观看</string>
     <string name="setting_personal_recommendation">个性推荐</string>
+    <string name="setting_tmdb_episode_file_size">TMDB 剧集保留文件大小</string>
     <string name="setting_auto_skip_intro_outro">自动跳过片头片尾</string>
     <string name="personal_recommendation_confirm_title">启用个性推荐</string>
     <string name="personal_recommendation_confirm_message">个性推荐会读取本机观看历史中的影片名称，并可能将当前影片名和历史影片名作为搜索关键词发送到 TMDB 或豆瓣，用于生成相关作品列表。\n\n不会发送播放地址、账号信息、站源配置或播放进度。你可以随时关闭此功能。</string>
@@ -1094,7 +1095,7 @@
     <string name="detail_tmdb_need_key">请先配置 TMDB 数据</string>
     <string name="detail_tmdb_empty">暂无 TMDB 数据</string>
     <string name="detail_tmdb_match_title">匹配 TMDB 条目</string>
-    <string name="detail_tmdb_rematch">TMDB 匹配</string>
+    <string name="detail_tmdb_rematch">TMDB</string>
     <string name="detail_tmdb_match_saved">已记录 TMDB 匹配</string>
     <string name="detail_tmdb_searching">正在搜索 TMDB...</string>
     <string name="detail_tmdb_search_hint">搜索标题</string>

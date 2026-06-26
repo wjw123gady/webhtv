@@ -16,6 +16,7 @@ import com.fongmi.android.tv.service.AiRecommendationService;
 import com.fongmi.android.tv.service.PersonalRecommendationService;
 import com.fongmi.android.tv.service.TmdbService;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.utils.EpisodeTitleFormatter;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Task;
 import com.fongmi.android.tv.utils.TmdbImageSelector;
@@ -535,8 +536,10 @@ public class TmdbUIAdapter {
                     if (tmdbEp != null) {
                         if (episode.getTmdbEpisode() == null) changed = true;
                         episode.setTmdbEpisode(tmdbEp);
-                        if (!tmdbEp.getTitle().isEmpty() && !episode.getDisplayName().contains(tmdbEp.getTitle())) {
-                            episode.setDisplayName(episode.getNumber() + ". " + tmdbEp.getTitle());
+                        if (!tmdbEp.getTitle().isEmpty()) {
+                            String displayName = EpisodeTitleFormatter.withSourceFileSize(episode.getName(), EpisodeTitleFormatter.formatTmdbTitle(episode.getNumber(), tmdbEp.getTitle()), Setting.isTmdbEpisodeFileSize());
+                            if (TextUtils.equals(episode.getDisplayName(), displayName)) continue;
+                            episode.setDisplayName(displayName);
                             changed = true;
                         }
                     }

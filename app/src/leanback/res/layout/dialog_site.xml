@@ -79,7 +79,7 @@
             android:paddingTop="0dp"
             android:paddingEnd="8dp"
             android:paddingBottom="4dp"
-            app:maxHeight="344dp"
+            app:maxHeight="360dp"
             tools:itemCount="5"
             tools:listitem="@layout/adapter_site" />
 

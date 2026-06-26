@@ -58,6 +58,7 @@ public class SettingPersonalActivity extends BaseActivity {
         mBinding.tmdbMatchMode.setOnClickListener(this::setTmdbMatchMode);
         mBinding.personalRecommendation.setOnClickListener(this::setPersonalRecommendation);
         mBinding.homeHistory.setOnClickListener(this::setHomeHistory);
+        mBinding.tmdbEpisodeFileSize.setOnClickListener(this::setTmdbEpisodeFileSize);
         mBinding.searchThread.setOnClickListener(this::setSearchThread);
         // mBinding.searchUi.setOnClickListener(this::setSearchUi); // 暂不支持横向/纵向布局切换
         // mBinding.searchColumn.setOnClickListener(this::setSearchColumn); // 在搜索页面切换更方便
@@ -73,6 +74,7 @@ public class SettingPersonalActivity extends BaseActivity {
         mBinding.tmdbMatchModeText.setText((tmdbMatchMode = getResources().getStringArray(R.array.select_tmdb_match_mode))[Setting.getTmdbMatchMode()]);
         mBinding.personalRecommendationText.setText(getSwitch(Setting.isPersonalRecommendation()));
         mBinding.homeHistoryText.setText(getSwitch(Setting.isHomeHistory()));
+        mBinding.tmdbEpisodeFileSizeText.setText(getSwitch(Setting.isTmdbEpisodeFileSize()));
         mBinding.searchThreadText.setText(String.valueOf(Setting.getSearchThread()));
         // mBinding.searchUiText.setText((searchUi = getResources().getStringArray(R.array.select_search_ui))[Setting.getSearchUi()]); // 暂不支持
         // mBinding.searchColumnText.setText(getSearchColumnText()); // 在搜索页面切换更方便
@@ -140,6 +142,11 @@ public class SettingPersonalActivity extends BaseActivity {
     private void setHomeHistory(View view) {
         Setting.putHomeHistory(!Setting.isHomeHistory());
         RefreshEvent.history();
+        setText();
+    }
+
+    private void setTmdbEpisodeFileSize(View view) {
+        Setting.putTmdbEpisodeFileSize(!Setting.isTmdbEpisodeFileSize());
         setText();
     }
 

@@ -1314,12 +1314,12 @@ public class TmdbHeaderView {
         }
         setTextColor(R.id.tmdbFusionTitle, primary);
         setTextColor(R.id.tmdbFusionSubtitle, secondary);
-        setTextColor(R.id.tmdbFusionSource, muted);
         setTextColor(R.id.tmdbFusionOverview, body);
         styleFusionBackdropLabels(dark);
         styleFusionExternalLinks(dark);
         styleFusionMetaChips(dark);
         styleFusionPlaybackControls(panel, line, primary);
+        setTextColor(R.id.tmdbFusionSource, muted);
         styleFusionSpacing();
         TextView powered = findPoweredBy();
         if (powered != null) styleFusionBackdropText(powered, COLOR_FUSION_BACKDROP_WATERMARK);

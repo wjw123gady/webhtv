@@ -49,6 +49,7 @@ public class SettingPersonalFragment extends BaseFragment {
         mBinding.autoSkipIntroOutro.setOnClickListener(this::setAutoSkipIntroOutro);
         mBinding.tmdbMatchMode.setOnClickListener(this::setTmdbMatchMode);
         mBinding.personalRecommendation.setOnClickListener(this::setPersonalRecommendation);
+        mBinding.tmdbEpisodeFileSize.setOnClickListener(this::setTmdbEpisodeFileSize);
         mBinding.searchUi.setOnClickListener(this::setSearchUi);
         mBinding.searchColumn.setOnClickListener(this::setSearchColumn);
         mBinding.siteColumn.setOnClickListener(this::setSiteColumn);
@@ -60,6 +61,7 @@ public class SettingPersonalFragment extends BaseFragment {
         mBinding.autoSkipIntroOutroText.setText(getSwitch(Setting.isAutoSkipIntroOutro()));
         mBinding.tmdbMatchModeText.setText((tmdbMatchMode = getResources().getStringArray(R.array.select_tmdb_match_mode))[Setting.getTmdbMatchMode()]);
         mBinding.personalRecommendationText.setText(getSwitch(Setting.isPersonalRecommendation()));
+        mBinding.tmdbEpisodeFileSizeText.setText(getSwitch(Setting.isTmdbEpisodeFileSize()));
         mBinding.searchUiText.setText((searchUi = getResources().getStringArray(R.array.select_search_ui))[Setting.getSearchUi()]);
         mBinding.searchColumnText.setText(getSearchColumnText());
         mBinding.siteColumnText.setText((siteColumn = getResources().getStringArray(R.array.select_site_column))[Setting.getSiteColumn() - 1]);
@@ -112,6 +114,11 @@ public class SettingPersonalFragment extends BaseFragment {
                     setText();
                 })
                 .show();
+    }
+
+    private void setTmdbEpisodeFileSize(View view) {
+        Setting.putTmdbEpisodeFileSize(!Setting.isTmdbEpisodeFileSize());
+        setText();
     }
 
     private void setSearchUi(View view) {

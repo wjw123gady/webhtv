@@ -13,6 +13,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.databinding.AdapterTmdbEpisodeBinding;
+import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.utils.EpisodeTitleFormatter;
 import com.fongmi.android.tv.utils.ImgUtil;
 import com.fongmi.android.tv.utils.Util;
 
@@ -209,9 +211,11 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
     }
 
     public static String formatTitle(String label, String sourceName, String tmdbTitle) {
-        if (TextUtils.isEmpty(tmdbTitle)) return label;
-        if (TextUtils.equals(label, tmdbTitle) || TextUtils.equals(sourceName, tmdbTitle)) return label;
-        return label + ". " + tmdbTitle;
+        String title = label;
+        if (!TextUtils.isEmpty(tmdbTitle) && !TextUtils.equals(label, tmdbTitle) && !TextUtils.equals(sourceName, tmdbTitle)) {
+            title = label + ". " + tmdbTitle;
+        }
+        return EpisodeTitleFormatter.withSourceFileSize(sourceName, title, Setting.isTmdbEpisodeFileSize());
     }
 
     private int episodeNumber(Episode episode, int position) {

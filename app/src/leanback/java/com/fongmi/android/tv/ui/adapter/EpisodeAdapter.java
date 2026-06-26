@@ -17,6 +17,8 @@ import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.databinding.AdapterEpisodeBinding;
 import com.fongmi.android.tv.databinding.AdapterEpisodeCardBinding;
+import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.utils.EpisodeTitleFormatter;
 import com.fongmi.android.tv.utils.ImgUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 
@@ -167,6 +169,10 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
     }
 
     public static String getTitle(Episode item) {
+        if (item.getTmdbEpisode() != null) {
+            String title = EpisodeTitleFormatter.formatTmdbTitle(item.getTmdbEpisode().getNumber(), item.getTmdbEpisode().getTitle());
+            if (!title.isEmpty()) return item.getDesc().concat(EpisodeTitleFormatter.withSourceFileSize(item.getName(), title, Setting.isTmdbEpisodeFileSize()));
+        }
         return item.getDesc().concat(item.getDisplayName());
     }
 
@@ -254,7 +260,7 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
         binding.cardContainer.setForeground(binding.cardContainer.getContext().getDrawable(R.drawable.selector_episode_card));
 
         // 加载剧照
-        String cardTitle = getCardTitle(tmdbEpisode);
+        String cardTitle = getCardTitle(item, tmdbEpisode);
         if (!tmdbEpisode.getStillUrl().isEmpty()) {
             loadStill(binding, tmdbEpisode.getStillUrl());
         } else {
@@ -372,8 +378,10 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
         return result.equals(url) ? url.replaceFirst("/(w\\d+|h\\d+|original)/", "/" + size + "/") : result;
     }
 
-    private String getCardTitle(TmdbEpisode tmdbEpisode) {
-        return tmdbEpisode.getTitle().isEmpty() ? tmdbEpisode.getDisplayTitle() : tmdbEpisode.getNumber() + ". " + tmdbEpisode.getTitle();
+    private String getCardTitle(Episode item, TmdbEpisode tmdbEpisode) {
+        String title = EpisodeTitleFormatter.formatTmdbTitle(tmdbEpisode.getNumber(), tmdbEpisode.getTitle());
+        if (title.isEmpty()) title = tmdbEpisode.getDisplayTitle();
+        return EpisodeTitleFormatter.withSourceFileSize(item.getName(), title, Setting.isTmdbEpisodeFileSize());
     }
 
     private boolean isTopEdge(int position) {

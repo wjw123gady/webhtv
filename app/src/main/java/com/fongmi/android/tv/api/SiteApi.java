@@ -13,6 +13,7 @@ import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.player.Source;
+import com.fongmi.android.tv.utils.PushParser;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Sniffer;
 import com.fongmi.android.tv.web.WebHomeInlineVodStore;
@@ -114,11 +115,12 @@ public class SiteApi {
         SpiderDebug.log("detail", "key=%s,id=%s", key, id);
         if (WebHomeInlineVodStore.KEY.equals(key)) return WebHomeInlineVodStore.detail(id);
         Site site = VodConfig.get().getSite(key);
+        PushParser.Parsed push = PUSH.equals(key) ? PushParser.fromId(id) : null;
         if (site.isEmpty() && PUSH.equals(key)) {
             Vod vod = new Vod();
             vod.setId(id);
-            vod.setName(id);
-            vod.setPlayUrl(id);
+            vod.setName(push.getName());
+            vod.setPlayUrl(push.getUrl());
             vod.setPlayFrom(ResUtil.getString(R.string.push));
             vod.setPic(ResUtil.getString(R.string.push_image));
             Source.get().parse(vod.setFlags());
@@ -128,7 +130,7 @@ public class SiteApi {
             SpiderDebug.log("detail", detailContent);
             Result result = Result.fromJson(detailContent);
             Source.get().parse(result.getVod().setFlags());
-            return result;
+            return applyPushTitle(push, result);
         } else {
             ArrayMap<String, String> params = new ArrayMap<>();
             params.put("ac", ac(site.getType()));
@@ -137,8 +139,14 @@ public class SiteApi {
             SpiderDebug.log("detail", detailContent);
             Result result = Result.fromType(site.getType(), detailContent);
             Source.get().parse(result.getVod().setFlags());
-            return result;
+            return applyPushTitle(push, result);
         }
+    }
+
+    private static Result applyPushTitle(PushParser.Parsed push, Result result) {
+        if (push == null || TextUtils.isEmpty(push.getTitle()) || result.getList().isEmpty()) return result;
+        result.getVod().setName(push.getTitle());
+        return result;
     }
 
     @NonNull

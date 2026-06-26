@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
@@ -30,6 +31,7 @@ import com.fongmi.android.tv.ui.dialog.TmdbSourceDialog;
 import com.fongmi.android.tv.ui.dialog.CustomCspDialog;
 import com.fongmi.android.tv.ui.dialog.DebugLogDialog;
 import com.fongmi.android.tv.ui.dialog.GitCloudDialog;
+import com.fongmi.android.tv.ui.dialog.LightDialog;
 import com.fongmi.android.tv.ui.dialog.LoginStateLearnDialog;
 import com.fongmi.android.tv.ui.dialog.ManagePageDialog;
 import com.fongmi.android.tv.ui.dialog.OneKeySyncDialog;
@@ -227,7 +229,7 @@ public class SettingEnhanceActivity extends BaseActivity {
     }
 
     private void setDetailOpenMode(View view) {
-        new MaterialAlertDialogBuilder(this).setTitle(R.string.setting_detail_open_mode).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(getDetailOpenModes(), getDetailOpenModeIndex(), (dialog, which) -> {
+        AlertDialog alert = new MaterialAlertDialogBuilder(this, R.style.Theme_WebHTV_LightDialog).setTitle(R.string.setting_detail_open_mode).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(getDetailOpenModes(), getDetailOpenModeIndex(), (dialog, which) -> {
             int mode = DETAIL_OPEN_MODES[which];
             if (Setting.isTmdbMode(mode) && !Setting.isTmdbReady()) {
                 dialog.dismiss();
@@ -242,6 +244,7 @@ public class SettingEnhanceActivity extends BaseActivity {
             setText();
             dialog.dismiss();
         }).show();
+        LightDialog.apply(alert);
     }
 
     private int getDetailOpenModeIndex() {
@@ -252,11 +255,12 @@ public class SettingEnhanceActivity extends BaseActivity {
 
     private void setDetailThemeMode(View view) {
         if (!Setting.isTmdbMode(Setting.getDetailOpenMode())) return;
-        new MaterialAlertDialogBuilder(this).setTitle(R.string.setting_detail_theme_mode).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(getDetailThemeModes(), getDetailThemeModeIndex(), (dialog, which) -> {
+        AlertDialog alert = new MaterialAlertDialogBuilder(this, R.style.Theme_WebHTV_LightDialog).setTitle(R.string.setting_detail_theme_mode).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(getDetailThemeModes(), getDetailThemeModeIndex(), (dialog, which) -> {
             Setting.putTmdbDetailStyle(DETAIL_THEME_MODES[which]);
             setText();
             dialog.dismiss();
         }).show();
+        LightDialog.apply(alert);
     }
 
     private int getDetailThemeModeIndex() {

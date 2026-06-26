@@ -1097,7 +1097,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         infoParams.setMarginStart(ResUtil.dp2px(14));
         binding.detailInfo.setLayoutParams(infoParams);
         setWidthMatch(binding.detailActions);
-        setWidthMatch(binding.flagTitle);
+        setWidthMatch(binding.flagHeader);
         setWidthMatch(binding.flagScroll);
         binding.title.setTextSize(28f);
         binding.overview.setTextSize(13f);
@@ -1137,7 +1137,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         infoParams.setMarginStart(0);
         binding.detailInfo.setLayoutParams(infoParams);
         setWidthPx(binding.detailActions, topWidth);
-        setWidthMatch(binding.flagTitle);
+        setWidthMatch(binding.flagHeader);
         setWidthMatch(binding.flagScroll);
         binding.title.setTextSize(compact ? 38f : 44f);
         binding.subtitle.setTextSize(compact ? 13f : 14f);
@@ -2127,9 +2127,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         addMetaChip(firstCountry());
         addMetaChip(firstCrew("Director"));
         addMetaChip(certificationLabel());
-        String rating = ratingLabel();
-        if (!TextUtils.isEmpty(rating)) addMetaChip(rating);
-        addMetaChip(externalIdLabel());
     }
 
     private void bindRatings() {
@@ -2332,7 +2329,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void bindSource() {
         boolean hasFlags = vod != null && vod.getFlags() != null && !vod.getFlags().isEmpty();
-        binding.flagTitle.setVisibility(hasFlags ? View.VISIBLE : View.GONE);
+        binding.flagHeader.setVisibility(hasFlags ? View.VISIBLE : View.GONE);
         binding.flagScroll.setVisibility(hasFlags ? View.VISIBLE : View.GONE);
     }
 
@@ -3332,8 +3329,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         int number = episodeNumberForHistory(episode);
         String label = number > 0 ? String.valueOf(number) : episode.getDisplayName();
         String title = tmdbEpisodeTitle(number);
-        if (TextUtils.isEmpty(title) || title.equals(label) || title.equals(episode.getName())) return label;
-        return label + ". " + title;
+        return TmdbEpisodeAdapter.formatTitle(label, episode.getName(), title);
     }
 
     private String tmdbEpisodeTitle(int number) {
@@ -6569,14 +6565,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (TextUtils.isEmpty(language)) return "";
         int separator = language.indexOf('-');
         return separator >= 0 && separator + 1 < language.length() ? language.substring(separator + 1).toUpperCase(Locale.ROOT) : "";
-    }
-
-    private String externalIdLabel() {
-        JsonObject ids = object(matchedTmdbDetail, "external_ids");
-        String imdb = string(ids, "imdb_id");
-        if (!TextUtils.isEmpty(imdb)) return "IMDB " + imdb;
-        String tvdb = string(ids, "tvdb_id");
-        return TextUtils.isEmpty(tvdb) ? "" : "TVDB " + tvdb;
     }
 
     private String getMediaTypeLabel() {

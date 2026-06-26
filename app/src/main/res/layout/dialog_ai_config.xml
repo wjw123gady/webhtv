@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:background="@color/white">
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
@@ -14,79 +16,76 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/dialog_ai_enable"
-            android:textSize="15sp" />
+            android:textColor="#202124"
+            android:textSize="15sp"
+            app:thumbTint="@color/dialog_switch_thumb"
+            app:trackTint="@color/dialog_switch_track" />
 
         <com.google.android.material.textview.MaterialTextView
+            style="@style/Widget.WebHTV.LightDialog.Label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="14dp"
             android:paddingBottom="8dp"
-            android:text="@string/dialog_ai_protocol_label"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:text="@string/dialog_ai_protocol_label" />
 
         <androidx.appcompat.widget.AppCompatAutoCompleteTextView
+            style="@style/Widget.WebHTV.LightDialog.Input"
             android:id="@+id/protocol"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:drawable/editbox_background"
             android:dropDownHeight="240dp"
             android:inputType="none"
             android:maxLines="1"
+            android:popupBackground="@color/white"
             android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textSize="14sp" />
+            android:paddingEnd="12dp" />
 
         <com.google.android.material.textview.MaterialTextView
+            style="@style/Widget.WebHTV.LightDialog.Label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="14dp"
             android:paddingBottom="8dp"
-            android:text="@string/dialog_ai_endpoint_label"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:text="@string/dialog_ai_endpoint_label" />
 
         <com.google.android.material.textfield.TextInputEditText
+            style="@style/Widget.WebHTV.LightDialog.Input"
             android:id="@+id/endpoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:drawable/editbox_background"
             android:hint="@string/dialog_ai_endpoint_hint"
             android:inputType="textUri"
             android:maxLines="1"
             android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textSize="14sp" />
+            android:paddingEnd="12dp" />
 
         <com.google.android.material.textview.MaterialTextView
+            style="@style/Widget.WebHTV.LightDialog.Label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="14dp"
             android:paddingBottom="8dp"
-            android:text="@string/dialog_ai_api_key_label"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:text="@string/dialog_ai_api_key_label" />
 
         <com.google.android.material.textfield.TextInputEditText
+            style="@style/Widget.WebHTV.LightDialog.Input"
             android:id="@+id/apiKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:drawable/editbox_background"
             android:hint="@string/dialog_ai_api_key_hint"
             android:inputType="textVisiblePassword"
             android:maxLines="1"
             android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textSize="14sp" />
+            android:paddingEnd="12dp" />
 
         <com.google.android.material.textview.MaterialTextView
+            style="@style/Widget.WebHTV.LightDialog.Label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="14dp"
             android:paddingBottom="8dp"
-            android:text="@string/dialog_ai_model_label"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:text="@string/dialog_ai_model_label" />
 
         <androidx.appcompat.widget.LinearLayoutCompat
             android:layout_width="match_parent"
@@ -95,22 +94,22 @@
             android:orientation="horizontal">
 
             <androidx.appcompat.widget.AppCompatAutoCompleteTextView
+                style="@style/Widget.WebHTV.LightDialog.Input"
                 android:id="@+id/model"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="@android:drawable/editbox_background"
                 android:dropDownHeight="280dp"
                 android:hint="@string/dialog_ai_model_hint"
                 android:inputType="text"
                 android:maxLines="1"
+                android:popupBackground="@color/white"
                 android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:textSize="14sp" />
+                android:paddingEnd="12dp" />
 
             <com.google.android.material.button.MaterialButton
+                style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                 android:id="@+id/fetchModels"
-                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
@@ -121,29 +120,27 @@
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <com.google.android.material.textview.MaterialTextView
+            style="@style/Widget.WebHTV.LightDialog.Label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="14dp"
             android:paddingBottom="8dp"
-            android:text="@string/dialog_ai_user_agent_label"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:text="@string/dialog_ai_user_agent_label" />
 
         <com.google.android.material.textfield.TextInputEditText
+            style="@style/Widget.WebHTV.LightDialog.Input"
             android:id="@+id/userAgent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:drawable/editbox_background"
             android:hint="@string/dialog_ai_user_agent_hint"
             android:inputType="text"
             android:maxLines="1"
             android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textSize="14sp" />
+            android:paddingEnd="12dp" />
 
         <com.google.android.material.button.MaterialButton
+            style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
             android:id="@+id/prompt"
-            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -151,8 +148,8 @@
             android:textAllCaps="false" />
 
         <com.google.android.material.button.MaterialButton
+            style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
             android:id="@+id/test"
-            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"

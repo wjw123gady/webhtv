@@ -138,6 +138,7 @@
     <string name="setting_search_thread">搜尋線程</string>
     <string name="setting_personal">個性設定</string>
     <string name="setting_personal_recommendation">個性推薦</string>
+    <string name="setting_tmdb_episode_file_size">TMDB 劇集保留檔案大小</string>
     <string name="setting_auto_skip_intro_outro">自動跳過片頭片尾</string>
     <string name="personal_recommendation_confirm_title">啟用個性推薦</string>
     <string name="personal_recommendation_confirm_message">個性推薦會讀取本機觀看歷史中的影片名稱，並可能將當前影片名和歷史影片名作為搜尋關鍵詞發送到 TMDB 或豆瓣，用於生成相關作品列表。\n\n不會發送播放地址、帳號資訊、站源配置或播放進度。你可以隨時關閉此功能。</string>
@@ -1022,7 +1023,7 @@
     <string name="detail_tmdb_need_key">請先配置 TMDB 數據</string>
     <string name="detail_tmdb_empty">暫無 TMDB 數據</string>
     <string name="detail_tmdb_match_title">匹配 TMDB 條目</string>
-    <string name="detail_tmdb_rematch">TMDB 匹配</string>
+    <string name="detail_tmdb_rematch">TMDB</string>
     <string name="detail_tmdb_match_saved">已記錄 TMDB 匹配</string>
     <string name="detail_tmdb_searching">正在搜尋 TMDB...</string>
     <string name="detail_tmdb_search_hint">搜尋標題</string>

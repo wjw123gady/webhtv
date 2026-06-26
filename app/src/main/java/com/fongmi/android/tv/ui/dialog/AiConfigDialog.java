@@ -1,5 +1,6 @@
 package com.fongmi.android.tv.ui.dialog;
 
+import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -33,6 +34,7 @@ public class AiConfigDialog {
     };
 
     private final FragmentActivity activity;
+    private Context dialogContext;
     private Runnable onDismiss;
     private AiConfig config;
 
@@ -58,7 +60,9 @@ public class AiConfigDialog {
     }
 
     public void show() {
-        View view = LayoutInflater.from(activity).inflate(R.layout.dialog_ai_config, null);
+        MaterialAlertDialogBuilder builder = builder();
+        dialogContext = builder.getContext();
+        View view = LayoutInflater.from(dialogContext).inflate(R.layout.dialog_ai_config, null);
         enabled = view.findViewById(R.id.enabled);
         protocol = view.findViewById(R.id.protocol);
         endpoint = view.findViewById(R.id.endpoint);
@@ -83,20 +87,26 @@ public class AiConfigDialog {
         fetchModels.setOnClickListener(v -> fetchModels(fetchModels));
         test.setOnClickListener(v -> testConfig(test));
 
-        new MaterialAlertDialogBuilder(activity)
+        AlertDialog dialog = builder
                 .setTitle(R.string.setting_ai_recommendation)
                 .setView(view)
                 .setPositiveButton(R.string.dialog_positive, (d, w) -> onSave())
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setOnDismissListener(d -> { if (onDismiss != null) onDismiss.run(); })
                 .show();
+        LightDialog.apply(dialog);
+    }
+
+    private MaterialAlertDialogBuilder builder() {
+        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
     }
 
     private void showPromptConfig() {
-        View view = LayoutInflater.from(activity).inflate(R.layout.dialog_ai_prompt_config, null);
+        MaterialAlertDialogBuilder builder = builder();
+        View view = LayoutInflater.from(builder.getContext()).inflate(R.layout.dialog_ai_prompt_config, null);
         TextInputEditText recommendPrompt = view.findViewById(R.id.recommendPrompt);
         recommendPrompt.setText(config.getRecommendPrompt());
-        AlertDialog dialog = new MaterialAlertDialogBuilder(activity)
+        AlertDialog dialog = builder
                 .setTitle(R.string.dialog_ai_prompt_config)
                 .setView(view)
                 .setPositiveButton(R.string.dialog_positive, null)
@@ -114,10 +124,11 @@ public class AiConfigDialog {
             });
         });
         dialog.show();
+        LightDialog.apply(dialog);
     }
 
     private void setupProtocolDropdown() {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(activity, android.R.layout.simple_dropdown_item_1line, protocolLabels());
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(adapterContext(), android.R.layout.simple_dropdown_item_1line, protocolLabels());
         protocol.setAdapter(adapter);
         protocol.setThreshold(0);
         protocol.setOnClickListener(v -> protocol.showDropDown());
@@ -137,7 +148,7 @@ public class AiConfigDialog {
     private void setupModelDropdown(List<AiRecommendationService.ModelInfo> models) {
         List<String> values = new ArrayList<>();
         for (AiRecommendationService.ModelInfo item : models) if (!item.getId().isEmpty()) values.add(item.getId());
-        model.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_dropdown_item_1line, values));
+        model.setAdapter(new ArrayAdapter<>(adapterContext(), android.R.layout.simple_dropdown_item_1line, values));
         model.setThreshold(0);
         model.setOnClickListener(v -> {
             if (model.getAdapter() != null && model.getAdapter().getCount() > 0) model.showDropDown();
@@ -221,6 +232,10 @@ public class AiConfigDialog {
             if (PROTOCOL_VALUES[i].equals(value)) return labels[i];
         }
         return labels.length > 0 ? labels[0] : AiConfig.PROTOCOL_OPENAI_RESPONSES;
+    }
+
+    private Context adapterContext() {
+        return dialogContext == null ? activity : dialogContext;
     }
 
     private static String text(TextView input) {

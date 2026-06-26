@@ -144,6 +144,7 @@
     <string name="setting_play_back_to_detail">Return playback to detail</string>
     <string name="setting_home_history">Home recent history</string>
     <string name="setting_personal_recommendation">Personal recommendations</string>
+    <string name="setting_tmdb_episode_file_size">Keep file size in TMDB episodes</string>
     <string name="setting_auto_skip_intro_outro">Auto skip intro/outro</string>
     <string name="personal_recommendation_confirm_title">Enable personal recommendations</string>
     <string name="personal_recommendation_confirm_message">Personal recommendations read movie and show titles from local viewing history, and may send the current title and history titles to TMDB or Douban as search keywords to build related lists.\n\nPlayback URLs, account information, source configuration, and playback progress are not sent. You can turn this off at any time.</string>

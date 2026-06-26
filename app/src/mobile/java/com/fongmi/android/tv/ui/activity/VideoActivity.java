@@ -125,8 +125,10 @@ import com.fongmi.android.tv.utils.AudioUtil;
 import com.fongmi.android.tv.utils.Clock;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.ImgUtil;
+import com.fongmi.android.tv.utils.EpisodeTitleFormatter;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PiP;
+import com.fongmi.android.tv.utils.PushParser;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Sniffer;
 import com.fongmi.android.tv.utils.Task;
@@ -159,6 +161,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private static final String EXTRA_TMDB_PLAY_FLAG = "tmdb_play_flag";
     private static final String EXTRA_TMDB_PLAY_EPISODE_NAME = "tmdb_play_episode_name";
     private static final String EXTRA_TMDB_PLAY_EPISODE_URL = "tmdb_play_episode_url";
+    private static final int TMDB_TABLET_PLAYER_MIN_WIDTH_DP = 440;
+    private static final int TMDB_TABLET_PLAYER_MAX_WIDTH_DP = 640;
+    private static final int TMDB_TABLET_PLAYER_SIDE_MARGIN_DP = 24;
+    private static final int TMDB_TABLET_PLAYER_GUTTER_DP = 16;
+    private static final int TMDB_TABLET_PLAYER_TOP_MARGIN_DP = 16;
+    private static final int TMDB_TABLET_SUMMARY_MIN_WIDTH_DP = 280;
 
     private ActivityVideoBinding mBinding;
     private ViewGroup.LayoutParams mFrameParams;
@@ -225,6 +233,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private boolean mTmdbControlsMoved = false;
     private boolean mTmdbAutoDialogShown = false;
     private boolean mFusionChromeApplied = false;
+    private boolean mTmdbTabletLayoutApplied = false;
     private MaterialButton mFusionThemeButton;
     private View mFusionPlayerBottomSpacer;
     private int mTmdbDialogGeneration;
@@ -232,6 +241,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private final List<TmdbMovedView> mTmdbMovedViews = new ArrayList<>();
     private boolean pendingLutImport;
     private boolean skipPausePiP;
+    private RelativeLayout.LayoutParams mDefaultFrameParams;
 
     private final ActivityResultLauncher<Intent> mLutDir = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
@@ -267,14 +277,20 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     });
 
     public static void push(FragmentActivity activity, String text) {
-        if (FileChooser.isValid(activity, Uri.parse(text))) file(activity, FileChooser.getPathFromUri(Uri.parse(text)));
-        else start(activity, Sniffer.getUrl(text));
+        PushParser.Parsed push = PushParser.fromText(text);
+        Uri uri = Uri.parse(push.getUrl());
+        if (FileChooser.isValid(activity, uri)) file(activity, FileChooser.getPathFromUri(uri), push.getTitle());
+        else startPush(activity, push);
     }
 
     public static void file(FragmentActivity activity, String path) {
+        file(activity, path, "");
+    }
+
+    private static void file(FragmentActivity activity, String path, String title) {
         if (TextUtils.isEmpty(path)) return;
-        String name = new File(path).getName();
-        start(activity, SiteApi.PUSH, "file://" + path, name);
+        PushParser.Parsed push = PushParser.of("file://" + path, TextUtils.isEmpty(title) ? new File(path).getName() : title);
+        start(activity, SiteApi.PUSH, push.getId(), push.getName());
     }
 
     public static void cast(Activity activity, History history) {
@@ -290,7 +306,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private static boolean canOpenLegacyTmdbDetail(String key) {
-        return !TextUtils.isEmpty(key) && !SiteApi.PUSH.equals(key) && !AudioUtil.isAudioSiteEnabled(key) && !isShortDramaSiteEnabled(key) && isTmdbSiteEnabled(key);
+        if (TextUtils.isEmpty(key)) return false;
+        if (SiteApi.PUSH.equals(key)) return isTmdbSiteEnabled(key);
+        return !AudioUtil.isAudioSiteEnabled(key) && !isShortDramaSiteEnabled(key) && isTmdbSiteEnabled(key);
     }
 
     private static boolean isTmdbSiteEnabled(String key) {
@@ -309,12 +327,20 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     public static void start(Activity activity, String url) {
-        if (dispatchToContentHandler(activity, url)) return;
-        start(activity, SiteApi.PUSH, url, url);
+        startPush(activity, PushParser.fromText(url));
+    }
+
+    private static void startPush(Activity activity, PushParser.Parsed push) {
+        if (dispatchToContentHandler(activity, push.getUrl(), push.getTitle())) return;
+        start(activity, SiteApi.PUSH, push.getId(), push.getName());
     }
 
     private static boolean dispatchToContentHandler(Activity activity, String url) {
-        return com.fongmi.android.tv.content.ContentDispatcher.dispatchUrl(activity, url, "");
+        return dispatchToContentHandler(activity, url, "");
+    }
+
+    private static boolean dispatchToContentHandler(Activity activity, String url, String title) {
+        return com.fongmi.android.tv.content.ContentDispatcher.dispatchUrl(activity, url, title);
     }
 
     public static void start(Activity activity, String key, String id, String name) {
@@ -608,6 +634,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mKeyDown = CustomKeyDown.create(this, mBinding.exo);
         mFrameParams = mBinding.video.getLayoutParams();
         mFrameHeight = mFrameParams.height;
+        if (mFrameParams instanceof RelativeLayout.LayoutParams params) mDefaultFrameParams = new RelativeLayout.LayoutParams(params);
         mBinding.swipeLayout.setEnabled(false);
         mObserveDetail = this::setDetail;
         mObservePlayer = this::setPlayer;
@@ -1011,11 +1038,13 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (tmdbMode) {
             hideTmdbHeader();
             setNativeDetailInfoVisible(false);
+            applyTmdbTabletVideoLayoutIfNeeded();
             mBinding.quick.setVisibility(View.GONE);
             mBinding.search.setVisibility(View.GONE);
             if (mBinding.videoShadow != null) mBinding.videoShadow.setVisibility(View.GONE);
             mBinding.progressLayout.showProgress();
         } else {
+            restoreDefaultVideoLayout();
             restoreFlagAndEpisodeFromTmdb();
             setNativeDetailInfoVisible(true);
             mBinding.search.setVisibility(View.VISIBLE);
@@ -1071,6 +1100,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         // 基于 TMDB 开关和配置是否就绪
         boolean tmdbMode = shouldUseTmdbDetailLayout();
         if (!tmdbMode) {
+            restoreDefaultVideoLayout();
             setNativeDetailInfoVisible(true);
             setText(mBinding.director, R.string.detail_director, item.getDirector());
             setText(mBinding.actor, R.string.detail_actor, item.getActor());
@@ -1078,9 +1108,92 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             setOther(mBinding.other, item);
             setText(mBinding.content, 0, item.getContent());
         } else {
-            setNativeDetailInfoVisible(false);
+            applyTmdbTabletVideoLayoutIfNeeded();
+            bindTmdbTabletTopSummary(item);
         }
         applyFusionNativeTextColors();
+    }
+
+    private boolean shouldUseTmdbTabletWideLayout() {
+        return canUseTmdbTabletWideLayout() && !isFullscreen() && !isInPictureInPictureMode();
+    }
+
+    private boolean canUseTmdbTabletWideLayout() {
+        return isLand() && ResUtil.isPad() && shouldUseTmdbDetailLayout() && !Setting.isFusionDetailPage() && mDefaultFrameParams != null;
+    }
+
+    private void applyTmdbTabletVideoLayoutIfNeeded() {
+        if (!canUseTmdbTabletWideLayout()) {
+            restoreDefaultVideoLayout();
+            return;
+        }
+        if (isFullscreen() || isInPictureInPictureMode()) return;
+        int side = ResUtil.dp2px(TMDB_TABLET_PLAYER_SIDE_MARGIN_DP);
+        int gutter = ResUtil.dp2px(TMDB_TABLET_PLAYER_GUTTER_DP);
+        int minPlayerWidth = ResUtil.dp2px(TMDB_TABLET_PLAYER_MIN_WIDTH_DP);
+        int maxPlayerWidth = ResUtil.dp2px(TMDB_TABLET_PLAYER_MAX_WIDTH_DP);
+        int minSummaryWidth = ResUtil.dp2px(TMDB_TABLET_SUMMARY_MIN_WIDTH_DP);
+        int screenWidth = ResUtil.getScreenWidth(this);
+        int available = screenWidth - side * 2 - gutter;
+        if (available < minPlayerWidth + minSummaryWidth) {
+            restoreDefaultVideoLayout();
+            return;
+        }
+        int playerWidth = Math.min(maxPlayerWidth, Math.round(screenWidth * 0.48f));
+        playerWidth = Math.max(minPlayerWidth, Math.min(playerWidth, available - minSummaryWidth));
+        int playerHeight = playerWidth * 9 / 16;
+
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(playerWidth, playerHeight);
+        params.addRule(RelativeLayout.BELOW, R.id.statusBar);
+        params.setMargins(side, ResUtil.dp2px(TMDB_TABLET_PLAYER_TOP_MARGIN_DP), gutter, 0);
+        mFrameParams = params;
+        mFrameHeight = playerHeight;
+        mTmdbTabletLayoutApplied = true;
+        mBinding.video.setLayoutParams(params);
+    }
+
+    private void restoreDefaultVideoLayout() {
+        if (!mTmdbTabletLayoutApplied || mFusionChromeApplied || mDefaultFrameParams == null) return;
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mDefaultFrameParams);
+        if (sameFrameParams(mFrameParams, params)) {
+            mTmdbTabletLayoutApplied = false;
+            return;
+        }
+        mFrameParams = params;
+        mFrameHeight = params.height;
+        mTmdbTabletLayoutApplied = false;
+        if (isFullscreen() || isInPictureInPictureMode()) return;
+        mBinding.video.setLayoutParams(params);
+    }
+
+    private boolean sameFrameParams(ViewGroup.LayoutParams current, RelativeLayout.LayoutParams target) {
+        if (!(current instanceof RelativeLayout.LayoutParams params)) return false;
+        return params.width == target.width
+                && params.height == target.height
+                && params.leftMargin == target.leftMargin
+                && params.topMargin == target.topMargin
+                && params.rightMargin == target.rightMargin
+                && params.bottomMargin == target.bottomMargin;
+    }
+
+    private void bindTmdbTabletTopSummary(Vod item) {
+        if (!shouldUseTmdbDetailLayout()) return;
+        setNativeDetailInfoVisible(false);
+        if (!shouldUseTmdbTabletWideLayout()) return;
+        setPlainText(mBinding.name, item.getName());
+        setPlainText(mBinding.remark, item.getRemarks());
+        setPlainText(mBinding.site, getString(R.string.detail_site, getSite().getName()));
+        setOther(mBinding.other, item);
+        mBinding.director.setVisibility(View.GONE);
+        mBinding.actor.setVisibility(View.GONE);
+        mBinding.contentLayout.setVisibility(View.GONE);
+        mBinding.actionRow.setVisibility(View.GONE);
+    }
+
+    private void setPlainText(TextView view, String text) {
+        String value = Objects.toString(text, "");
+        view.setText(value);
+        view.setVisibility(value.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private void setNativeDetailInfoVisible(boolean visible) {
@@ -1141,8 +1254,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         for (Flag flag : vod.getFlags()) {
             for (Episode episode : flag.getEpisodes()) {
                 String title = titles.get(episode.getNumber());
-                if (android.text.TextUtils.isEmpty(title) || episode.getDisplayName().contains(title)) continue;
-                episode.setDisplayName(episode.getNumber() + ". " + title);
+                if (android.text.TextUtils.isEmpty(title)) continue;
+                String displayName = EpisodeTitleFormatter.withSourceFileSize(episode.getName(), EpisodeTitleFormatter.formatTmdbTitle(episode.getNumber(), title), Setting.isTmdbEpisodeFileSize());
+                if (android.text.TextUtils.equals(episode.getDisplayName(), displayName)) continue;
+                episode.setDisplayName(displayName);
                 android.util.Log.d("VideoActivity", "应用标题: " + episode.getNumber() + " -> " + title);
             }
         }
@@ -2859,6 +2974,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             applyFusionDetailChrome();
         } else {
             mBinding.scroll.setBackgroundColor(com.fongmi.android.tv.ui.custom.TmdbHeaderView.getThemeBackgroundColor());
+            applyTmdbTabletVideoLayoutIfNeeded();
         }
 
         // 移除 nativeContentContainer 的 padding，避免空白间隔
@@ -3024,6 +3140,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         hideTmdbHeader();
         restoreFlagAndEpisodeFromTmdb();
         updateEpisodeGroupVisibility();
+        restoreDefaultVideoLayout();
         setNativeDetailInfoVisible(true);
         mBinding.search.setVisibility(View.VISIBLE);
         if (mBinding.videoShadow != null) mBinding.videoShadow.setVisibility(View.VISIBLE);
@@ -3276,6 +3393,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         // 移除旧内容
         playbackControls.removeAllViews();
         setTmdbFlagStyle(true);
+        moveTmdbSourceToFlagTitle(tmdbRoot);
 
         for (View view : getTmdbMovableViews()) {
             if (view == null) continue;
@@ -3298,6 +3416,18 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }
         mTmdbControlsMoved = false;
         updateEpisodeGroupVisibility();
+    }
+
+    private void moveTmdbSourceToFlagTitle(View tmdbRoot) {
+        View source = tmdbRoot.findViewById(R.id.tmdbFusionSource);
+        if (source == null) source = mBinding.flagTitleBar.findViewById(R.id.tmdbFusionSource);
+        if (source == null) return;
+        rememberTmdbMovedView(source);
+        if (source.getParent() instanceof ViewGroup parent) parent.removeView(source);
+        LinearLayoutCompat.LayoutParams params = new LinearLayoutCompat.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMarginStart(ResUtil.dp2px(12));
+        source.setLayoutParams(params);
+        mBinding.flagTitleBar.addView(source);
     }
 
     private void setTmdbFlagStyle(boolean enabled) {
@@ -3658,6 +3788,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         super.onConfigurationChanged(newConfig);
         if (isAutoRotate() && isPort() && newConfig.orientation == Configuration.ORIENTATION_PORTRAIT && !isRotate() && !isLock()) exitFullscreen();
         if (isAutoRotate() && isPort() && newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) enterFullscreen();
+        if (!isFullscreen()) {
+            applyTmdbTabletVideoLayoutIfNeeded();
+            if (mVod != null) bindTmdbTabletTopSummary(mVod);
+        }
         if (isFullscreen()) Util.hideSystemUI(this);
     }
 

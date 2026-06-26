@@ -824,14 +824,6 @@
                                 app:flexWrap="wrap" />
 
                             <TextView
-                                android:id="@+id/sourceValue"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="#99FFFFFF"
-                                android:textSize="12sp" />
-
-                            <TextView
                                 android:id="@+id/overview"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
@@ -961,16 +953,41 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/flagTitle"
+                    <LinearLayout
+                        android:id="@+id/flagHeader"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="22dp"
-                        android:text="@string/detail_flag"
-                        android:textColor="@android:color/white"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:visibility="gone" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/flagTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/detail_flag"
+                            android:textColor="@android:color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            android:layout_weight="1" />
+
+                        <TextView
+                            android:id="@+id/sourceValue"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:ellipsize="end"
+                            android:gravity="end"
+                            android:maxLines="1"
+                            android:maxWidth="260dp"
+                            android:textColor="#99FFFFFF"
+                            android:textSize="12sp" />
+                    </LinearLayout>
 
                     <HorizontalScrollView
                         android:id="@+id/flagScroll"

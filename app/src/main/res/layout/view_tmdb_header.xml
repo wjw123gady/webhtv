@@ -94,9 +94,14 @@
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/tmdbFusionSource"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_gravity="end"
                     android:layout_marginTop="10dp"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:maxLines="1"
+                    android:maxWidth="220dp"
                     android:textColor="#9912202D"
                     android:textSize="12sp"
                     tools:text="当前站源：荐片[APP]" />

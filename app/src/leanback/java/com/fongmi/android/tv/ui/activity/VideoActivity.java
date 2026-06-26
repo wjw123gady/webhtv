@@ -102,6 +102,7 @@ import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.ImgUtil;
 import com.fongmi.android.tv.utils.KeyUtil;
 import com.fongmi.android.tv.utils.Notify;
+import com.fongmi.android.tv.utils.PushParser;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Sniffer;
 import com.fongmi.android.tv.utils.Task;
@@ -244,14 +245,20 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     });
 
     public static void push(FragmentActivity activity, String text) {
-        if (FileChooser.isValid(activity, Uri.parse(text))) file(activity, FileChooser.getPathFromUri(Uri.parse(text)));
-        else start(activity, Sniffer.getUrl(text));
+        PushParser.Parsed push = PushParser.fromText(text);
+        Uri uri = Uri.parse(push.getUrl());
+        if (FileChooser.isValid(activity, uri)) file(activity, FileChooser.getPathFromUri(uri), push.getTitle());
+        else startPush(activity, push);
     }
 
     public static void file(FragmentActivity activity, String path) {
+        file(activity, path, "");
+    }
+
+    private static void file(FragmentActivity activity, String path, String title) {
         if (TextUtils.isEmpty(path)) return;
-        String name = new File(path).getName();
-        start(activity, SiteApi.PUSH, "file://" + path, name);
+        PushParser.Parsed push = PushParser.of("file://" + path, TextUtils.isEmpty(title) ? new File(path).getName() : title);
+        start(activity, SiteApi.PUSH, push.getId(), push.getName());
     }
 
     public static void cast(Activity activity, History history) {
@@ -267,7 +274,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private static boolean canOpenLegacyTmdbDetail(String key, boolean cast) {
-        return !cast && !TextUtils.isEmpty(key) && !SiteApi.PUSH.equals(key) && !AudioUtil.isAudioSiteEnabled(key) && !isShortDramaSiteEnabled(key) && isTmdbSiteEnabled(key);
+        if (cast || TextUtils.isEmpty(key)) return false;
+        if (SiteApi.PUSH.equals(key)) return isTmdbSiteEnabled(key);
+        return !AudioUtil.isAudioSiteEnabled(key) && !isShortDramaSiteEnabled(key) && isTmdbSiteEnabled(key);
     }
 
     private static boolean isTmdbSiteEnabled(String key) {
@@ -286,12 +295,20 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     public static void start(Activity activity, String url) {
-        if (dispatchToContentHandler(activity, url)) return;
-        start(activity, SiteApi.PUSH, url, url);
+        startPush(activity, PushParser.fromText(url));
+    }
+
+    private static void startPush(Activity activity, PushParser.Parsed push) {
+        if (dispatchToContentHandler(activity, push.getUrl(), push.getTitle())) return;
+        start(activity, SiteApi.PUSH, push.getId(), push.getName());
     }
 
     private static boolean dispatchToContentHandler(Activity activity, String url) {
-        return com.fongmi.android.tv.content.ContentDispatcher.dispatchUrl(activity, url, "");
+        return dispatchToContentHandler(activity, url, "");
+    }
+
+    private static boolean dispatchToContentHandler(Activity activity, String url, String title) {
+        return com.fongmi.android.tv.content.ContentDispatcher.dispatchUrl(activity, url, title);
     }
 
     public static void start(Activity activity, String key, String id, String name) {

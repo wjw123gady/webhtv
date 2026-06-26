@@ -1,5 +1,6 @@
 package com.fongmi.android.tv.ui.dialog;
 
+import android.content.Context;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -34,6 +35,7 @@ import java.util.Locale;
 public class TmdbSourceDialog {
 
     private final FragmentActivity activity;
+    private Context dialogContext;
     private AlertDialog dialog;
     private ChipGroup enabledChips;
     private ChipGroup disabledChips;
@@ -63,7 +65,9 @@ public class TmdbSourceDialog {
     }
 
     public void show() {
-        View view = LayoutInflater.from(activity).inflate(R.layout.dialog_tmdb_source, null);
+        MaterialAlertDialogBuilder builder = builder();
+        dialogContext = builder.getContext();
+        View view = LayoutInflater.from(dialogContext).inflate(R.layout.dialog_tmdb_source, null);
         enabledChips = view.findViewById(R.id.enabledChips);
         disabledChips = view.findViewById(R.id.disabledChips);
         disabledLabel = view.findViewById(R.id.disabledLabel);
@@ -109,7 +113,7 @@ public class TmdbSourceDialog {
         manageBtn.setOnClickListener(v -> showSiteManage());
         resetBtn.setOnClickListener(v -> resetToDefault());
 
-        dialog = new MaterialAlertDialogBuilder(activity)
+        dialog = builder
                 .setTitle(R.string.setting_tmdb_source)
                 .setView(view)
                 .setPositiveButton(R.string.dialog_positive, (d, w) -> onSave())
@@ -117,6 +121,11 @@ public class TmdbSourceDialog {
                 .setOnDismissListener(d -> { if (onDismiss != null) onDismiss.run(); })
                 .create();
         dialog.show();
+        LightDialog.apply(dialog);
+    }
+
+    private MaterialAlertDialogBuilder builder() {
+        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
     }
 
     private void onSave() {
@@ -171,12 +180,13 @@ public class TmdbSourceDialog {
             checked[i] = !exactDisabled && (forcedEnabled || (matchedByRule && !matchedByExcludeKeyword));
         }
 
-        new MaterialAlertDialogBuilder(activity)
+        AlertDialog manageDialog = builder()
                 .setTitle(R.string.dialog_tmdb_site_manage)
                 .setMultiChoiceItems(labels, checked, (d, which, isChecked) -> checked[which] = isChecked)
                 .setPositiveButton(R.string.dialog_positive, (d, w) -> applySiteManage(sites, enabledRules, disabledSites, allowedSites, checked, enableAll))
                 .setNegativeButton(R.string.dialog_negative, null)
                 .show();
+        LightDialog.apply(manageDialog);
     }
 
     private void applySiteManage(List<Site> sites, List<String> enabledRules, List<String> disabledSites, List<String> allowedSites, boolean[] checked, boolean enableAll) {
@@ -333,7 +343,7 @@ public class TmdbSourceDialog {
     }
 
     private Chip createChip(String text, boolean isDisabled) {
-        Chip chip = new Chip(activity);
+        Chip chip = new Chip(dialogContext == null ? activity : dialogContext);
         Site site = isDisabled ? null : findSite(text);
         chip.setText(site != null ? displayName(site) : text);
         chip.setCloseIconVisible(true);

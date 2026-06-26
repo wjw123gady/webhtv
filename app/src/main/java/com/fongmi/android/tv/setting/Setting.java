@@ -843,6 +843,14 @@ public class Setting {
         Prefers.put("tmdb_episode_grid_mode", gridMode);
     }
 
+    public static boolean isTmdbEpisodeFileSize() {
+        return Prefers.getBoolean("tmdb_episode_file_size", true);
+    }
+
+    public static void putTmdbEpisodeFileSize(boolean enabled) {
+        Prefers.put("tmdb_episode_file_size", enabled);
+    }
+
     public static int nextTmdbDetailTheme(int theme) {
         return clampTmdbDetailTheme(theme) == 2 ? 1 : 2;
     }
