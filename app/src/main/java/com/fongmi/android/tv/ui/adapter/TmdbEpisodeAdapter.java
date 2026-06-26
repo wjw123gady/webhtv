@@ -14,8 +14,10 @@ import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.databinding.AdapterTmdbEpisodeBinding;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.ui.helper.TmdbEpisodeGridPolicy;
 import com.fongmi.android.tv.utils.EpisodeTitleFormatter;
 import com.fongmi.android.tv.utils.ImgUtil;
+import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 
 import java.util.ArrayList;
@@ -46,6 +48,7 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
     private boolean light;
     private boolean compactPlain;
     private int activeStrokeColor = 0xFF2CC56F;
+    private int gridSpanCount = 2;
     private String fallbackStillUrl = "";
 
     public TmdbEpisodeAdapter(Listener listener) {
@@ -69,8 +72,15 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
     }
 
     public void setSelected(Episode selected) {
+        int oldPosition = getPosition(this.selected);
+        int newPosition = getPosition(selected);
         this.selected = selected;
-        notifyDataSetChanged();
+        if (oldPosition == newPosition) {
+            if (newPosition >= 0) notifyItemChanged(newPosition);
+            return;
+        }
+        if (oldPosition >= 0) notifyItemChanged(oldPosition);
+        if (newPosition >= 0) notifyItemChanged(newPosition);
     }
 
     public void setLight(boolean light) {
@@ -84,13 +94,18 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
     }
 
     public void setFallbackStillUrl(String fallbackStillUrl) {
-        this.fallbackStillUrl = TextUtils.isEmpty(fallbackStillUrl) ? "" : fallbackStillUrl;
-        notifyDataSetChanged();
+        String value = TextUtils.isEmpty(fallbackStillUrl) ? "" : fallbackStillUrl;
+        if (this.fallbackStillUrl.equals(value)) return;
+        this.fallbackStillUrl = value;
+        if (TmdbEpisodeGridPolicy.shouldUseFallbackImage(mode == Mode.GRID, items.size())) notifyDataSetChanged();
     }
 
     public void setMode(Mode mode) {
         this.mode = mode == null ? Mode.LIST : mode;
-        notifyDataSetChanged();
+    }
+
+    public void setGridSpanCount(int gridSpanCount) {
+        this.gridSpanCount = Math.max(1, gridSpanCount);
     }
 
     public int getPosition(Episode episode) {
@@ -117,7 +132,8 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
         boolean activated = episode.equals(selected);
         boolean compact = compactPlain && tmdbEpisode == null && TextUtils.isEmpty(overview);
         String stillUrl = tmdbEpisode != null ? tmdbEpisode.getStillUrl() : "";
-        String imageUrl = !TextUtils.isEmpty(stillUrl) ? stillUrl : (mode == Mode.GRID ? fallbackStillUrl : "");
+        boolean allowFallback = TmdbEpisodeGridPolicy.shouldUseFallbackImage(mode == Mode.GRID, items.size());
+        String imageUrl = !TextUtils.isEmpty(stillUrl) ? stillUrl : (mode == Mode.GRID && allowFallback ? fallbackStillUrl : "");
         boolean hasImage = !TextUtils.isEmpty(imageUrl);
         boolean showVisual = hasImage || !compact;
 
@@ -164,9 +180,10 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
                 activated ? 2 : 1);
         if (showVisual) {
             holder.binding.stillFrame.setVisibility(View.VISIBLE);
-            ImgUtil.load(title, imageUrl, holder.binding.still);
+            ImgUtil.load(title, imageUrl, holder.binding.still, true, imageWidth(holder), imageHeight(holder));
         } else {
             holder.binding.stillFrame.setVisibility(View.GONE);
+            ImgUtil.clear(holder.binding.still);
         }
         holder.binding.scrim.setVisibility(showVisual ? View.VISIBLE : View.GONE);
         holder.binding.getRoot().setOnClickListener(view -> listener.onItemClick(episode));
@@ -197,6 +214,32 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
         if (!isPhoneWidth(view)) return dp(view, 230);
         int screen = view.getResources().getDisplayMetrics().widthPixels;
         return Math.max(dp(view, 168), Math.min(dp(view, 230), (screen - dp(view, 56)) / 2));
+    }
+
+    private int imageWidth(ViewHolder holder) {
+        int width = holder.binding.still.getWidth();
+        if (width > 0) return width;
+        width = holder.binding.getRoot().getWidth();
+        if (width > 0) return width;
+        ViewGroup.LayoutParams params = holder.binding.getRoot().getLayoutParams();
+        if (params != null && params.width > 0) return params.width;
+        if (mode == Mode.GRID) {
+            int screen = holder.itemView.getResources().getDisplayMetrics().widthPixels;
+            int sidePadding = dp(holder.itemView, Util.isMobile() ? 32 : 48);
+            int spacing = dp(holder.itemView, Math.max(0, gridSpanCount - 1) * 8);
+            return Math.max(dp(holder.itemView, 160), (screen - sidePadding - spacing) / Math.max(1, gridSpanCount));
+        }
+        return listCardWidth(holder.itemView);
+    }
+
+    private int imageHeight(ViewHolder holder) {
+        int height = holder.binding.still.getHeight();
+        if (height > 0) return height;
+        height = holder.binding.getRoot().getHeight();
+        if (height > 0) return height;
+        ViewGroup.LayoutParams params = holder.binding.getRoot().getLayoutParams();
+        if (params != null && params.height > 0) return params.height;
+        return ResUtil.dp2px(mode == Mode.GRID ? TmdbEpisodeGridPolicy.GRID_CARD_HEIGHT_DP : (isPhoneWidth(holder.itemView) ? 172 : 190));
     }
 
     private boolean isPhoneWidth(View view) {
@@ -279,6 +322,12 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
     @Override
     public int getItemCount() {
         return items.size();
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull ViewHolder holder) {
+        ImgUtil.clear(holder.binding.still);
+        super.onViewRecycled(holder);
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
