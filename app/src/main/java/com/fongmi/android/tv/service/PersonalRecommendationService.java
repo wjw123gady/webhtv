@@ -49,7 +49,7 @@ public class PersonalRecommendationService {
     private static final int DOUBAN_SEED_BATCH = 8;
     private static final int MAX_DOUBAN_LOOKUPS_PER_SEED = 1;
     private static final int DOUBAN_RELATED_COUNT = 10;
-    private static final int AI_HISTORY_CONTEXT_LIMIT = 12;
+    private static final int AI_HISTORY_CONTEXT_LIMIT = 24;
     private static final int MAX_TMDB_SEED_CACHE = 128;
     private static final long DAY = TimeUnit.DAYS.toMillis(1);
     private static final long DOUBAN_CACHE_TTL = DAY * 7;

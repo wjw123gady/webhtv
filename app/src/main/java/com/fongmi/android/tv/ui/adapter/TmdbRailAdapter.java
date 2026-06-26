@@ -30,9 +30,14 @@ public class TmdbRailAdapter extends RecyclerView.Adapter<TmdbRailAdapter.ViewHo
         boolean onItemLongClick(TmdbItem item);
     }
 
+    public interface FocusListener {
+        void onItemFocus(TmdbItem item, boolean focused);
+    }
+
     private final Listener listener;
     private final List<TmdbItem> items = new ArrayList<>();
     private LongClickListener longClickListener;
+    private FocusListener focusListener;
     private boolean cinema;
     private boolean light;
 
@@ -42,6 +47,10 @@ public class TmdbRailAdapter extends RecyclerView.Adapter<TmdbRailAdapter.ViewHo
 
     public void setOnItemLongClickListener(LongClickListener listener) {
         this.longClickListener = listener;
+    }
+
+    public void setOnItemFocusListener(FocusListener listener) {
+        this.focusListener = listener;
     }
 
     public void setItems(List<TmdbItem> values) {
@@ -85,11 +94,14 @@ public class TmdbRailAdapter extends RecyclerView.Adapter<TmdbRailAdapter.ViewHo
         holder.title.setTextColor(0xFFFFFFFF);
         holder.subtitle.setTextColor(cinema ? 0xB3FFFFFF : 0x99FFFFFF);
         holder.rating.setTextColor(0xFFFFFFFF);
-        TmdbCardFocusHelper.bind(holder.root, cinema ? 0xB314202A : 0xFF16202A, cinema ? palette.cardStroke() : 0x33FFFFFF);
+        TmdbCardFocusHelper.bind(holder.root, cinema ? 0xB314202A : 0xFF16202A, cinema ? palette.cardStroke() : 0x33FFFFFF, 1, focused -> {
+            if (focusListener != null) focusListener.onItemFocus(item, focused);
+        });
         String image = cinema && !TextUtils.isEmpty(item.getBackdropUrl()) ? item.getBackdropUrl() : item.getPosterUrl();
         ImgUtil.load(item.getTitle(), image, holder.poster);
         holder.root.setOnClickListener(view -> listener.onItemClick(item));
         holder.root.setOnLongClickListener(view -> longClickListener != null && longClickListener.onItemLongClick(item));
+        if (holder.root.hasFocus() && focusListener != null) focusListener.onItemFocus(item, true);
     }
 
     @Override

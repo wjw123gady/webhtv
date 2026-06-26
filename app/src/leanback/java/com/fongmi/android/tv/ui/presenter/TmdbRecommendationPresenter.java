@@ -50,6 +50,7 @@ public class TmdbRecommendationPresenter extends Presenter {
     public void onBindViewHolder(Presenter.ViewHolder viewHolder, Object item) {
         TmdbItem tmdbItem = (TmdbItem) item;
         ViewHolder holder = (ViewHolder) viewHolder;
+        holder.item = tmdbItem;
         holder.binding.title.setText(tmdbItem.getTitle());
         double rating = tmdbItem.getRating();
         if (rating > 0) {
@@ -66,10 +67,16 @@ public class TmdbRecommendationPresenter extends Presenter {
         holder.view.setOnFocusChangeListener((view, focused) -> {
             if (mFocusListener != null) mFocusListener.onItemFocus(tmdbItem, focused);
         });
+        if (holder.view.hasFocus() && mFocusListener != null) mFocusListener.onItemFocus(tmdbItem, true);
     }
 
     @Override
     public void onUnbindViewHolder(Presenter.ViewHolder viewHolder) {
+        ViewHolder holder = (ViewHolder) viewHolder;
+        if (viewHolder.view.hasFocus() && holder.item != null && mFocusListener != null) {
+            mFocusListener.onItemFocus(holder.item, false);
+        }
+        holder.item = null;
         viewHolder.view.setOnLongClickListener(null);
         viewHolder.view.setOnFocusChangeListener(null);
     }
@@ -77,6 +84,7 @@ public class TmdbRecommendationPresenter extends Presenter {
     public static class ViewHolder extends Presenter.ViewHolder {
 
         private final AdapterTmdbRecommendationBinding binding;
+        private TmdbItem item;
 
         public ViewHolder(@NonNull AdapterTmdbRecommendationBinding binding) {
             super(binding.getRoot());

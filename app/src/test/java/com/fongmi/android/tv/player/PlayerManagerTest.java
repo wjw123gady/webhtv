@@ -23,4 +23,19 @@ public class PlayerManagerTest {
     public void fallbackDecode_sanitizesUnknownDecodeToHard() {
         assertEquals(PlayerEngine.HARD, PlayerManager.fallbackDecode(PlayerSetting.EXO, PlayerSetting.EXO, 99));
     }
+
+    @Test
+    public void shouldStopOnManualSwitchFailure_blocksFallbackWhileManualSwitchIsPending() {
+        assertEquals(true, PlayerManager.shouldStopOnManualSwitchFailure(true, PlayerEngine.ErrorAction.FATAL));
+    }
+
+    @Test
+    public void shouldStopOnManualSwitchFailure_allowsRecoveredManualErrors() {
+        assertEquals(false, PlayerManager.shouldStopOnManualSwitchFailure(true, PlayerEngine.ErrorAction.RECOVERED));
+    }
+
+    @Test
+    public void shouldStopOnManualSwitchFailure_allowsAutomaticFallbacks() {
+        assertEquals(false, PlayerManager.shouldStopOnManualSwitchFailure(false, PlayerEngine.ErrorAction.FATAL));
+    }
 }

@@ -1,10 +1,15 @@
 package com.fongmi.android.tv.service;
 
 import com.fongmi.android.tv.bean.AiConfig;
+import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.TmdbItem;
+import com.google.gson.JsonObject;
 
 import org.junit.Test;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +38,50 @@ public class AiRecommendationServiceTest {
         String body = "{\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"text\",\"text\":{\"value\":\"{\\\"items\\\":[{\\\"title\\\":\\\"边水往事\\\"}]}\"}}]}]}";
 
         assertEquals("{\"items\":[{\"title\":\"边水往事\"}]}", AiRecommendationService.extractOutputText(body));
+    }
+
+    @Test
+    public void buildPrompt_includesRecommendationRangeAndStructuredViewingSignals() {
+        JsonObject current = new JsonObject();
+        current.addProperty("title", "南部档案");
+        current.addProperty("year", 2024);
+        current.addProperty("mediaType", "tv");
+        current.addProperty("country", "中国大陆");
+        JsonObject history = new JsonObject();
+        history.addProperty("title", "爱情有烟火");
+        history.addProperty("episodeName", "第08集");
+        history.addProperty("watchedMinutes", 360);
+        history.addProperty("completionRate", 0.82);
+        List<JsonObject> histories = new ArrayList<>();
+        histories.add(history);
+
+        String prompt = AiRecommendationService.buildPrompt(AiConfig.objectFrom("{}"), current, histories, List.of("莫离", "教父"));
+
+        assertTrue(prompt.contains("12-24"));
+        assertTrue(prompt.contains("\"currentItem\""));
+        assertTrue(prompt.contains("\"playHistory\""));
+        assertTrue(prompt.contains("\"watchedMinutes\":360"));
+        assertTrue(prompt.contains("\"completionRate\":0.82"));
+        assertTrue(prompt.contains("\"query\":\"教父\""));
+        assertTrue(prompt.contains("字段说明"));
+        assertTrue(prompt.contains("completionRate: 单集观看完成比例"));
+        assertTrue(prompt.contains("searchHistory: 用户搜索词"));
+        assertTrue(prompt.contains("最终只返回严格 JSON"));
+    }
+
+    @Test
+    public void historyContextItem_omitsPlaybackSourceBecauseLineNamesDoNotHelpRecommendation() {
+        History history = new History();
+        history.setVodName("爱情有烟火");
+        history.setVodRemarks("第08集");
+        history.setVodFlag("极速线路");
+        history.setPosition(30 * 60 * 1000L);
+        history.setDuration(45 * 60 * 1000L);
+
+        JsonObject item = AiRecommendationService.historyContextItem(history);
+
+        assertEquals("爱情有烟火", item.get("title").getAsString());
+        assertFalse(item.has("source"));
     }
 
     @Test
@@ -67,7 +116,7 @@ public class AiRecommendationServiceTest {
         assertEquals("sk-ant", spec.headers.get("x-api-key"));
         assertEquals("2023-06-01", spec.headers.get("anthropic-version"));
         assertEquals("claude-test", spec.body.get("model").getAsString());
-        assertEquals(2048, spec.body.get("max_tokens").getAsInt());
+        assertEquals(4096, spec.body.get("max_tokens").getAsInt());
         assertEquals("hello", spec.body.getAsJsonArray("messages").get(0).getAsJsonObject().get("content").getAsString());
     }
 
@@ -164,7 +213,7 @@ public class AiRecommendationServiceTest {
     }
 
     @Test
-    public void fingerprint_changesWhenSearchRecordsOrPromptChanges() {
+    public void fingerprint_ignoresCurrentTitleButChangesWhenSearchRecordsOrPromptChanges() {
         AiConfig first = AiConfig.objectFrom("{\"enabled\":true,\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1-mini\",\"recommendPrompt\":\"p1\"}");
         AiConfig second = AiConfig.objectFrom("{\"enabled\":true,\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1-mini\",\"recommendPrompt\":\"p2\"}");
 
@@ -249,6 +298,48 @@ public class AiRecommendationServiceTest {
         assertEquals(base, AiRecommendationService.latestCacheKey("长安的荔枝", first));
         assertFalse(base.equals(AiRecommendationService.latestCacheKey("大明王朝1566", first)));
         assertFalse(base.equals(AiRecommendationService.latestCacheKey("长安的荔枝", second)));
+    }
+
+    @Test
+    public void latestDisplayCacheKey_ignoresPromptButKeepsTitleAndModelIdentity() {
+        AiConfig first = AiConfig.objectFrom("{\"enabled\":true,\"protocol\":\"openai_responses\",\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1-mini\",\"recommendPrompt\":\"p1\"}");
+        AiConfig second = AiConfig.objectFrom("{\"enabled\":true,\"protocol\":\"openai_responses\",\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1-mini\",\"recommendPrompt\":\"p2\"}");
+        AiConfig third = AiConfig.objectFrom("{\"enabled\":true,\"protocol\":\"openai_responses\",\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1\",\"recommendPrompt\":\"p1\"}");
+
+        String base = AiRecommendationService.latestDisplayCacheKey("长安的荔枝", first);
+
+        assertEquals(base, AiRecommendationService.latestDisplayCacheKey("长安的荔枝", second));
+        assertFalse(base.equals(AiRecommendationService.latestDisplayCacheKey("大明王朝1566", first)));
+        assertFalse(base.equals(AiRecommendationService.latestDisplayCacheKey("长安的荔枝", third)));
+    }
+
+    @Test
+    public void newestCacheFile_usesAnyRecentCacheAsLooseDisplayFallback() throws Exception {
+        File dir = Files.createTempDirectory("ai-rec-cache").toFile();
+        File oldRaw = new File(dir, "old.json");
+        File newRaw = new File(dir, "display_new.json");
+        File resolved = new File(dir, "latest_items.items.json");
+        Files.write(oldRaw.toPath(), "{}".getBytes(StandardCharsets.UTF_8));
+        Files.write(newRaw.toPath(), "{}".getBytes(StandardCharsets.UTF_8));
+        Files.write(resolved.toPath(), "{}".getBytes(StandardCharsets.UTF_8));
+        oldRaw.setLastModified(1000);
+        resolved.setLastModified(2000);
+        newRaw.setLastModified(3000);
+
+        assertEquals(newRaw, AiRecommendationService.newestCacheFile(dir, false));
+        assertEquals(resolved, AiRecommendationService.newestCacheFile(dir, true));
+    }
+
+    @Test
+    public void latestCacheKeysForRead_checksLegacySystemPromptOnlyForSystemPromptUsers() {
+        AiConfig system = AiConfig.objectFrom("{\"enabled\":true,\"protocol\":\"openai_responses\",\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1-mini\",\"recommendPrompt\":\"" + AiConfig.LEGACY_RECOMMEND_PROMPT_V1.replace("\"", "\\\"") + "\"}");
+        AiConfig custom = AiConfig.objectFrom("{\"enabled\":true,\"protocol\":\"openai_responses\",\"endpoint\":\"https://api.openai.com/v1/responses\",\"apiKey\":\"sk-test\",\"model\":\"gpt-4.1-mini\",\"recommendPrompt\":\"请优先推荐冷门悬疑片\"}");
+
+        List<String> systemKeys = AiRecommendationService.latestCacheKeysForRead("长安的荔枝", system);
+        List<String> customKeys = AiRecommendationService.latestCacheKeysForRead("长安的荔枝", custom);
+
+        assertEquals(2, systemKeys.size());
+        assertEquals(1, customKeys.size());
     }
 
     @Test

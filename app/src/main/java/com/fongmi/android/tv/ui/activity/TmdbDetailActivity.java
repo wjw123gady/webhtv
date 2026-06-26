@@ -7,6 +7,7 @@ import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -458,6 +459,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         personalTmdbAdapter.setItems(new ArrayList<>());
         personalDoubanAdapter.setItems(new ArrayList<>());
         personalAiAdapter.setItems(new ArrayList<>());
+        showAiRecommendationReason(null, false);
         binding.tmdbStatus.setVisibility(View.GONE);
         bindInitialArtwork();
     }
@@ -529,6 +531,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             com.fongmi.android.tv.ui.dialog.AiRecommendationInfoDialog.show(this, item);
             return true;
         });
+        personalAiAdapter.setOnItemFocusListener(this::showAiRecommendationReason);
         castAdapter.setCinema(isCinemaMode());
         creatorAdapter.setCinema(isCinemaMode());
         relatedAdapter.setCinema(isCinemaMode());
@@ -655,8 +658,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.playerDanmakuToggle.setOnClickListener(view -> toggleInlineDanmaku());
         binding.playerDanmaku.setOnClickListener(view -> showInlineDanmaku());
         binding.playerChapter.setOnClickListener(view -> showInlineTitle());
-        binding.playerExternal.setOnClickListener(view -> toggleInlinePlayer());
-        binding.playerExternal.setOnLongClickListener(view -> inlineControlController.showPlayerInfo());
+        binding.playerExternal.setOnClickListener(view -> showInlinePlayerChoice());
+        binding.playerExternal.setOnLongClickListener(view -> showInlinePlayerChoice());
         binding.playerEpisodes.setOnClickListener(view -> showInlineEpisodes());
         binding.playerFullscreenAction.setOnClickListener(view -> toggleInlineFullscreen());
         binding.playerFullscreen.setOnClickListener(view -> toggleInlineFullscreen());
@@ -692,8 +695,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         detailControlView(R.id.lock, View.class).setOnClickListener(view -> toggleInlineLock());
         detailControlView(R.id.rotate, View.class).setOnClickListener(view -> rotateInlineFullscreen());
         detailControlView(R.id.pip, View.class).setOnClickListener(view -> enterInlinePiP(true));
-        detailActionView(R.id.player, View.class).setOnClickListener(view -> toggleInlinePlayer());
-        detailActionView(R.id.player, View.class).setOnLongClickListener(view -> inlineControlController.showPlayerInfo());
+        detailActionView(R.id.player, View.class).setOnClickListener(view -> showInlinePlayerChoice());
+        detailActionView(R.id.player, View.class).setOnLongClickListener(view -> showInlinePlayerChoice());
         detailActionView(R.id.decode, View.class).setOnClickListener(view -> toggleInlineDecode());
         detailActionView(R.id.speed, View.class).setOnClickListener(view -> changeInlineSpeed());
         detailActionView(R.id.speed, View.class).setOnLongClickListener(view -> resetInlineSpeed());
@@ -1017,6 +1020,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.overviewToggle.setTextColor(colors.accent);
         binding.episodeEmpty.setTextColor(colors.secondary);
         binding.tmdbStatus.setTextColor(colors.secondary);
+        binding.personalAiReason.setTextColor(isCinemaMode() ? 0xE6FFFFFF : colors.secondary);
+        if (isCinemaMode()) binding.personalAiReason.setShadowLayer(3f, 0f, 1.5f, 0xCC000000);
+        else binding.personalAiReason.setShadowLayer(0f, 0f, 0f, 0x00000000);
         tintTmdbSectionTitles(colors);
         binding.themeModeTop.setText(themeModeLabel());
         binding.themeMode.setText(themeModeLabel());
@@ -1555,6 +1561,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         Vod currentVod = vod;
         tmdbMediaLoading = true;
         bindTmdbSection();
+        loadTmdbPersonalAiCache(bundle, currentVod, generation);
         Task.execute(() -> {
             List<TmdbPerson> cast = new ArrayList<>();
             List<TmdbPerson> creators = new ArrayList<>();
@@ -1608,7 +1615,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 personalTmdbItems.addAll(finalPersonalTmdb);
                 personalDoubanItems.clear();
                 personalDoubanItems.addAll(finalPersonalDouban);
-                personalAiItems.clear();
                 detailTmdbPhotos.clear();
                 detailTmdbPhotos.addAll(finalPhotos);
                 refreshBackdropSlideshow();
@@ -1616,6 +1622,23 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 bindTmdbSection();
                 loadTmdbPersonalAi(bundle, currentVod, finalRelated, finalPersonalTmdb, finalPersonalDouban, generation);
             });
+        });
+    }
+
+    private void loadTmdbPersonalAiCache(TmdbBundle bundle, Vod currentVod, int generation) {
+        if (!Setting.isPersonalRecommendation() || bundle == null || bundle.item() == null) return;
+        Task.execute(() -> {
+            try {
+                long start = System.currentTimeMillis();
+                PersonalRecommendationService service = new PersonalRecommendationService(tmdbService, tmdbConfig);
+                AiRecommendationService.CachedPage cached = service.loadCachedAiPage(currentVod, bundle.item(), PersonalRecommendationService.DEFAULT_PAGE_SIZE);
+                if (!cached.hasItems()) return;
+                List<TmdbItem> cachedAi = TmdbRecommendationRows.personalAi(cached.getPage().getItems(), List.of(), List.of(), List.of());
+                SpiderDebug.log("tmdb", "detail personal ai early cache hit exact=%s resolved=%s cost=%dms count=%d title=%s", cached.isExact(), cached.isResolved(), System.currentTimeMillis() - start, cachedAi.size(), bundle.item().getTitle());
+                applyTmdbPersonalAi(bundle, cachedAi, generation, false);
+            } catch (Throwable e) {
+                SpiderDebug.log("tmdb", "detail personal ai early cache failed error=%s", e.getMessage());
+            }
         });
     }
 
@@ -2719,6 +2742,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void bindTmdbSection() {
         if (!isTmdbAllowedForCurrentSite()) {
             binding.tmdbSection.setVisibility(View.GONE);
+            showAiRecommendationReason(null, false);
             return;
         }
         boolean hasCast = !castItems.isEmpty();
@@ -2763,6 +2787,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.personalAiTitle.setVisibility(hasPersonalAi ? View.VISIBLE : View.GONE);
         binding.personalAiList.setVisibility(hasPersonalAi ? View.VISIBLE : View.GONE);
         personalAiAdapter.setItems(personalAiItems);
+        if (!hasPersonalAi) showAiRecommendationReason(null, false);
 
         if (!tmdbConfig.isReady()) {
             binding.tmdbStatus.setVisibility(View.VISIBLE);
@@ -2776,6 +2801,36 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         } else {
             binding.tmdbStatus.setVisibility(View.GONE);
         }
+    }
+
+    private void showAiRecommendationReason(TmdbItem item, boolean focused) {
+        if (binding == null) return;
+        String reason = item == null ? "" : item.getOverview();
+        if (!focused || TextUtils.isEmpty(reason)) {
+            binding.personalAiReason.setText("");
+            binding.personalAiReason.setVisibility(View.GONE);
+            return;
+        }
+        binding.personalAiReason.setText(getString(R.string.ai_recommendation_reason_preview, reason));
+        binding.personalAiReason.setVisibility(View.VISIBLE);
+        scrollAiRecommendationReasonIntoView();
+    }
+
+    private void scrollAiRecommendationReasonIntoView() {
+        binding.personalAiReason.post(() -> {
+            if (binding == null || binding.personalAiReason.getVisibility() != View.VISIBLE) return;
+            Rect rect = new Rect(0, 0, binding.personalAiReason.getWidth(), binding.personalAiReason.getHeight());
+            binding.scroll.offsetDescendantRectToMyCoords(binding.personalAiReason, rect);
+            int viewportTop = binding.scroll.getScrollY();
+            int viewportBottom = viewportTop + binding.scroll.getHeight() - binding.scroll.getPaddingBottom();
+            int padding = ResUtil.dp2px(12);
+            int bottomGap = rect.bottom - viewportBottom + padding;
+            if (bottomGap > 0) {
+                binding.scroll.smoothScrollBy(0, bottomGap);
+            } else if (rect.top < viewportTop) {
+                binding.scroll.smoothScrollBy(0, rect.top - viewportTop - padding);
+            }
+        });
     }
 
     private void initHistory() {
@@ -4237,9 +4292,16 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         setInlineDecodeText(inlineDecodeText(true));
     }
 
-    private void toggleInlinePlayer() {
+    private boolean showInlinePlayerChoice() {
+        if (service() == null || player().isEmpty()) return false;
+        String[] kernels = ResUtil.getStringArray(R.array.select_player_kernel);
+        new MaterialAlertDialogBuilder(this).setTitle(R.string.player_kernel).setItems(kernels, (dialog, which) -> switchInlinePlayer(which)).show();
+        return true;
+    }
+
+    private void switchInlinePlayer(int playerType) {
         if (service() == null || player().isEmpty()) return;
-        player().togglePlayer();
+        player().switchPlayerManually(playerType);
         updateInlineHistoryPlayer();
         syncInlineHistory();
         binding.playerExternal.setText(player().getPlayerText());

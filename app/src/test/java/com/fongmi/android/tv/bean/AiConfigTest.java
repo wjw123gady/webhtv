@@ -43,4 +43,31 @@ public class AiConfigTest {
         assertEquals(AiConfig.PROTOCOL_OPENAI_RESPONSES, config.getProtocol());
         assertEquals(AiConfig.DEFAULT_ENDPOINT, config.getEndpoint());
     }
+
+    @Test
+    public void objectFrom_upgradesLegacyDefaultRecommendPrompt() {
+        AiConfig config = AiConfig.objectFrom("{\"recommendPrompt\":\"" + AiConfig.LEGACY_RECOMMEND_PROMPT_V1.replace("\"", "\\\"") + "\"}");
+
+        assertEquals(AiConfig.DEFAULT_RECOMMEND_PROMPT, config.getRecommendPrompt());
+        assertEquals(AiConfig.DEFAULT_RECOMMEND_PROMPT_VERSION, config.getRecommendPromptVersion());
+        assertFalse(config.isRecommendPromptCustom());
+    }
+
+    @Test
+    public void objectFrom_preservesLegacyCustomRecommendPrompt() {
+        AiConfig config = AiConfig.objectFrom("{\"recommendPrompt\":\"请优先推荐冷门悬疑片\"}");
+
+        assertEquals("请优先推荐冷门悬疑片", config.getRecommendPrompt());
+        assertTrue(config.isRecommendPromptCustom());
+    }
+
+    @Test
+    public void setRecommendPrompt_marksCurrentDefaultAsSystemPrompt() {
+        AiConfig config = AiConfig.objectFrom("{}");
+        config.setRecommendPrompt("请优先推荐冷门悬疑片");
+        config.setRecommendPrompt(AiConfig.DEFAULT_RECOMMEND_PROMPT);
+
+        assertEquals(AiConfig.DEFAULT_RECOMMEND_PROMPT, config.getRecommendPrompt());
+        assertFalse(config.isRecommendPromptCustom());
+    }
 }

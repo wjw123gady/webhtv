@@ -662,7 +662,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.control.action.reset.setOnClickListener(view -> onReset());
         mBinding.control.action.title.setOnClickListener(view -> onTitle());
         mBinding.control.action.player.setOnClickListener(view -> onPlayerKernel());
-        mBinding.control.action.player.setOnLongClickListener(view -> onChooseLong());
+        mBinding.control.action.player.setOnLongClickListener(view -> onPlayerKernelLong());
         mBinding.control.action.decode.setOnClickListener(view -> onDecode());
         mBinding.control.action.ending.setOnClickListener(view -> onEnding());
         mBinding.control.action.repeat.setOnClickListener(view -> onRepeat());
@@ -1871,8 +1871,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         items[kernel.length] = "外调";
         new androidx.appcompat.app.AlertDialog.Builder(this).setItems(items, (dialog, which) -> {
             if (which < kernel.length) {
-                player().switchPlayer(which);
+                player().switchPlayerManually(which);
                 setPlayer();
+                setDecode();
             } else {
                 PlayerHelper.choose(this, player().getUrl(), player().getHeaders(), player().isVod(), player().getPosition(), mBinding.widget.title.getText());
                 setRedirect(true);
@@ -1880,16 +1881,14 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         }).show();
     }
 
-    private boolean onChooseLong() {
-        onChoose();
-        return true;
-    }
-
     private void onPlayerKernel() {
         mClock.setCallback(null);
-        player().togglePlayer();
-        setPlayerKernel();
-        setDecode();
+        onChoose();
+    }
+
+    private boolean onPlayerKernelLong() {
+        onPlayerKernel();
+        return true;
     }
 
     private void onDecode() {

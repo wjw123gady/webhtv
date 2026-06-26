@@ -279,7 +279,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         mBinding.control.action.across.setOnClickListener(view -> onAcross());
         mBinding.control.action.change.setOnClickListener(view -> onChange());
         mBinding.control.action.player.setOnClickListener(view -> onPlayerKernel());
-        mBinding.control.action.player.setOnLongClickListener(view -> onChooseLong());
+        mBinding.control.action.player.setOnLongClickListener(view -> onPlayerKernelLong());
         mBinding.control.action.decode.setOnClickListener(view -> onDecode());
         mBinding.control.action.text.setOnLongClickListener(view -> onTextLong());
         mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
@@ -670,20 +670,30 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void onChoose() {
-        PlayerHelper.choose(this, player().getUrl(), player().getHeaders(), player().isVod(), player().getPosition(), mBinding.control.title.getText());
-        setRedirect(true);
-    }
-
-    private boolean onChooseLong() {
-        onChoose();
-        return true;
+        String[] kernel = ResUtil.getStringArray(R.array.select_player_kernel);
+        String[] items = new String[kernel.length + 1];
+        System.arraycopy(kernel, 0, items, 0, kernel.length);
+        items[kernel.length] = "外调";
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setItems(items, (dialog, which) -> {
+            if (which < kernel.length) {
+                player().switchPlayerManually(which);
+                setPlayerKernel();
+                setDecode();
+            } else {
+                PlayerHelper.choose(this, player().getUrl(), player().getHeaders(), player().isVod(), player().getPosition(), mBinding.control.title.getText());
+                setRedirect(true);
+            }
+        }).show();
     }
 
     private void onPlayerKernel() {
-        player().togglePlayer();
-        setPlayerKernel();
-        setDecode();
+        onChoose();
         setR1Callback();
+    }
+
+    private boolean onPlayerKernelLong() {
+        onPlayerKernel();
+        return true;
     }
 
     private boolean onTextLong() {

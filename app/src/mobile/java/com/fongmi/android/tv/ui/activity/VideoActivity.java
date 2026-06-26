@@ -716,7 +716,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.action.reset.setOnClickListener(view -> onReset());
         mBinding.control.action.title.setOnClickListener(view -> onTitle());
         mBinding.control.action.player.setOnClickListener(view -> onPlayerKernel());
-        mBinding.control.action.player.setOnLongClickListener(view -> onChooseLong());
+        mBinding.control.action.player.setOnLongClickListener(view -> onPlayerKernelLong());
         mBinding.control.action.prev.setOnClickListener(view -> checkPrev());
         mBinding.control.action.next.setOnClickListener(view -> checkNext());
         mBinding.control.action.decode.setOnClickListener(view -> onDecode());
@@ -1966,8 +1966,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         items[kernel.length] = "外调";
         new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setItems(items, (dialog, which) -> {
             if (which < kernel.length) {
-                player().switchPlayer(which);
+                player().switchPlayerManually(which);
                 setPlayer();
+                setDecode();
             } else {
                 PlayerHelper.choose(this, player().getUrl(), player().getHeaders(), player().isVod(), player().getPosition(), mBinding.control.title.getText());
                 setRedirect(true);
@@ -1975,17 +1976,15 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }).show();
     }
 
-    private boolean onChooseLong() {
-        onChoose();
-        return true;
-    }
-
     private void onPlayerKernel() {
         mClock.setCallback(null);
-        player().togglePlayer();
-        setPlayerKernel();
-        setDecode();
+        onChoose();
         setR1Callback();
+    }
+
+    private boolean onPlayerKernelLong() {
+        onPlayerKernel();
+        return true;
     }
 
     private boolean onTextLong() {

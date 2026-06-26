@@ -88,6 +88,7 @@ public class PlayerManager implements ParseCallback {
     private boolean pendingLutPreview;
     private boolean waitingLutBeforePlay;
     private boolean lutAllowed = true;
+    private boolean manualPlayerSwitchPending;
     private int playerType;
     private int retry;
     private int localProxyRetry;
@@ -513,19 +514,28 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void togglePlayer() {
-        switchPlayer(nextPlayer(playerType));
+        switchPlayerManually(nextPlayer(playerType));
     }
 
     public void switchPlayer(int type) {
-        switchPlayer(type, true);
+        switchPlayer(type, true, false);
+    }
+
+    public void switchPlayerManually(int type) {
+        switchPlayer(type, true, true);
     }
 
     private void switchPlayer(int type, boolean persist) {
+        switchPlayer(type, persist, false);
+    }
+
+    private void switchPlayer(int type, boolean persist, boolean manual) {
         if (engine == null || player == null) return;
         type = PlayerSetting.sanitizePlayer(type);
-        type = resolveAvailablePlayer(type);
+        type = manual ? resolveManualPlayer(type) : resolveAvailablePlayer(type);
         if (type == playerType) return;
         resetPlayerFallback();
+        manualPlayerSwitchPending = manual;
         switchEngine(type, persist, true, true);
     }
 
@@ -598,6 +608,7 @@ public class PlayerManager implements ParseCallback {
         retry = 0;
         exoFallbackTried = false;
         realtimeFallbackTried = false;
+        manualPlayerSwitchPending = false;
         localProxyRetry = 0;
         resetPlayerFallback();
         currentDanmakuUrl = null;
@@ -610,6 +621,7 @@ public class PlayerManager implements ParseCallback {
         retry = 0;
         exoFallbackTried = false;
         realtimeFallbackTried = false;
+        manualPlayerSwitchPending = false;
         localProxyRetry = 0;
         resetPlayerFallback();
         currentDanmakuUrl = null;
@@ -1077,7 +1089,10 @@ public class PlayerManager implements ParseCallback {
         public void onPlaybackStateChanged(int state) {
             if (state != Player.STATE_IDLE) App.removeCallbacks(runnable);
             if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "state=%s spec=%s", stateName(state), debugSpec());
-            if (state == Player.STATE_READY) applyLutForCurrentItem();
+            if (state == Player.STATE_READY) {
+                manualPlayerSwitchPending = false;
+                applyLutForCurrentItem();
+            }
         }
 
         @Override
@@ -1111,6 +1126,10 @@ public class PlayerManager implements ParseCallback {
             LocalProxyDebug.dumpIfLocalFailure(spec == null ? null : spec.getUrl(), e);
             if (retryLutFailure(e)) return;
             if (action == PlayerEngine.ErrorAction.FATAL && retryLocalProxy(e)) return;
+            if (shouldStopOnManualSwitchFailure(manualPlayerSwitchPending, action)) {
+                callback.onError(engine.getErrorMessage(e));
+                return;
+            }
             if (action == PlayerEngine.ErrorAction.FATAL && retryRealtimeFallback(e)) return;
             if (action == PlayerEngine.ErrorAction.FATAL && retryExoFallback(e)) return;
             if (action == PlayerEngine.ErrorAction.RELOAD) {
@@ -1135,6 +1154,10 @@ public class PlayerManager implements ParseCallback {
 
     private void onPlaybackTimeout() {
         PlaybackException e = new PlaybackException(ResUtil.getString(R.string.error_play_timeout), null, PlaybackException.ERROR_CODE_TIMEOUT);
+        if (manualPlayerSwitchPending) {
+            callback.onError(ResUtil.getString(R.string.error_play_timeout));
+            return;
+        }
         if (retryRealtimeFallback("timeout")) return;
         if (retryExoFallback("timeout")) return;
         if (fallbackPlayer(e)) return;
@@ -1213,7 +1236,6 @@ public class PlayerManager implements ParseCallback {
         String from = getPlayerText(playerType);
         String to = getPlayerText(next);
         SpiderDebug.log("player", "fallback player from=%s to=%s spec=%s cause=%s", from, to, debugSpec(), causeChain(e));
-        Notify.show(ResUtil.getString(R.string.error_play_fallback, from, to));
         App.removeCallbacks(runnable);
         retry = 0;
         localProxyRetry = 0;
@@ -1229,7 +1251,7 @@ public class PlayerManager implements ParseCallback {
             callback.onError(ResUtil.getString(R.string.error_play_ijk_unavailable));
             return false;
         }
-        showUnavailablePlayer(from, next);
+        logUnavailablePlayer(from, next);
         switchEngine(next, false, false, true);
         return false;
     }
@@ -1266,7 +1288,7 @@ public class PlayerManager implements ParseCallback {
         int next = nextPlayer(type);
         while (next != type) {
             if (PlayerSetting.isPlayerAvailable(next)) {
-                showUnavailablePlayer(type, next);
+                logUnavailablePlayer(type, next);
                 return next;
             }
             next = nextPlayer(next);
@@ -1274,9 +1296,15 @@ public class PlayerManager implements ParseCallback {
         return playerType;
     }
 
-    private void showUnavailablePlayer(int from, int to) {
+    private int resolveManualPlayer(int type) {
+        if (PlayerSetting.isPlayerAvailable(type)) return type;
+        SpiderDebug.log("player", "manual player unavailable type=%s package=%s", getPlayerText(type), App.get().getPackageName());
+        Notify.show(ResUtil.getString(R.string.error_play_ijk_unavailable));
+        return playerType;
+    }
+
+    private void logUnavailablePlayer(int from, int to) {
         SpiderDebug.log("player", "player unavailable from=%s to=%s package=%s", getPlayerText(from), getPlayerText(to), App.get().getPackageName());
-        Notify.show(ResUtil.getString(R.string.error_play_ijk_unavailable_switch, getPlayerText(to)));
     }
 
     private void resetPlayerFallback() {
@@ -1289,6 +1317,10 @@ public class PlayerManager implements ParseCallback {
 
     private boolean isPlayerFallbackTried(int type) {
         return type >= 0 && type < playerFallbackTried.length && playerFallbackTried[type];
+    }
+
+    static boolean shouldStopOnManualSwitchFailure(boolean manualSwitchPending, PlayerEngine.ErrorAction action) {
+        return manualSwitchPending && action != PlayerEngine.ErrorAction.RECOVERED;
     }
 
     private boolean retryExoFallback(String reason) {

@@ -159,6 +159,18 @@ public class VideoActivityLayoutTest {
     }
 
     @Test
+    public void leanbackTmdbRecommendationPresenterReportsAlreadyFocusedAiCards() throws Exception {
+        Path sourcePath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "presenter", "TmdbRecommendationPresenter.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+
+        assertTrue("AI recommendation reason must update when a rebound card is already focused",
+                source.contains("holder.view.hasFocus() && mFocusListener != null") && source.contains("mFocusListener.onItemFocus(tmdbItem, true)"));
+        assertTrue("AI recommendation reason must clear when a focused card is unbound",
+                source.contains("viewHolder.view.hasFocus() && holder.item != null && mFocusListener != null")
+                        && source.contains("mFocusListener.onItemFocus(holder.item, false)"));
+    }
+
+    @Test
     public void tmdbHeaderRefreshesThemeEvenWhenModeValueDidNotChange() throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "custom", "TmdbHeaderView.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
@@ -205,6 +217,12 @@ public class VideoActivityLayoutTest {
         Path moduleRelative = Path.of("src", "main", "java");
         if (Files.exists(moduleRelative)) return moduleRelative;
         return Path.of("app", "src", "main", "java");
+    }
+
+    private static Path findLeanbackJavaPath() {
+        Path moduleRelative = Path.of("src", "leanback", "java");
+        if (Files.exists(moduleRelative)) return moduleRelative;
+        return Path.of("app", "src", "leanback", "java");
     }
 
     private static Set<String> collectAndroidIds(File file) throws Exception {

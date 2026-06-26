@@ -16,7 +16,18 @@ public class AiConfig {
     public static final String DEFAULT_ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
     public static final String DEFAULT_GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
     public static final String DEFAULT_MODEL = "gpt-4.1-mini";
-    public static final String DEFAULT_RECOMMEND_PROMPT = "你是一位专业的影视剧推荐专家，熟悉全球影视内容，包括电视剧、电影、动漫、纪录片等。你的任务是根据用户提供的观影历史和搜索记录，分析用户的偏好，并输出个性化的影视推荐列表。只返回可解析 JSON，不要解释，建议格式为 {\"items\":[{\"title\":\"片名\",\"year\":2024,\"mediaType\":\"movie 或 tv\",\"reason\":\"一句推荐理由\"}]}。优先推荐不同于历史记录和当前影片的作品，推荐数量由提示词自行决定。";
+    public static final int DEFAULT_RECOMMEND_PROMPT_VERSION = 2;
+    public static final String LEGACY_RECOMMEND_PROMPT_V1 = "你是一位专业的影视剧推荐专家，熟悉全球影视内容，包括电视剧、电影、动漫、纪录片等。你的任务是根据用户提供的观影历史和搜索记录，分析用户的偏好，并输出个性化的影视推荐列表。只返回可解析 JSON，不要解释，建议格式为 {\"items\":[{\"title\":\"片名\",\"year\":2024,\"mediaType\":\"movie 或 tv\",\"reason\":\"一句推荐理由\"}]}。优先推荐不同于历史记录和当前影片的作品，推荐数量由提示词自行决定。";
+    public static final String DEFAULT_RECOMMEND_PROMPT = "你是一位专业的影视推荐专家，熟悉全球电影、电视剧、动漫、纪录片、综艺及短剧内容。"
+            + "你的任务是根据用户的当前影片、播放历史、搜索记录、观看进度和内容元数据，分析用户偏好，并输出个性化影视推荐。"
+            + "请重点分析用户偏好的题材、类型、国家/地区、语言、年代、叙事风格、节奏和受众倾向；"
+            + "播放历史中的观看深度、已看集数、观看时长、完播率和最近观看时间权重更高；"
+            + "搜索记录代表兴趣意向，但不等同于已观看；当前影片代表即时兴趣，应提高相似题材、相似气质、相似受众作品的权重。"
+            + "优先推荐不同于当前影片和播放历史的作品，避免推荐用户已经看过或正在看的片名、别名和易混淆续作。"
+            + "推荐结果应兼顾相似偏好和适度拓展，不要全部集中在同一题材；如果历史中包含乱码、异常标题、合集、非影视内容，请降低其权重。"
+            + "推荐数量为 12-24 部，默认推荐 16 部；若用户历史较少则推荐 12 部，历史丰富则推荐 18-24 部。"
+            + "只返回可解析 JSON，不要解释、Markdown 或多余文本，格式为 {\"items\":[{\"title\":\"片名\",\"year\":2024,\"mediaType\":\"movie 或 tv\",\"reason\":\"一句推荐理由\"}]}。"
+            + "mediaType 只能使用 movie 或 tv，reason 控制在 20-45 个中文字符，并说明它为什么适合这个用户。";
 
     @SerializedName("enabled")
     private boolean enabled;
@@ -32,6 +43,10 @@ public class AiConfig {
     private String customUserAgent;
     @SerializedName("recommendPrompt")
     private String recommendPrompt;
+    @SerializedName("recommendPromptVersion")
+    private int recommendPromptVersion;
+    @SerializedName("recommendPromptCustom")
+    private boolean recommendPromptCustom;
 
     public static AiConfig objectFrom(String json) {
         try {
@@ -48,7 +63,7 @@ public class AiConfig {
         apiKey = trimOr(apiKey, "");
         model = trimOr(model, DEFAULT_MODEL);
         customUserAgent = trimOr(customUserAgent, "");
-        recommendPrompt = trimOr(recommendPrompt, DEFAULT_RECOMMEND_PROMPT);
+        sanitizeRecommendPrompt();
         return this;
     }
 
@@ -119,7 +134,28 @@ public class AiConfig {
     }
 
     public void setRecommendPrompt(String recommendPrompt) {
-        this.recommendPrompt = recommendPrompt;
+        String value = recommendPrompt == null ? "" : recommendPrompt.trim();
+        if (isEmpty(value) || isBuiltInRecommendPrompt(value)) {
+            resetRecommendPrompt();
+        } else {
+            this.recommendPrompt = value;
+            this.recommendPromptCustom = true;
+            this.recommendPromptVersion = DEFAULT_RECOMMEND_PROMPT_VERSION;
+        }
+    }
+
+    public int getRecommendPromptVersion() {
+        return recommendPromptVersion;
+    }
+
+    public boolean isRecommendPromptCustom() {
+        return recommendPromptCustom;
+    }
+
+    public void resetRecommendPrompt() {
+        recommendPrompt = DEFAULT_RECOMMEND_PROMPT;
+        recommendPromptCustom = false;
+        recommendPromptVersion = DEFAULT_RECOMMEND_PROMPT_VERSION;
     }
 
     public static String defaultEndpoint(String protocol) {
@@ -144,5 +180,27 @@ public class AiConfig {
 
     private static boolean isEmpty(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private void sanitizeRecommendPrompt() {
+        String value = recommendPrompt == null ? "" : recommendPrompt.trim();
+        if (isEmpty(value) || isBuiltInRecommendPrompt(value)) {
+            resetRecommendPrompt();
+            return;
+        }
+        recommendPrompt = value;
+        recommendPromptCustom = true;
+        if (recommendPromptVersion <= 0) recommendPromptVersion = DEFAULT_RECOMMEND_PROMPT_VERSION;
+    }
+
+    public static boolean isBuiltInRecommendPrompt(String prompt) {
+        if (prompt == null) return false;
+        String value = prompt.trim();
+        if (DEFAULT_RECOMMEND_PROMPT.equals(value)) return true;
+        return LEGACY_RECOMMEND_PROMPT_V1.equals(value);
+    }
+
+    public static String[] systemRecommendPromptsForCache() {
+        return new String[]{DEFAULT_RECOMMEND_PROMPT, LEGACY_RECOMMEND_PROMPT_V1};
     }
 }

@@ -3,6 +3,7 @@ package com.fongmi.android.tv.service;
 import androidx.annotation.Nullable;
 
 import com.fongmi.android.tv.bean.AiConfig;
+import com.fongmi.android.tv.bean.Flag;
 import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.bean.TmdbItem;
@@ -19,8 +20,10 @@ import com.google.gson.JsonParser;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -36,15 +39,19 @@ import okhttp3.Response;
 
 public class AiRecommendationService {
 
-    private static final int MAX_CONTEXT_ITEMS = 12;
+    private static final int MAX_CONTEXT_ITEMS = 24;
+    private static final int MIN_RECOMMENDATION_COUNT = 12;
+    private static final int DEFAULT_RECOMMENDATION_COUNT = 16;
+    private static final int MAX_RECOMMENDATION_COUNT = 24;
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private static final int CONNECT_TIMEOUT_SECONDS = 15;
     private static final int READ_TIMEOUT_SECONDS = 60;
     private static final int CALL_TIMEOUT_SECONDS = 75;
     private static final int MAX_RECOMMENDATION_ATTEMPTS = 2;
-    private static final int MAX_OUTPUT_TOKENS = 2048;
+    private static final int MAX_OUTPUT_TOKENS = 4096;
     private static final String RESOLVED_CACHE_SUFFIX = ".items.json";
     private static final String LATEST_CACHE_PREFIX = "latest_";
+    private static final String DISPLAY_CACHE_PREFIX = "display_";
     private static final String ANTHROPIC_VERSION = "2023-06-01";
     private static final String[] KNOWN_COMPAT_SUFFIXES = {
             "/api/claudecode",
@@ -99,10 +106,20 @@ public class AiRecommendationService {
         List<AiRecommendation> recommendations = readCache(fingerprint);
         if (!recommendations.isEmpty()) return new CachedPage(pageFallbackRecommendations(recommendations, fingerprint), true, false);
 
-        String latestKey = latestCacheKey(currentTitle, config);
-        resolved = readResolvedCache(latestResolvedCacheFile(latestKey));
+        for (String latestKey : latestCacheKeysForRead(currentTitle, config)) {
+            resolved = readResolvedCache(latestResolvedCacheFile(latestKey));
+            if (!resolved.isEmpty()) return new CachedPage(pageItems(resolved, fingerprint), false, true);
+            recommendations = readCache(latestCacheFile(latestKey));
+            if (!recommendations.isEmpty()) return new CachedPage(pageFallbackRecommendations(recommendations, fingerprint), false, false);
+        }
+        String displayKey = latestDisplayCacheKey(currentTitle, config);
+        resolved = readResolvedCache(displayResolvedCacheFile(displayKey));
         if (!resolved.isEmpty()) return new CachedPage(pageItems(resolved, fingerprint), false, true);
-        recommendations = readCache(latestCacheFile(latestKey));
+        recommendations = readCache(displayCacheFile(displayKey));
+        if (!recommendations.isEmpty()) return new CachedPage(pageFallbackRecommendations(recommendations, fingerprint), false, false);
+        resolved = readResolvedCache(latestAnyResolvedCacheFile());
+        if (!resolved.isEmpty()) return new CachedPage(pageItems(resolved, fingerprint), false, true);
+        recommendations = readCache(latestAnyRecommendationCacheFile());
         if (!recommendations.isEmpty()) return new CachedPage(pageFallbackRecommendations(recommendations, fingerprint), false, false);
         return CachedPage.empty(fingerprint);
     }
@@ -181,6 +198,10 @@ public class AiRecommendationService {
     }
 
     static String latestCacheKey(String currentTitle, AiConfig config) {
+        return latestCacheKey(currentTitle, config, null);
+    }
+
+    private static String latestCacheKey(String currentTitle, AiConfig config, @Nullable String promptOverride) {
         if (isBlank(currentTitle)) return "";
         AiConfig safe = config == null ? new AiConfig().sanitize() : config.sanitize();
         String value = "latest-v1|"
@@ -188,9 +209,35 @@ public class AiRecommendationService {
                 + Objects.toString(safe.getEndpoint(), "") + "|"
                 + Objects.toString(safe.getModel(), "") + "|"
                 + Objects.toString(safe.getCustomUserAgent(), "") + "|"
-                + Objects.toString(safe.getRecommendPrompt(), "") + "|"
+                + Objects.toString(promptOverride == null ? safe.getRecommendPrompt() : promptOverride, "") + "|"
                 + PersonalRecommendationService.normalizeTitle(currentTitle);
         return md5(value);
+    }
+
+    static String latestDisplayCacheKey(String currentTitle, AiConfig config) {
+        if (isBlank(currentTitle)) return "";
+        AiConfig safe = config == null ? new AiConfig().sanitize() : config.sanitize();
+        String value = "display-v1|"
+                + Objects.toString(safe.getProtocol(), "") + "|"
+                + Objects.toString(safe.getEndpoint(), "") + "|"
+                + Objects.toString(safe.getModel(), "") + "|"
+                + Objects.toString(safe.getCustomUserAgent(), "") + "|"
+                + PersonalRecommendationService.normalizeTitle(currentTitle);
+        return md5(value);
+    }
+
+    static List<String> latestCacheKeysForRead(String currentTitle, AiConfig config) {
+        List<String> keys = new ArrayList<>();
+        String current = latestCacheKey(currentTitle, config);
+        if (!isBlank(current)) keys.add(current);
+        AiConfig safe = config == null ? new AiConfig().sanitize() : config.sanitize();
+        if (!safe.isRecommendPromptCustom()) {
+            for (String prompt : AiConfig.systemRecommendPromptsForCache()) {
+                String key = latestCacheKey(currentTitle, safe, prompt);
+                if (!isBlank(key) && !keys.contains(key)) keys.add(key);
+            }
+        }
+        return keys;
     }
 
     static String extractOutputText(String body) {
@@ -462,14 +509,50 @@ public class AiRecommendationService {
     }
 
     private String buildPrompt(Vod currentVod, String currentTitle) {
+        return buildPrompt(config, currentContextItem(currentVod, currentTitle), historyItems(currentVod, currentTitle), searchKeywords());
+    }
+
+    static String buildPrompt(AiConfig config, @Nullable JsonObject currentItem, List<JsonObject> playHistory, List<String> searchKeywords) {
+        AiConfig safe = config == null ? new AiConfig().sanitize() : config.sanitize();
+        JsonObject context = new JsonObject();
+        JsonObject policy = new JsonObject();
+        policy.addProperty("minItems", MIN_RECOMMENDATION_COUNT);
+        policy.addProperty("defaultItems", DEFAULT_RECOMMENDATION_COUNT);
+        policy.addProperty("maxItems", MAX_RECOMMENDATION_COUNT);
+        policy.addProperty("avoidCurrentAndHistory", true);
+        policy.addProperty("outputMediaType", "movie 或 tv");
+        context.add("recommendationPolicy", policy);
+        context.add("currentItem", currentItem == null ? new JsonObject() : currentItem);
+        context.add("playHistory", objectArray(playHistory));
+        context.add("searchHistory", searchArray(searchKeywords));
+
         StringBuilder builder = new StringBuilder();
-        builder.append(config.getRecommendPrompt()).append("\n\n");
-        builder.append("当前影片: ").append(Objects.toString(currentTitle, "")).append('\n');
-        builder.append("播放历史:\n");
-        for (String title : historyTitles(currentVod)) builder.append("- ").append(title).append('\n');
-        builder.append("搜索记录:\n");
-        for (String keyword : searchKeywords()) builder.append("- ").append(keyword).append('\n');
+        builder.append(safe.getRecommendPrompt()).append("\n\n");
+        builder.append("推荐硬性要求:\n");
+        builder.append("- items 数量必须在 ").append(MIN_RECOMMENDATION_COUNT).append('-').append(MAX_RECOMMENDATION_COUNT).append(" 部之间，默认 ").append(DEFAULT_RECOMMENDATION_COUNT).append(" 部。\n");
+        builder.append("- 不要推荐 currentItem 或 playHistory 中已经出现的作品、别名或明显同名混淆项。\n");
+        builder.append("- searchHistory 只代表兴趣意向，不等同于已观看；重复或靠前搜索词权重更高。\n");
+        builder.append("- 如果 playHistory 中包含异常标题、合集或非影视内容，请降低权重。\n");
+        builder.append("- 推荐理由必须结合用户偏好，不能只复述剧情。\n\n");
+        appendFieldGuide(builder);
+        builder.append("请基于下面结构化 JSON 分析，字段为空表示本地暂无该信息:\n");
+        builder.append(context).append("\n\n");
+        builder.append("最终只返回严格 JSON: {\"items\":[{\"title\":\"片名\",\"year\":2024,\"mediaType\":\"movie 或 tv\",\"reason\":\"一句推荐理由\"}]}");
         return builder.toString();
+    }
+
+    private static void appendFieldGuide(StringBuilder builder) {
+        builder.append("字段说明:\n");
+        builder.append("- recommendationPolicy: 推荐数量、去重和输出类型约束。\n");
+        builder.append("- currentItem: 用户当前正在查看或播放的作品，代表即时兴趣。\n");
+        builder.append("- playHistory: 用户最近播放过的作品，越靠前越近，观看深度越高权重越高。\n");
+        builder.append("- searchHistory: 用户搜索词，代表潜在兴趣，不等同于已观看。\n");
+        builder.append("- title/year/mediaType/country/language: 作品基础信息，用于判断题材、地区、语言和年代偏好。\n");
+        builder.append("- genres/tags/statusOrRemarks/description: 类型、标签、更新状态或简介，用于判断内容气质。\n");
+        builder.append("- episodeCount/episodeName/episodeNumber: 总集数、历史观看集名和集号，用于判断剧集观看偏好。\n");
+        builder.append("- watchedMinutes/durationMinutes: 用户在单集或单条历史上的已看时长和总时长。\n");
+        builder.append("- completionRate: 单集观看完成比例，接近 1 表示兴趣更强。\n");
+        builder.append("- lastWatchedAt: 最近观看时间，越新权重越高。\n\n");
     }
 
     private static String retryPrompt(String prompt) {
@@ -487,20 +570,57 @@ public class AiRecommendationService {
         }
     }
 
-    private List<String> historyTitles(Vod currentVod) {
+    private JsonObject currentContextItem(Vod currentVod, String currentTitle) {
+        JsonObject object = new JsonObject();
+        String title = !isBlank(currentTitle) ? currentTitle : currentVod == null ? "" : currentVod.getName();
+        addString(object, "title", title);
+        if (currentVod == null) return object;
+        int episodeCount = episodeCount(currentVod);
+        addString(object, "year", currentVod.getYear());
+        addString(object, "mediaType", inferMediaType(currentVod.getTypeName(), episodeCount));
+        addString(object, "country", currentVod.getArea());
+        addString(object, "language", inferLanguage(currentVod.getArea()));
+        addStringArray(object, "genres", currentVod.getTypeName());
+        addStringArray(object, "tags", currentVod.getTag());
+        addString(object, "statusOrRemarks", currentVod.getRemarks());
+        addString(object, "director", currentVod.getDirector());
+        addStringArray(object, "actors", currentVod.getActor());
+        addPositiveInt(object, "episodeCount", episodeCount);
+        addString(object, "description", limit(currentVod.getContent(), 220));
+        return object;
+    }
+
+    private List<JsonObject> historyItems(Vod currentVod, String currentTitle) {
+        List<JsonObject> items = new ArrayList<>();
         List<String> titles = new ArrayList<>();
-        String current = currentVod == null ? "" : currentVod.getName();
+        String current = !isBlank(currentTitle) ? currentTitle : currentVod == null ? "" : currentVod.getName();
         try {
             for (History history : History.get()) {
                 if (history == null || isBlank(history.getVodName())) continue;
                 if (PersonalRecommendationService.normalizeTitle(history.getVodName()).equals(PersonalRecommendationService.normalizeTitle(current))) continue;
-                addUnique(titles, history.getVodName());
-                if (titles.size() >= MAX_CONTEXT_ITEMS) break;
+                if (containsNormalized(titles, history.getVodName())) continue;
+                titles.add(history.getVodName());
+                items.add(historyContextItem(history));
+                if (items.size() >= MAX_CONTEXT_ITEMS) break;
             }
         } catch (Throwable e) {
             SpiderDebug.log("ai-rec", "history read failed: %s", e.getMessage());
         }
-        return titles;
+        return items;
+    }
+
+    static JsonObject historyContextItem(History history) {
+        JsonObject object = new JsonObject();
+        addString(object, "title", history.getVodName());
+        addString(object, "episodeName", history.getVodRemarks());
+        addPositiveInt(object, "episodeNumber", extractNumber(history.getVodRemarks()));
+        long position = history.getPosition();
+        long duration = history.getDuration();
+        if (position > 0) object.addProperty("watchedMinutes", TimeUnit.MILLISECONDS.toMinutes(position));
+        if (duration > 0) object.addProperty("durationMinutes", TimeUnit.MILLISECONDS.toMinutes(duration));
+        if (position > 0 && duration > 0) object.addProperty("completionRate", Math.min(1.0, Math.round((position * 100.0 / duration)) / 100.0));
+        if (history.getCreateTime() > 0) addString(object, "lastWatchedAt", formatTime(history.getCreateTime()));
+        return object;
     }
 
     private List<String> searchKeywords() {
@@ -517,6 +637,126 @@ public class AiRecommendationService {
         } catch (Throwable ignored) {
         }
         return keywords;
+    }
+
+    private static JsonArray objectArray(List<JsonObject> values) {
+        JsonArray array = new JsonArray();
+        if (values == null) return array;
+        for (JsonObject value : values) if (value != null) array.add(value);
+        return array;
+    }
+
+    private static JsonArray searchArray(List<String> keywords) {
+        JsonArray array = new JsonArray();
+        if (keywords == null) return array;
+        int rank = 1;
+        for (String keyword : keywords) {
+            if (isBlank(keyword)) continue;
+            JsonObject object = new JsonObject();
+            object.addProperty("query", keyword.trim());
+            object.addProperty("rank", rank++);
+            array.add(object);
+        }
+        return array;
+    }
+
+    private static void addString(JsonObject object, String key, String value) {
+        if (object == null || isBlank(key) || isBlank(value)) return;
+        object.addProperty(key, value.trim());
+    }
+
+    private static void addPositiveInt(JsonObject object, String key, int value) {
+        if (object == null || isBlank(key) || value <= 0) return;
+        object.addProperty(key, value);
+    }
+
+    private static void addStringArray(JsonObject object, String key, String value) {
+        if (object == null || isBlank(key) || isBlank(value)) return;
+        JsonArray array = new JsonArray();
+        for (String part : value.split("[,，/、|｜;；\\s]+")) {
+            String item = part == null ? "" : part.trim();
+            if (isBlank(item) || contains(array, item)) continue;
+            array.add(item);
+            if (array.size() >= 8) break;
+        }
+        if (array.size() > 0) object.add(key, array);
+    }
+
+    private static boolean contains(JsonArray array, String value) {
+        for (JsonElement element : array) {
+            if (element.isJsonPrimitive() && element.getAsString().equalsIgnoreCase(value)) return true;
+        }
+        return false;
+    }
+
+    private static boolean containsNormalized(List<String> values, String value) {
+        String normalized = PersonalRecommendationService.normalizeTitle(value);
+        for (String item : values) if (PersonalRecommendationService.normalizeTitle(item).equals(normalized)) return true;
+        return false;
+    }
+
+    private static int episodeCount(Vod vod) {
+        if (vod == null) return 0;
+        int count = 0;
+        for (Flag flag : vod.getFlags()) if (flag != null && flag.getEpisodes() != null) count = Math.max(count, flag.getEpisodes().size());
+        if (count > 0) return count;
+        String playUrl = vod.getPlayUrl();
+        if (isBlank(playUrl)) return 0;
+        for (String group : playUrl.split("\\$\\$\\$")) {
+            if (isBlank(group)) continue;
+            count = Math.max(count, group.split("#").length);
+        }
+        return count;
+    }
+
+    private static String inferMediaType(String typeName, int episodeCount) {
+        String value = Objects.toString(typeName, "").toLowerCase(Locale.ROOT);
+        if (value.contains("电影") || value.contains("movie")) return "movie";
+        if (value.contains("电视剧") || value.contains("连续") || value.contains("剧集") || value.contains("短剧") || value.contains("动漫") || value.contains("动画") || value.contains("综艺") || value.contains("纪录")) return "tv";
+        return episodeCount > 1 ? "tv" : "";
+    }
+
+    private static String inferLanguage(String area) {
+        String value = Objects.toString(area, "").trim();
+        if (isBlank(value)) return "";
+        if (value.contains("中国") || value.contains("大陆") || value.contains("香港") || value.contains("台湾") || value.contains("华语")) return "中文";
+        if (value.contains("日本")) return "日语";
+        if (value.contains("韩国")) return "韩语";
+        if (value.contains("美国") || value.contains("英国") || value.contains("加拿大") || value.contains("澳大利亚")) return "英语";
+        if (value.contains("法国")) return "法语";
+        if (value.contains("德国")) return "德语";
+        if (value.contains("印度")) return "印地语";
+        return "";
+    }
+
+    private static int extractNumber(String text) {
+        String value = Objects.toString(text, "");
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isDigit(c)) digits.append(c);
+            else if (digits.length() > 0) break;
+        }
+        if (digits.length() == 0) return 0;
+        try {
+            return Integer.parseInt(digits.toString());
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    private static String formatTime(long time) {
+        try {
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(new Date(time));
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
+    private static String limit(String text, int maxLength) {
+        String value = Objects.toString(text, "").trim();
+        if (value.length() <= maxLength) return value;
+        return value.substring(0, Math.max(0, maxLength)).trim();
     }
 
     private TmdbItem resolveItem(AiRecommendation recommendation) {
@@ -634,6 +874,7 @@ public class AiRecommendationService {
         try {
             writeRecommendationFile(cacheFile(fingerprint), recommendations);
             writeRecommendationFile(latestCacheFile(latestCacheKey(currentTitle, config)), recommendations);
+            writeRecommendationFile(displayCacheFile(latestDisplayCacheKey(currentTitle, config)), recommendations);
         } catch (Throwable ignored) {
         }
     }
@@ -663,6 +904,7 @@ public class AiRecommendationService {
         try {
             writeResolvedFile(resolvedCacheFile(fingerprint), items);
             writeResolvedFile(latestResolvedCacheFile(latestCacheKey(currentTitle, config)), items);
+            writeResolvedFile(displayResolvedCacheFile(latestDisplayCacheKey(currentTitle, config)), items);
         } catch (Throwable ignored) {
         }
     }
@@ -719,6 +961,63 @@ public class AiRecommendationService {
         } catch (Throwable e) {
             return null;
         }
+    }
+
+    private File displayCacheFile(String displayKey) {
+        try {
+            if (isBlank(displayKey)) return null;
+            File dir = new File(Path.cache(), "ai_rec");
+            if (!dir.exists()) dir.mkdirs();
+            return new File(dir, DISPLAY_CACHE_PREFIX + displayKey + ".json");
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    private File displayResolvedCacheFile(String displayKey) {
+        try {
+            if (isBlank(displayKey)) return null;
+            File dir = new File(Path.cache(), "ai_rec");
+            if (!dir.exists()) dir.mkdirs();
+            return new File(dir, DISPLAY_CACHE_PREFIX + displayKey + RESOLVED_CACHE_SUFFIX);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    private File latestAnyRecommendationCacheFile() {
+        return newestCacheFile(aiCacheDir(), false);
+    }
+
+    private File latestAnyResolvedCacheFile() {
+        return newestCacheFile(aiCacheDir(), true);
+    }
+
+    private File aiCacheDir() {
+        try {
+            File dir = new File(Path.cache(), "ai_rec");
+            if (!dir.exists()) dir.mkdirs();
+            return dir;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    static File newestCacheFile(File dir, boolean resolved) {
+        if (dir == null || !dir.exists() || !dir.isDirectory()) return null;
+        File[] files = dir.listFiles(file -> file != null && file.isFile() && file.length() > 0 && isCacheFileName(file.getName(), resolved));
+        if (files == null || files.length == 0) return null;
+        File newest = null;
+        for (File file : files) {
+            if (newest == null || file.lastModified() > newest.lastModified()) newest = file;
+        }
+        return newest;
+    }
+
+    private static boolean isCacheFileName(String name, boolean resolved) {
+        if (isBlank(name)) return false;
+        if (resolved) return name.endsWith(RESOLVED_CACHE_SUFFIX);
+        return name.endsWith(".json") && !name.endsWith(RESOLVED_CACHE_SUFFIX);
     }
 
     static List<String> buildModelUrlCandidates(AiConfig config) {

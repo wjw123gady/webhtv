@@ -192,6 +192,7 @@ public class TmdbRecommendationAdapter extends RecyclerView.Adapter<TmdbRecommen
             } else if (!(itemView instanceof MaterialCardView)) {
                 itemView.setOnFocusChangeListener(null);
             }
+            if (itemView.hasFocus() && focusListener != null) focusListener.onItemFocus(item, true);
         }
 
         private void styleTextSurface(boolean cinema, boolean light) {
