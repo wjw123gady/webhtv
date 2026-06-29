@@ -47,6 +47,24 @@ public class LyricsRequest {
         return new LyricsRequest(player.getKey(), url, name, singer, "", player.getDuration());
     }
 
+    public LyricsRequest withKeyword(String keyword) {
+        String value = cleanTitle(keyword, url);
+        if (TextUtils.isEmpty(value)) return this;
+        String name = value;
+        String singer = "";
+        String[] split = splitArtistTitle(value);
+        if (split != null) {
+            singer = split[0];
+            name = split[1];
+        }
+        return new LyricsRequest(key, url, name, singer, album, durationMs);
+    }
+
+    public String displayKeyword() {
+        if (TextUtils.isEmpty(artist)) return title;
+        return artist + " - " + title;
+    }
+
     public String getKey() {
         return key;
     }

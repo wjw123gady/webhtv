@@ -813,6 +813,12 @@
     <string name="player_lyrics_cache">Lyric cache</string>
     <string name="player_lyrics_cache_value">%1$d items</string>
     <string name="player_lyrics_cache_cleared">Lyric cache cleared</string>
+    <string name="player_lyrics_reload">Search lyrics again</string>
+    <string name="player_lyrics_keyword">Lyric keyword</string>
+    <string name="player_lyrics_keyword_required">Enter a lyric keyword</string>
+    <string name="player_lyrics_searching">Searching lyrics...</string>
+    <string name="player_lyrics_not_found">No lyrics found</string>
+    <string name="player_lyrics_loaded">Lyrics loaded: %1$s</string>
     <string name="lut_original">Original</string>
     <string name="lut_missing">Preset missing</string>
     <string name="lut_summary">%1$s · %2$d%%</string>

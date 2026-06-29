@@ -27,6 +27,10 @@ public class LyricsController {
     private String emptySignature;
     private int sequence;
 
+    public interface Callback {
+        void onResult(LyricsResult result);
+    }
+
     public LyricsController(LyricsOverlayView view) {
         this.view = view;
     }
@@ -70,6 +74,49 @@ public class LyricsController {
             lines = parsed;
             view.setLyrics(result, parsed);
             update(player);
+        });
+    }
+
+    public void reload(PlayerManager player, boolean audioOnly, String keyword, Callback callback) {
+        if (player == null || !audioOnly) {
+            clear();
+            if (callback != null) callback.onResult(null);
+            return;
+        }
+        LyricsRequest request = LyricsRequest.from(player).withKeyword(keyword);
+        if (!request.isValid()) {
+            clear();
+            if (callback != null) callback.onResult(null);
+            return;
+        }
+        String signature = request.signature();
+        loadingSignature = signature;
+        activeSignature = null;
+        emptySignature = null;
+        lines = Collections.emptyList();
+        view.clear();
+        int current = ++sequence;
+        repository.loadPreferWord(request, true, result -> {
+            if (current != sequence) return;
+            loadingSignature = null;
+            if (result == null || !result.isValid()) {
+                emptySignature = signature;
+                view.clear();
+                if (callback != null) callback.onResult(null);
+                return;
+            }
+            ArrayList<LyricsLine> parsed = new ArrayList<>(result.getLines(request.getDurationMs()));
+            if (parsed.isEmpty()) {
+                emptySignature = signature;
+                view.clear();
+                if (callback != null) callback.onResult(null);
+                return;
+            }
+            activeSignature = signature;
+            lines = parsed;
+            view.setLyrics(result, parsed);
+            update(player);
+            if (callback != null) callback.onResult(result);
         });
     }
 

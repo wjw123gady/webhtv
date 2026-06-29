@@ -62,6 +62,7 @@ import com.fongmi.android.tv.playback.PlaybackEventCollector;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.lyrics.LyricsController;
+import com.fongmi.android.tv.player.lyrics.LyricsRequest;
 import com.fongmi.android.tv.player.lut.LutPreset;
 import com.fongmi.android.tv.player.lut.LutStore;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -84,6 +85,7 @@ import com.fongmi.android.tv.ui.custom.PlayerOsdController;
 import com.fongmi.android.tv.ui.dialog.ContentDialog;
 import com.fongmi.android.tv.ui.dialog.DanmakuDialog;
 import com.fongmi.android.tv.ui.dialog.EpisodeListDialog;
+import com.fongmi.android.tv.ui.dialog.LyricsSearchDialog;
 import com.fongmi.android.tv.ui.dialog.QuickSearchDialog;
 import com.fongmi.android.tv.ui.dialog.SubtitleDialog;
 import com.fongmi.android.tv.ui.dialog.TitleDialog;
@@ -1076,9 +1078,16 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void onSearch() {
+        if (onLyricsSearch()) return;
         String keyword = mBinding.name.getText().toString();
         if (TextUtils.isEmpty(keyword)) return;
         initSearch(keyword, false);
+    }
+
+    private boolean onLyricsSearch() {
+        if (!isLyricsSearchAvailable()) return false;
+        LyricsSearchDialog.show(this, getLyricsSearchKeyword(), this::reloadLyrics);
+        return true;
     }
 
     private void onShortDisplay() {
@@ -1811,6 +1820,26 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (showInlineLyrics()) return;
         setAudioOnly(LyricsController.isAudioOnly(player()));
         mLyrics.refresh(player(), isAudioOnly() || isMusicLike());
+    }
+
+    private boolean isLyricsSearchAvailable() {
+        if (mLyrics == null || service() == null) return false;
+        setAudioOnly(LyricsController.isAudioOnly(player()));
+        return isAudioOnly() || isMusicLike();
+    }
+
+    private String getLyricsSearchKeyword() {
+        if (service() == null) return getName();
+        LyricsRequest request = LyricsRequest.from(player());
+        return request.displayKeyword();
+    }
+
+    private void reloadLyrics(String keyword) {
+        if (mLyrics == null || service() == null) return;
+        mInlineLyrics = "";
+        setAudioOnly(LyricsController.isAudioOnly(player()));
+        Notify.show(R.string.player_lyrics_searching);
+        mLyrics.reload(player(), isAudioOnly() || isMusicLike(), keyword, result -> Notify.show(result == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, result.getSource())));
     }
 
     private void clearLyrics() {

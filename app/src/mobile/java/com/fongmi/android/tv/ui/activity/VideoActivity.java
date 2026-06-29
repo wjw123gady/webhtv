@@ -69,6 +69,7 @@ import com.fongmi.android.tv.playback.PlaybackEventCollector;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.lyrics.LyricsController;
+import com.fongmi.android.tv.player.lyrics.LyricsRequest;
 import com.fongmi.android.tv.player.lut.LutPreset;
 import com.fongmi.android.tv.player.lut.LutSetting;
 import com.fongmi.android.tv.player.lut.LutStore;
@@ -97,6 +98,7 @@ import com.fongmi.android.tv.ui.dialog.EpisodeGridDialog;
 import com.fongmi.android.tv.ui.dialog.EpisodeListDialog;
 import com.fongmi.android.tv.ui.dialog.InfoDialog;
 import com.fongmi.android.tv.ui.dialog.LutPanelDialog;
+import com.fongmi.android.tv.ui.dialog.LyricsSearchDialog;
 import com.fongmi.android.tv.ui.dialog.QuickSearchDialog;
 import com.fongmi.android.tv.ui.dialog.ReceiveDialog;
 import com.fongmi.android.tv.ui.dialog.SubtitleDialog;
@@ -1022,7 +1024,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void onSearch() {
+        if (onLyricsSearch()) return;
         onName();
+    }
+
+    private boolean onLyricsSearch() {
+        if (!isLyricsSearchAvailable()) return false;
+        LyricsSearchDialog.show(this, getLyricsSearchKeyword(), this::reloadLyrics);
+        return true;
     }
 
     private void onShortDisplay() {
@@ -1904,6 +1913,26 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (showInlineLyrics()) return;
         updateAudioOnlyState();
         mLyrics.refresh(player(), isAudioOnly() || isMusicLike());
+    }
+
+    private boolean isLyricsSearchAvailable() {
+        if (mLyrics == null || service() == null) return false;
+        updateAudioOnlyState();
+        return isAudioOnly() || isMusicLike();
+    }
+
+    private String getLyricsSearchKeyword() {
+        if (service() == null) return getName();
+        LyricsRequest request = LyricsRequest.from(player());
+        return request.displayKeyword();
+    }
+
+    private void reloadLyrics(String keyword) {
+        if (mLyrics == null || service() == null) return;
+        mInlineLyrics = "";
+        updateAudioOnlyState();
+        Notify.show(R.string.player_lyrics_searching);
+        mLyrics.reload(player(), isAudioOnly() || isMusicLike(), keyword, result -> Notify.show(result == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, result.getSource())));
     }
 
     private void clearLyrics() {

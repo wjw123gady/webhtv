@@ -811,6 +811,12 @@
     <string name="player_lyrics_cache">歌词缓存</string>
     <string name="player_lyrics_cache_value">%1$d 项</string>
     <string name="player_lyrics_cache_cleared">歌词缓存已清理</string>
+    <string name="player_lyrics_reload">重搜歌词</string>
+    <string name="player_lyrics_keyword">歌词关键词</string>
+    <string name="player_lyrics_keyword_required">请输入歌词关键词</string>
+    <string name="player_lyrics_searching">正在搜索歌词...</string>
+    <string name="player_lyrics_not_found">未找到歌词</string>
+    <string name="player_lyrics_loaded">已加载歌词：%1$s</string>
     <string name="lut_original">原色</string>
     <string name="lut_missing">预设不存在</string>
     <string name="lut_summary">%1$s · %2$d%%</string>

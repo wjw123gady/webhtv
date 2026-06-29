@@ -35,11 +35,19 @@ public class LyricsRepository {
         load(request, true, callback);
     }
 
+    public void loadPreferWord(LyricsRequest request, boolean forceRefresh, Callback callback) {
+        load(request, true, forceRefresh, callback);
+    }
+
     private void load(LyricsRequest request, boolean preferWord, Callback callback) {
+        load(request, preferWord, false, callback);
+    }
+
+    private void load(LyricsRequest request, boolean preferWord, boolean forceRefresh, Callback callback) {
         Task.execute(() -> {
             LyricsResult result = null;
             try {
-                result = loadSync(request, preferWord);
+                result = loadSync(request, preferWord, forceRefresh);
             } catch (Throwable e) {
                 if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "load failed title=%s error=%s", request.getTitle(), e.getMessage());
             }
@@ -48,9 +56,9 @@ public class LyricsRepository {
         });
     }
 
-    private LyricsResult loadSync(LyricsRequest request, boolean preferWord) {
+    private LyricsResult loadSync(LyricsRequest request, boolean preferWord, boolean forceRefresh) {
         int sourceMode = LyricsSetting.getSourceMode();
-        LyricsResult cached = readCache(request, sourceMode);
+        LyricsResult cached = forceRefresh ? null : readCache(request, sourceMode);
         if (cached != null && cached.isValid() && cached.isCacheCurrent() && (!preferWord || isTrustedWord(cached))) return cached;
         LyricsResult remote = cached != null && cached.isValid() && cached.isCacheCurrent() ? cached : null;
         LyricsResult local = readLocal(request);
