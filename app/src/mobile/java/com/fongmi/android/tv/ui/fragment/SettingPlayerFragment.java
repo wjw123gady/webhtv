@@ -15,7 +15,9 @@ import com.fongmi.android.tv.databinding.FragmentSettingPlayerBinding;
 import com.fongmi.android.tv.impl.BufferListener;
 import com.fongmi.android.tv.impl.SpeedListener;
 import com.fongmi.android.tv.impl.UaListener;
+import com.fongmi.android.tv.player.lyrics.LyricsRepository;
 import com.fongmi.android.tv.player.lut.LutSetting;
+import com.fongmi.android.tv.setting.LyricsSetting;
 import com.fongmi.android.tv.setting.PlayerButtonSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.PreloadSetting;
@@ -27,6 +29,7 @@ import com.fongmi.android.tv.ui.dialog.PlayerButtonConfigDialog;
 import com.fongmi.android.tv.ui.dialog.SpeedDialog;
 import com.fongmi.android.tv.ui.dialog.UaDialog;
 import com.fongmi.android.tv.utils.FileUtil;
+import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -46,6 +49,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
     private String[] bufferBytes;
     private String[] caption;
     private String[] kernel;
+    private String[] lyricsSource;
     private String[] playCache;
     private String[] render;
     private String[] scale;
@@ -85,6 +89,8 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
         mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
+        mBinding.lyricsSourceText.setText((lyricsSource = ResUtil.getStringArray(R.array.select_lyrics_source))[LyricsSetting.getSourceMode()]);
+        setLyricsCacheText();
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
         mBinding.scaleText.setText((scale = ResUtil.getStringArray(R.array.select_scale))[PlayerSetting.getScale()]);
         mBinding.lutText.setText(LutSetting.getSummary());
@@ -102,6 +108,8 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.lut.setOnClickListener(this::onLut);
         mBinding.osd.setOnClickListener(this::onOsd);
         mBinding.lyricsOffset.setOnClickListener(this::onLyricsOffset);
+        mBinding.lyricsSource.setOnClickListener(this::onLyricsSource);
+        mBinding.lyricsCache.setOnClickListener(this::clearLyricsCache);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
         mBinding.speed.setOnClickListener(this::onSpeed);
         mBinding.buffer.setOnClickListener(this::onBuffer);
@@ -174,6 +182,24 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
             mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
             dialog.dismiss();
         }).show();
+    }
+
+    private void onLyricsSource(View view) {
+        new MaterialAlertDialogBuilder(requireActivity()).setTitle(R.string.player_lyrics_source).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(lyricsSource, LyricsSetting.getSourceMode(), (dialog, which) -> {
+            LyricsSetting.putSourceMode(which);
+            mBinding.lyricsSourceText.setText(lyricsSource[which]);
+            dialog.dismiss();
+        }).show();
+    }
+
+    private void clearLyricsCache(View view) {
+        LyricsRepository.clearCache();
+        setLyricsCacheText();
+        Notify.show(R.string.player_lyrics_cache_cleared);
+    }
+
+    private void setLyricsCacheText() {
+        mBinding.lyricsCacheText.setText(getString(R.string.player_lyrics_cache_value, LyricsRepository.cacheCount()));
     }
 
     private void setPlayerButtonsText() {

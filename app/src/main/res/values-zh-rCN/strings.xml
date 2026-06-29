@@ -807,6 +807,10 @@
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">屏显设置</string>
     <string name="player_lyrics_offset">歌词偏移</string>
+    <string name="player_lyrics_source">歌词来源</string>
+    <string name="player_lyrics_cache">歌词缓存</string>
+    <string name="player_lyrics_cache_value">%1$d 项</string>
+    <string name="player_lyrics_cache_cleared">歌词缓存已清理</string>
     <string name="lut_original">原色</string>
     <string name="lut_missing">预设不存在</string>
     <string name="lut_summary">%1$s · %2$d%%</string>
@@ -1024,6 +1028,16 @@
         <item>网速</item>
         <item>迷你</item>
         <item>播放参数</item>
+    </string-array>
+
+    <string-array name="select_lyrics_source">
+        <item>自动</item>
+        <item>本地</item>
+        <item>AMLL TTML</item>
+        <item>QQMusic QRC</item>
+        <item>网易 YRC</item>
+        <item>酷我</item>
+        <item>LRCLIB</item>
     </string-array>
 
     <string-array name="select_track">

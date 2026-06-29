@@ -809,6 +809,10 @@
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">On-screen display</string>
     <string name="player_lyrics_offset">Lyric offset</string>
+    <string name="player_lyrics_source">Lyric source</string>
+    <string name="player_lyrics_cache">Lyric cache</string>
+    <string name="player_lyrics_cache_value">%1$d items</string>
+    <string name="player_lyrics_cache_cleared">Lyric cache cleared</string>
     <string name="lut_original">Original</string>
     <string name="lut_missing">Preset missing</string>
     <string name="lut_summary">%1$s · %2$d%%</string>
@@ -1032,6 +1036,16 @@
         <item>Network speed</item>
         <item>Mini</item>
         <item>Playback params</item>
+    </string-array>
+
+    <string-array name="select_lyrics_source">
+        <item>Auto</item>
+        <item>Local</item>
+        <item>AMLL TTML</item>
+        <item>QQMusic QRC</item>
+        <item>Netease YRC</item>
+        <item>Kuwo</item>
+        <item>LRCLIB</item>
     </string-array>
 
     <string-array name="select_track">

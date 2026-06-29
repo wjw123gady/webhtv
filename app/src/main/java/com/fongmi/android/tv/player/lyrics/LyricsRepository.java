@@ -4,6 +4,7 @@ import android.net.Uri;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.setting.LyricsSetting;
 import com.fongmi.android.tv.utils.Task;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Path;
@@ -48,13 +49,15 @@ public class LyricsRepository {
     }
 
     private LyricsResult loadSync(LyricsRequest request, boolean preferWord) {
-        LyricsResult cached = readCache(request);
+        int sourceMode = LyricsSetting.getSourceMode();
+        LyricsResult cached = readCache(request, sourceMode);
         if (cached != null && cached.isValid() && cached.isCacheCurrent() && (!preferWord || isTrustedWord(cached))) return cached;
         LyricsResult remote = cached != null && cached.isValid() && cached.isCacheCurrent() ? cached : null;
         LyricsResult local = readLocal(request);
+        if (sourceMode != LyricsSetting.SOURCE_AUTO) return loadSource(request, sourceMode, local);
         if (local != null && local.isValid()) {
             if (!preferWord || local.hasWordTiming()) {
-                writeCache(request, local);
+                writeCache(request, sourceMode, local);
                 return local;
             }
             if (shouldUseRemote(remote, local)) remote = local;
@@ -69,9 +72,24 @@ public class LyricsRepository {
         if (shouldUseRemote(remote, kuwoResult)) remote = kuwoResult;
         List<LrcLibClient.Entry> candidates = remote == null || !remote.isValid() ? client.findCandidates(request) : List.of();
         if (remote == null || !remote.isValid()) remote = matcher.best(request, candidates);
-        if (remote != null && remote.isValid()) writeCache(request, remote);
+        if (remote != null && remote.isValid()) writeCache(request, sourceMode, remote);
         if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "match title=%s artist=%s candidates=%d result=%s score=%d", request.getTitle(), request.getArtist(), candidates.size(), remote == null ? "none" : remote.getSource(), remote == null ? 0 : remote.getScore());
         return remote;
+    }
+
+    private LyricsResult loadSource(LyricsRequest request, int sourceMode, LyricsResult local) {
+        LyricsResult result = switch (sourceMode) {
+            case LyricsSetting.SOURCE_LOCAL -> local;
+            case LyricsSetting.SOURCE_TTML -> ttml.find(request);
+            case LyricsSetting.SOURCE_QQ -> qqMusic.find(request);
+            case LyricsSetting.SOURCE_NETEASE -> netease.find(request);
+            case LyricsSetting.SOURCE_KUWO -> kuwo.find(request);
+            case LyricsSetting.SOURCE_LRCLIB -> matcher.best(request, client.findCandidates(request));
+            default -> null;
+        };
+        if (result != null && result.isValid()) writeCache(request, sourceMode, result);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "match sourceMode=%d title=%s artist=%s result=%s score=%d", sourceMode, request.getTitle(), request.getArtist(), result == null ? "none" : result.getSource(), result == null ? 0 : result.getScore());
+        return result;
     }
 
     private boolean shouldUseRemote(LyricsResult current, LyricsResult remote) {
@@ -106,8 +124,8 @@ public class LyricsRepository {
         return 0;
     }
 
-    private LyricsResult readCache(LyricsRequest request) {
-        File file = cacheFile(request);
+    private LyricsResult readCache(LyricsRequest request, int sourceMode) {
+        File file = cacheFile(request, sourceMode);
         if (!Path.exists(file)) return null;
         try {
             return App.gson().fromJson(Path.read(file), LyricsResult.class);
@@ -116,9 +134,9 @@ public class LyricsRepository {
         }
     }
 
-    private void writeCache(LyricsRequest request, LyricsResult result) {
+    private void writeCache(LyricsRequest request, int sourceMode, LyricsResult result) {
         try {
-            Path.write(cacheFile(request), App.gson().toJson(result).getBytes(StandardCharsets.UTF_8));
+            Path.write(cacheFile(request, sourceMode), App.gson().toJson(result).getBytes(StandardCharsets.UTF_8));
         } catch (Exception ignored) {
         }
     }
@@ -161,9 +179,27 @@ public class LyricsRepository {
         }
     }
 
-    private File cacheFile(LyricsRequest request) {
+    private File cacheFile(LyricsRequest request, int sourceMode) {
         File dir = Path.cache("lyrics");
         if (!dir.exists()) dir.mkdirs();
-        return new File(dir, request.signature() + ".json");
+        String suffix = LyricsSetting.cacheSuffix(sourceMode);
+        return new File(dir, request.signature() + (suffix.isEmpty() ? "" : "-" + suffix) + ".json");
+    }
+
+    public static int cacheCount() {
+        File[] files = cacheDir().listFiles((dir, name) -> name.endsWith(".json"));
+        return files == null ? 0 : files.length;
+    }
+
+    public static int clearCache() {
+        File dir = cacheDir();
+        int count = cacheCount();
+        Path.clear(dir);
+        if (!dir.exists()) dir.mkdirs();
+        return count;
+    }
+
+    private static File cacheDir() {
+        return Path.cache("lyrics");
     }
 }
