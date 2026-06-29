@@ -199,6 +199,7 @@ public class LyricsOverlayView extends FrameLayout {
     private SpannableString buildKaraokeText(LyricsLine line, long positionMs) {
         String text = line.getText();
         SpannableString span = new SpannableString(text);
+        if (!text.isEmpty()) span.setSpan(new ForegroundColorSpan(Color.WHITE), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         applyKaraokeSpans(span, line, Math.max(0, positionMs - line.getTimeMs()));
         return span;
     }
@@ -217,7 +218,7 @@ public class LyricsOverlayView extends FrameLayout {
                 setHighlight(span, start, stop);
             } else if (relativeMs >= word.getStartOffsetMs()) {
                 float progress = word.getDurationMs() <= 0 ? 1f : Math.min(1f, Math.max(0f, (relativeMs - word.getStartOffsetMs()) / (float) word.getDurationMs()));
-                span.setSpan(new KaraokeSpan(PRIMARY_COLOR, Color.WHITE, progress), start, stop, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                span.setSpan(new KaraokeSpan(PRIMARY_COLOR, progress), start, stop, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 span.setSpan(new StyleSpan(Typeface.BOLD), start, stop, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 return;
             } else {
@@ -276,12 +277,10 @@ public class LyricsOverlayView extends FrameLayout {
     private static class KaraokeSpan extends ReplacementSpan {
 
         private final int activeColor;
-        private final int inactiveColor;
         private final float progress;
 
-        private KaraokeSpan(int activeColor, int inactiveColor, float progress) {
+        private KaraokeSpan(int activeColor, float progress) {
             this.activeColor = activeColor;
-            this.inactiveColor = inactiveColor;
             this.progress = Math.min(1f, Math.max(0f, progress));
         }
 
@@ -294,7 +293,6 @@ public class LyricsOverlayView extends FrameLayout {
         public void draw(Canvas canvas, CharSequence text, int start, int end, float x, int top, int y, int bottom, Paint paint) {
             int color = paint.getColor();
             float width = paint.measureText(text, start, end);
-            paint.setColor(inactiveColor);
             canvas.drawText(text, start, end, x, y, paint);
             if (progress > 0f && width > 0f) {
                 int save = canvas.save();
