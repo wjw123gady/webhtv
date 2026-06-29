@@ -134,19 +134,25 @@ public class NeteaseClient {
             Matcher lineMatcher = YRC_LINE.matcher(line);
             if (!lineMatcher.find()) continue;
             long lineStart = parseLong(lineMatcher.group(1));
+            long lineDuration = parseLong(lineMatcher.group(2));
             String lineContent = lineMatcher.group(3);
             StringBuilder words = new StringBuilder();
             Matcher wordMatcher = YRC_WORD.matcher(lineContent);
             while (wordMatcher.find()) {
                 String word = wordMatcher.group(3);
                 if (TextUtils.isEmpty(word)) continue;
-                long start = Math.max(0, parseLong(wordMatcher.group(1)) - lineStart);
+                long start = normalizeWordStart(parseLong(wordMatcher.group(1)), lineStart, lineDuration);
                 long duration = parseLong(wordMatcher.group(2));
                 words.append('<').append(start).append(',').append(Math.max(0, duration)).append('>').append(word);
             }
             if (words.length() > 0) builder.append(formatTime(lineStart)).append(words).append('\n');
         }
         return builder.toString();
+    }
+
+    private long normalizeWordStart(long start, long lineStart, long lineDuration) {
+        if (lineStart > 2000 && start >= lineStart && (lineDuration <= 0 || start <= lineStart + lineDuration + 500)) return Math.max(0, start - lineStart);
+        return Math.max(0, start);
     }
 
     private List<String> keywords(LyricsRequest request) {
