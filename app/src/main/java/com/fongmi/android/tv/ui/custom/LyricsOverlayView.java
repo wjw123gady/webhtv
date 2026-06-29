@@ -24,6 +24,7 @@ import com.fongmi.android.tv.player.lyrics.LyricsLine;
 import com.fongmi.android.tv.player.lyrics.LyricsParser;
 import com.fongmi.android.tv.player.lyrics.LyricsResult;
 import com.fongmi.android.tv.player.lyrics.LyricsWord;
+import com.fongmi.android.tv.setting.PlayerSetting;
 import com.google.android.material.textview.MaterialTextView;
 
 import java.util.Collections;
@@ -177,13 +178,14 @@ public class LyricsOverlayView extends FrameLayout {
     private void style(MaterialTextView view, int distance) {
         boolean primary = distance == 0;
         int size = compact ? primary ? 18 : 13 : primary ? 28 : distance == 1 ? 19 : 16;
+        float scale = PlayerSetting.getLyricsTextSizeScale();
         int color = primary ? PRIMARY_COLOR : distance == 1 ? Color.WHITE : 0xB8FFFFFF;
-        view.setTextSize(size);
+        view.setTextSize(size * scale);
         view.setTextColor(color);
         view.setAlpha(primary ? 1f : distance == 1 ? 0.82f : 0.58f);
         view.setTypeface(Typeface.DEFAULT, primary ? Typeface.BOLD : Typeface.NORMAL);
         view.setMaxLines(primary ? 2 : 1);
-        view.setMinHeight(compact ? primary ? dp(44) : dp(24) : primary ? dp(62) : dp(34));
+        view.setMinHeight(dp((compact ? primary ? 44 : 24 : primary ? 62 : 34) * scale));
     }
 
     private void setRowText(MaterialTextView row, LyricsLine line, boolean primary, long positionMs) {
@@ -268,7 +270,8 @@ public class LyricsOverlayView extends FrameLayout {
     }
 
     private int visibleRows() {
-        return compact ? 3 : ROWS;
+        int rows = Math.min(PlayerSetting.getLyricsRows(), ROWS);
+        return compact ? Math.min(rows, 3) : rows;
     }
 
     private int dp(float value) {

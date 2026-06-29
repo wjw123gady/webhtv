@@ -270,6 +270,31 @@ public class PlayerSetting {
         Prefers.put("lyrics_time_offset", Math.min(Math.max(value, -5000L), 5000L));
     }
 
+    public static int getLyricsRows() {
+        return Math.min(Math.max(Prefers.getInt("lyrics_rows", 5), 1), 5);
+    }
+
+    public static void putLyricsRows(int value) {
+        Prefers.put("lyrics_rows", Math.min(Math.max(value, 1), 5));
+    }
+
+    public static int getLyricsTextSizeOption() {
+        return Math.min(Math.max(Prefers.getInt("lyrics_text_size", 1), 0), 3);
+    }
+
+    public static void putLyricsTextSizeOption(int value) {
+        Prefers.put("lyrics_text_size", Math.min(Math.max(value, 0), 3));
+    }
+
+    public static float getLyricsTextSizeScale() {
+        return switch (getLyricsTextSizeOption()) {
+            case 0 -> 0.85f;
+            case 2 -> 1.15f;
+            case 3 -> 1.3f;
+            default -> 1f;
+        };
+    }
+
     public static boolean isOsdTitle() {
         return Prefers.getBoolean("player_osd_title");
     }

@@ -809,6 +809,8 @@
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">On-screen display</string>
     <string name="player_lyrics_offset">Lyric offset</string>
+    <string name="player_lyrics_rows">Lyric rows</string>
+    <string name="player_lyrics_size">Lyric size</string>
     <string name="player_lyrics_source">Lyric source</string>
     <string name="player_lyrics_cache">Lyric cache</string>
     <string name="player_lyrics_cache_value">%1$d items</string>
@@ -826,6 +828,7 @@
     <string name="player_lyrics_plain">Plain</string>
     <string name="player_lyrics_unknown">Unknown</string>
     <string name="player_lyrics_result_item">%1$s · %2$s · %3$d\n%4$s - %5$s</string>
+    <string name="player_lyrics_rows_value">%1$d rows</string>
     <string name="lut_original">Original</string>
     <string name="lut_missing">Preset missing</string>
     <string name="lut_summary">%1$s · %2$d%%</string>
@@ -1060,6 +1063,13 @@
         <item>Kuwo</item>
         <item>LRCLIB</item>
         <item>Kugou</item>
+    </string-array>
+
+    <string-array name="select_lyrics_size">
+        <item>Small</item>
+        <item>Default</item>
+        <item>Large</item>
+        <item>Extra large</item>
     </string-array>
 
     <string-array name="select_track">

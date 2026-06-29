@@ -46,6 +46,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     private String[] bufferBytes;
     private String[] caption;
     private String[] kernel;
+    private String[] lyricsSize;
     private String[] lyricsSource;
     private String[] playCache;
     private String[] render;
@@ -88,6 +89,8 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
         mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
+        mBinding.lyricsRowsText.setText(getLyricsRowsText());
+        mBinding.lyricsSizeText.setText((lyricsSize = ResUtil.getStringArray(R.array.select_lyrics_size))[PlayerSetting.getLyricsTextSizeOption()]);
         mBinding.lyricsSourceText.setText((lyricsSource = ResUtil.getStringArray(R.array.select_lyrics_source))[LyricsSetting.getSourceMode()]);
         setLyricsCacheText();
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
@@ -106,6 +109,8 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.lut.setOnClickListener(this::onLut);
         mBinding.osd.setOnClickListener(this::onOsd);
         mBinding.lyricsOffset.setOnClickListener(this::setLyricsOffset);
+        mBinding.lyricsRows.setOnClickListener(this::setLyricsRows);
+        mBinding.lyricsSize.setOnClickListener(this::setLyricsSize);
         mBinding.lyricsSource.setOnClickListener(this::setLyricsSource);
         mBinding.lyricsCache.setOnClickListener(this::clearLyricsCache);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
@@ -215,6 +220,19 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.lyricsSourceText.setText(lyricsSource[index]);
     }
 
+    private void setLyricsRows(View view) {
+        int value = PlayerSetting.getLyricsRows() + 1;
+        if (value > 5) value = 1;
+        PlayerSetting.putLyricsRows(value);
+        mBinding.lyricsRowsText.setText(getLyricsRowsText());
+    }
+
+    private void setLyricsSize(View view) {
+        int index = (PlayerSetting.getLyricsTextSizeOption() + 1) % lyricsSize.length;
+        PlayerSetting.putLyricsTextSizeOption(index);
+        mBinding.lyricsSizeText.setText(lyricsSize[index]);
+    }
+
     private void clearLyricsCache(View view) {
         LyricsRepository.clearCache();
         setLyricsCacheText();
@@ -229,6 +247,10 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         long valueMs = PlayerSetting.getLyricsTimeOffsetMs();
         if (valueMs == 0) return "0s";
         return String.format(Locale.getDefault(), "%+.1fs", valueMs / 1000f);
+    }
+
+    private String getLyricsRowsText() {
+        return getString(R.string.player_lyrics_rows_value, PlayerSetting.getLyricsRows());
     }
 
     private void onSpeed(View view) {

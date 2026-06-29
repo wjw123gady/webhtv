@@ -791,6 +791,8 @@
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">屏顯設定</string>
     <string name="player_lyrics_offset">歌詞偏移</string>
+    <string name="player_lyrics_rows">歌詞行數</string>
+    <string name="player_lyrics_size">歌詞字號</string>
     <string name="player_lyrics_source">歌詞來源</string>
     <string name="player_lyrics_cache">歌詞快取</string>
     <string name="player_lyrics_cache_value">%1$d 項</string>
@@ -808,6 +810,7 @@
     <string name="player_lyrics_plain">文字</string>
     <string name="player_lyrics_unknown">未知</string>
     <string name="player_lyrics_result_item">%1$s · %2$s · %3$d\n%4$s - %5$s</string>
+    <string name="player_lyrics_rows_value">%1$d 行</string>
     <string name="lut_original">原色</string>
     <string name="lut_missing">預設不存在</string>
     <string name="lut_summary">%1$s · %2$d%%</string>
@@ -1036,6 +1039,13 @@
         <item>酷我</item>
         <item>LRCLIB</item>
         <item>酷狗</item>
+    </string-array>
+
+    <string-array name="select_lyrics_size">
+        <item>小</item>
+        <item>預設</item>
+        <item>大</item>
+        <item>特大</item>
     </string-array>
 
     <string-array name="select_track">

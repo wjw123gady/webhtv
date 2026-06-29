@@ -49,6 +49,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
     private String[] bufferBytes;
     private String[] caption;
     private String[] kernel;
+    private String[] lyricsSize;
     private String[] lyricsSource;
     private String[] playCache;
     private String[] render;
@@ -89,6 +90,8 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
         mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
+        mBinding.lyricsRowsText.setText(getLyricsRowsText());
+        mBinding.lyricsSizeText.setText((lyricsSize = ResUtil.getStringArray(R.array.select_lyrics_size))[PlayerSetting.getLyricsTextSizeOption()]);
         mBinding.lyricsSourceText.setText((lyricsSource = ResUtil.getStringArray(R.array.select_lyrics_source))[LyricsSetting.getSourceMode()]);
         setLyricsCacheText();
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
@@ -108,6 +111,8 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.lut.setOnClickListener(this::onLut);
         mBinding.osd.setOnClickListener(this::onOsd);
         mBinding.lyricsOffset.setOnClickListener(this::onLyricsOffset);
+        mBinding.lyricsRows.setOnClickListener(this::onLyricsRows);
+        mBinding.lyricsSize.setOnClickListener(this::onLyricsSize);
         mBinding.lyricsSource.setOnClickListener(this::onLyricsSource);
         mBinding.lyricsCache.setOnClickListener(this::clearLyricsCache);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
@@ -192,6 +197,23 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         }).show();
     }
 
+    private void onLyricsRows(View view) {
+        String[] items = getLyricsRowsItems();
+        new MaterialAlertDialogBuilder(requireActivity()).setTitle(R.string.player_lyrics_rows).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(items, PlayerSetting.getLyricsRows() - 1, (dialog, which) -> {
+            PlayerSetting.putLyricsRows(which + 1);
+            mBinding.lyricsRowsText.setText(getLyricsRowsText());
+            dialog.dismiss();
+        }).show();
+    }
+
+    private void onLyricsSize(View view) {
+        new MaterialAlertDialogBuilder(requireActivity()).setTitle(R.string.player_lyrics_size).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(lyricsSize, PlayerSetting.getLyricsTextSizeOption(), (dialog, which) -> {
+            PlayerSetting.putLyricsTextSizeOption(which);
+            mBinding.lyricsSizeText.setText(lyricsSize[which]);
+            dialog.dismiss();
+        }).show();
+    }
+
     private void clearLyricsCache(View view) {
         LyricsRepository.clearCache();
         setLyricsCacheText();
@@ -240,6 +262,16 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
     private int getLyricsOffsetIndex() {
         long value = Math.min(Math.max(PlayerSetting.getLyricsTimeOffsetMs(), LYRICS_OFFSET_MIN_MS), LYRICS_OFFSET_MAX_MS);
         return (int) ((value - LYRICS_OFFSET_MIN_MS) / LYRICS_OFFSET_STEP_MS);
+    }
+
+    private String[] getLyricsRowsItems() {
+        String[] items = new String[5];
+        for (int i = 0; i < items.length; i++) items[i] = getString(R.string.player_lyrics_rows_value, i + 1);
+        return items;
+    }
+
+    private String getLyricsRowsText() {
+        return getString(R.string.player_lyrics_rows_value, PlayerSetting.getLyricsRows());
     }
 
     private String getLyricsOffsetText() {
