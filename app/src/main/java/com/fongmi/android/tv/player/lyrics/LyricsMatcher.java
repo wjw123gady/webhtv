@@ -3,6 +3,8 @@ package com.fongmi.android.tv.player.lyrics;
 import android.text.TextUtils;
 
 import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -13,24 +15,37 @@ public class LyricsMatcher {
     private static final int MIN_SCORE = 55;
 
     public LyricsResult best(LyricsRequest request, List<LrcLibClient.Entry> entries) {
-        LrcLibClient.Entry best = null;
-        int bestScore = Integer.MIN_VALUE;
+        List<LyricsResult> results = all(request, entries, 1);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    public List<LyricsResult> all(LyricsRequest request, List<LrcLibClient.Entry> entries, int limit) {
+        ArrayList<LyricsResult> results = new ArrayList<>();
+        ArrayList<ScoredEntry> scored = new ArrayList<>();
         Set<Integer> seen = new HashSet<>();
         for (LrcLibClient.Entry entry : entries) {
             if (entry == null || !seen.add(entry.id)) continue;
             int score = score(request, entry);
-            if (score > bestScore) {
-                best = entry;
-                bestScore = score;
-            }
+            if (score < MIN_SCORE) continue;
+            scored.add(new ScoredEntry(entry, score));
         }
-        if (best == null || bestScore < MIN_SCORE) return null;
-        String synced = clean(best.syncedLyrics);
-        String plain = clean(best.plainLyrics);
+        scored.sort(Comparator.comparingInt((ScoredEntry item) -> item.score).reversed());
+        for (ScoredEntry item : scored) {
+            LyricsResult result = toResult(item.entry, item.score);
+            if (result == null) continue;
+            results.add(result);
+            if (results.size() >= Math.max(1, limit)) break;
+        }
+        return results;
+    }
+
+    private LyricsResult toResult(LrcLibClient.Entry entry, int score) {
+        String synced = clean(entry.syncedLyrics);
+        String plain = clean(entry.plainLyrics);
         boolean hasSynced = !TextUtils.isEmpty(synced) && LyricsParser.hasTimedLine(synced);
         String lyrics = hasSynced ? synced : plain;
         if (TextUtils.isEmpty(lyrics)) return null;
-        return new LyricsResult("LRCLIB", clean(best.trackName), clean(best.artistName), clean(best.albumName), lyrics, Math.round(best.duration * 1000), hasSynced, bestScore);
+        return new LyricsResult("LRCLIB", clean(entry.trackName), clean(entry.artistName), clean(entry.albumName), lyrics, Math.round(entry.duration * 1000), hasSynced, score);
     }
 
     private int score(LyricsRequest request, LrcLibClient.Entry entry) {
@@ -80,5 +95,15 @@ public class LyricsMatcher {
 
     private static String clean(String text) {
         return text == null ? "" : text.trim();
+    }
+
+    private static class ScoredEntry {
+        private final LrcLibClient.Entry entry;
+        private final int score;
+
+        private ScoredEntry(LrcLibClient.Entry entry, int score) {
+            this.entry = entry;
+            this.score = score;
+        }
     }
 }

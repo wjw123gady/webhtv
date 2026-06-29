@@ -11,6 +11,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -40,11 +41,35 @@ public class KuwoClient {
             .build();
 
     public LyricsResult find(LyricsRequest request) {
-        Entry best = best(request, search(request));
-        if (best == null) return null;
-        String lyrics = lyric(best.id);
+        List<LyricsResult> results = findAll(request, 1);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    public List<LyricsResult> findAll(LyricsRequest request, int limit) {
+        ArrayList<LyricsResult> results = new ArrayList<>();
+        for (Entry entry : ranked(request)) {
+            LyricsResult result = toResult(entry);
+            if (result == null) continue;
+            results.add(result);
+            if (results.size() >= Math.max(1, limit)) break;
+        }
+        return results;
+    }
+
+    private LyricsResult toResult(Entry entry) {
+        String lyrics = lyric(entry.id);
         if (!LyricsParser.hasTimedLine(lyrics)) return null;
-        return new LyricsResult("Kuwo", best.name, best.artist, best.album, lyrics, best.durationSec * 1000L, true, best.score);
+        return new LyricsResult("Kuwo", entry.name, entry.artist, entry.album, lyrics, entry.durationSec * 1000L, true, entry.score);
+    }
+
+    private List<Entry> ranked(LyricsRequest request) {
+        ArrayList<Entry> ranked = new ArrayList<>();
+        for (Entry entry : search(request)) {
+            entry.score = score(request, entry);
+            if (entry.score >= MIN_SCORE) ranked.add(entry);
+        }
+        ranked.sort(Comparator.comparingInt((Entry entry) -> entry.score).reversed());
+        return ranked;
     }
 
     private List<Entry> search(LyricsRequest request) {

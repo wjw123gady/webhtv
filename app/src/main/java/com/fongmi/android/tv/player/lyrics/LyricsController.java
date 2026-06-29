@@ -31,6 +31,10 @@ public class LyricsController {
         void onResult(LyricsResult result);
     }
 
+    public interface SearchCallback {
+        void onResult(List<LyricsResult> results);
+    }
+
     public LyricsController(LyricsOverlayView view) {
         this.view = view;
     }
@@ -77,6 +81,12 @@ public class LyricsController {
         });
     }
 
+    public boolean hasChoice(PlayerManager player) {
+        if (player == null) return false;
+        LyricsRequest request = LyricsRequest.from(player);
+        return request.isValid() && repository.hasChoice(request);
+    }
+
     public void reload(PlayerManager player, boolean audioOnly, String keyword, Callback callback) {
         if (player == null || !audioOnly) {
             clear();
@@ -118,6 +128,43 @@ public class LyricsController {
             update(player);
             if (callback != null) callback.onResult(result);
         });
+    }
+
+    public void search(PlayerManager player, boolean audioOnly, String keyword, SearchCallback callback) {
+        if (player == null || !audioOnly) {
+            if (callback != null) callback.onResult(Collections.emptyList());
+            return;
+        }
+        LyricsRequest request = LyricsRequest.from(player).withKeyword(keyword);
+        if (!request.isValid()) {
+            if (callback != null) callback.onResult(Collections.emptyList());
+            return;
+        }
+        repository.search(request, results -> {
+            if (callback != null) callback.onResult(results);
+        });
+    }
+
+    public void apply(PlayerManager player, LyricsResult result, boolean remember, Callback callback) {
+        if (player == null || result == null || !result.isValid()) {
+            if (callback != null) callback.onResult(null);
+            return;
+        }
+        LyricsRequest request = LyricsRequest.from(player);
+        ArrayList<LyricsLine> parsed = new ArrayList<>(result.getLines(request.getDurationMs()));
+        if (parsed.isEmpty()) {
+            if (callback != null) callback.onResult(null);
+            return;
+        }
+        int current = ++sequence;
+        loadingSignature = null;
+        emptySignature = null;
+        activeSignature = request.signature();
+        lines = parsed;
+        view.setLyrics(result, parsed);
+        update(player);
+        if (remember) repository.remember(request, result);
+        if (current == sequence && callback != null) callback.onResult(result);
     }
 
     public boolean setInlineLyrics(String signature, String title, String artist, String lyrics, long durationMs, long positionMs) {

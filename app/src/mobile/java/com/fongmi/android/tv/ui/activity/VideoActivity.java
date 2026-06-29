@@ -70,6 +70,7 @@ import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.lyrics.LyricsController;
 import com.fongmi.android.tv.player.lyrics.LyricsRequest;
+import com.fongmi.android.tv.player.lyrics.LyricsResult;
 import com.fongmi.android.tv.player.lut.LutPreset;
 import com.fongmi.android.tv.player.lut.LutSetting;
 import com.fongmi.android.tv.player.lut.LutStore;
@@ -118,6 +119,7 @@ import com.fongmi.android.tv.utils.Timer;
 import com.fongmi.android.tv.utils.Traffic;
 import com.fongmi.android.tv.utils.Util;
 import com.github.catvod.crawler.SpiderDebug;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 import org.greenrobot.eventbus.Subscribe;
@@ -1030,7 +1032,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private boolean onLyricsSearch() {
         if (!isLyricsSearchAvailable()) return false;
-        LyricsSearchDialog.show(this, getLyricsSearchKeyword(), this::reloadLyrics);
+        LyricsSearchDialog.show(this, getLyricsSearchKeyword(), this::searchLyrics);
         return true;
     }
 
@@ -1910,7 +1912,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void refreshLyrics() {
         if (mLyrics == null || service() == null) return;
-        if (showInlineLyrics()) return;
+        if (!mLyrics.hasChoice(player()) && showInlineLyrics()) return;
         updateAudioOnlyState();
         mLyrics.refresh(player(), isAudioOnly() || isMusicLike());
     }
@@ -1927,12 +1929,39 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return request.displayKeyword();
     }
 
-    private void reloadLyrics(String keyword) {
+    private void searchLyrics(String keyword) {
         if (mLyrics == null || service() == null) return;
-        mInlineLyrics = "";
         updateAudioOnlyState();
         Notify.show(R.string.player_lyrics_searching);
-        mLyrics.reload(player(), isAudioOnly() || isMusicLike(), keyword, result -> Notify.show(result == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, result.getSource())));
+        mLyrics.search(player(), isAudioOnly() || isMusicLike(), keyword, this::showLyricsResults);
+    }
+
+    private void showLyricsResults(List<LyricsResult> results) {
+        if (isFinishing()) return;
+        if (results == null || results.isEmpty()) {
+            Notify.show(R.string.player_lyrics_not_found);
+            return;
+        }
+        String[] labels = new String[results.size()];
+        for (int i = 0; i < results.size(); i++) labels[i] = getLyricsResultLabel(results.get(i));
+        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
+                .setTitle(R.string.player_lyrics_select)
+                .setItems(labels, (dialog, which) -> applyLyrics(results.get(which)))
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .show();
+    }
+
+    private void applyLyrics(LyricsResult result) {
+        if (mLyrics == null || service() == null) return;
+        mInlineLyrics = "";
+        mLyrics.apply(player(), result, true, applied -> Notify.show(applied == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, applied.getSource())));
+    }
+
+    private String getLyricsResultLabel(LyricsResult result) {
+        String title = TextUtils.isEmpty(result.getTrackName()) ? getString(R.string.player_lyrics_unknown) : result.getTrackName();
+        String artist = TextUtils.isEmpty(result.getArtistName()) ? getString(R.string.player_lyrics_unknown) : result.getArtistName();
+        String type = result.hasWordTiming() ? getString(R.string.player_lyrics_word) : result.isSynced() ? getString(R.string.player_lyrics_synced) : getString(R.string.player_lyrics_plain);
+        return getString(R.string.player_lyrics_result_item, result.getSource(), type, result.getScore(), title, artist);
     }
 
     private void clearLyrics() {
