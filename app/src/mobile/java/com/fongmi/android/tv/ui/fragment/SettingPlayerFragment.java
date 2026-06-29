@@ -31,8 +31,13 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.text.DecimalFormat;
+import java.util.Locale;
 
 public class SettingPlayerFragment extends BaseFragment implements UaListener, BufferListener, SpeedListener {
+
+    private static final long LYRICS_OFFSET_MIN_MS = -3000L;
+    private static final long LYRICS_OFFSET_MAX_MS = 3000L;
+    private static final long LYRICS_OFFSET_STEP_MS = 500L;
 
     private FragmentSettingPlayerBinding mBinding;
     private DecimalFormat format;
@@ -79,6 +84,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
+        mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
         mBinding.scaleText.setText((scale = ResUtil.getStringArray(R.array.select_scale))[PlayerSetting.getScale()]);
         mBinding.lutText.setText(LutSetting.getSummary());
@@ -95,6 +101,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.scale.setOnClickListener(this::onScale);
         mBinding.lut.setOnClickListener(this::onLut);
         mBinding.osd.setOnClickListener(this::onOsd);
+        mBinding.lyricsOffset.setOnClickListener(this::onLyricsOffset);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
         mBinding.speed.setOnClickListener(this::onSpeed);
         mBinding.buffer.setOnClickListener(this::onBuffer);
@@ -160,6 +167,15 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         }).setMultiChoiceItems(osd, checked, (dialog, which, isChecked) -> checked[which] = isChecked).show();
     }
 
+    private void onLyricsOffset(View view) {
+        String[] items = getLyricsOffsetItems();
+        new MaterialAlertDialogBuilder(requireActivity()).setTitle(R.string.player_lyrics_offset).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(items, getLyricsOffsetIndex(), (dialog, which) -> {
+            PlayerSetting.putLyricsTimeOffsetMs(LYRICS_OFFSET_MIN_MS + which * LYRICS_OFFSET_STEP_MS);
+            mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
+            dialog.dismiss();
+        }).show();
+    }
+
     private void setPlayerButtonsText() {
         mBinding.playerButtonsText.setText(getString(R.string.player_button_config_summary, PlayerButtonSetting.getVisibleCount(), PlayerButtonSetting.getTotalCount()));
     }
@@ -186,6 +202,27 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
             builder.append(items[i]);
         }
         return builder.length() == 0 ? getString(R.string.setting_off) : builder.toString();
+    }
+
+    private String[] getLyricsOffsetItems() {
+        int count = (int) ((LYRICS_OFFSET_MAX_MS - LYRICS_OFFSET_MIN_MS) / LYRICS_OFFSET_STEP_MS) + 1;
+        String[] items = new String[count];
+        for (int i = 0; i < count; i++) items[i] = formatLyricsOffset(LYRICS_OFFSET_MIN_MS + i * LYRICS_OFFSET_STEP_MS);
+        return items;
+    }
+
+    private int getLyricsOffsetIndex() {
+        long value = Math.min(Math.max(PlayerSetting.getLyricsTimeOffsetMs(), LYRICS_OFFSET_MIN_MS), LYRICS_OFFSET_MAX_MS);
+        return (int) ((value - LYRICS_OFFSET_MIN_MS) / LYRICS_OFFSET_STEP_MS);
+    }
+
+    private String getLyricsOffsetText() {
+        return formatLyricsOffset(PlayerSetting.getLyricsTimeOffsetMs());
+    }
+
+    private String formatLyricsOffset(long valueMs) {
+        if (valueMs == 0) return "0s";
+        return String.format(Locale.getDefault(), "%+.1fs", valueMs / 1000f);
     }
 
     private void onSpeed(View view) {

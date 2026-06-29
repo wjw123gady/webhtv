@@ -39,19 +39,29 @@ public class LyricsRepository {
 
     private LyricsResult loadSync(LyricsRequest request) {
         LyricsResult cached = readCache(request);
-        if (cached != null && cached.isValid()) return cached;
+        if (cached != null && cached.isValid() && cached.isCacheCurrent()) return cached;
         LyricsResult local = readLocal(request);
         if (local != null && local.isValid()) {
             writeCache(request, local);
             return local;
         }
         LyricsResult remote = kuwo.find(request);
-        if (remote == null || !remote.isValid()) remote = qqMusic.find(request);
+        if (remote == null || !remote.isValid() || !remote.hasWordTiming()) {
+            LyricsResult qq = qqMusic.find(request);
+            if (shouldUseQq(remote, qq)) remote = qq;
+        }
         List<LrcLibClient.Entry> candidates = remote == null || !remote.isValid() ? client.findCandidates(request) : List.of();
         if (remote == null || !remote.isValid()) remote = matcher.best(request, candidates);
         if (remote != null && remote.isValid()) writeCache(request, remote);
         if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "match title=%s artist=%s candidates=%d result=%s score=%d", request.getTitle(), request.getArtist(), candidates.size(), remote == null ? "none" : remote.getSource(), remote == null ? 0 : remote.getScore());
         return remote;
+    }
+
+    private boolean shouldUseQq(LyricsResult current, LyricsResult qq) {
+        if (qq == null || !qq.isValid()) return false;
+        if (current == null || !current.isValid()) return true;
+        if (qq.hasWordTiming() && !current.hasWordTiming()) return true;
+        return qq.getScore() > current.getScore() + 10;
     }
 
     private LyricsResult readCache(LyricsRequest request) {

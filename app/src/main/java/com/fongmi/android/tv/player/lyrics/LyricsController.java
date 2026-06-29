@@ -6,6 +6,7 @@ import android.text.TextUtils;
 import androidx.media3.common.C;
 
 import com.fongmi.android.tv.player.PlayerManager;
+import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.ui.custom.LyricsOverlayView;
 import com.github.catvod.utils.Util;
 
@@ -97,12 +98,12 @@ public class LyricsController {
 
     public void update(long positionMs) {
         if (lines.isEmpty()) return;
-        view.update(positionMs);
+        view.update(adjust(positionMs));
     }
 
     public void update(PlayerManager player) {
         if (player == null || lines.isEmpty()) return;
-        view.update(player.getPosition(), player.isPlaying());
+        view.update(adjust(player.getPosition()), player.isPlaying());
     }
 
     public void clear() {
@@ -144,5 +145,9 @@ public class LyricsController {
 
     private static String safe(String text) {
         return text == null ? "" : text;
+    }
+
+    private static long adjust(long positionMs) {
+        return Math.max(0, positionMs + PlayerSetting.getLyricsTimeOffsetMs());
     }
 }

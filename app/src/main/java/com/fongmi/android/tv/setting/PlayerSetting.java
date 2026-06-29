@@ -262,6 +262,14 @@ public class PlayerSetting {
         Prefers.put("subtitle_position", value);
     }
 
+    public static long getLyricsTimeOffsetMs() {
+        return Math.min(Math.max(Prefers.getLong("lyrics_time_offset", 0L), -5000L), 5000L);
+    }
+
+    public static void putLyricsTimeOffsetMs(long value) {
+        Prefers.put("lyrics_time_offset", Math.min(Math.max(value, -5000L), 5000L));
+    }
+
     public static boolean isOsdTitle() {
         return Prefers.getBoolean("player_osd_title");
     }

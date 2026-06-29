@@ -7,6 +7,9 @@ import java.util.List;
 
 public class LyricsResult {
 
+    private static final int CACHE_VERSION = 3;
+
+    private int cacheVersion;
     private String source;
     private String trackName;
     private String artistName;
@@ -20,6 +23,7 @@ public class LyricsResult {
     }
 
     public LyricsResult(String source, String trackName, String artistName, String albumName, String lyrics, long durationMs, boolean synced, int score) {
+        this.cacheVersion = CACHE_VERSION;
         this.source = source;
         this.trackName = trackName;
         this.artistName = artistName;
@@ -60,6 +64,14 @@ public class LyricsResult {
 
     public int getScore() {
         return score;
+    }
+
+    public boolean isCacheCurrent() {
+        return cacheVersion == CACHE_VERSION;
+    }
+
+    public boolean hasWordTiming() {
+        return !TextUtils.isEmpty(lyrics) && lyrics.matches("(?s).*<\\d+,-?\\d+>.*");
     }
 
     public boolean isValid() {

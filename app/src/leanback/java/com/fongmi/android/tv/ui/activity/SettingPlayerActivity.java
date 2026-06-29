@@ -29,8 +29,13 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.text.DecimalFormat;
+import java.util.Locale;
 
 public class SettingPlayerActivity extends BaseActivity implements UaListener, BufferListener, SpeedListener {
+
+    private static final long LYRICS_OFFSET_MIN_MS = -3000L;
+    private static final long LYRICS_OFFSET_MAX_MS = 3000L;
+    private static final long LYRICS_OFFSET_STEP_MS = 500L;
 
     private ActivitySettingPlayerBinding mBinding;
     private DecimalFormat format;
@@ -78,6 +83,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.audioDecodeText.setText(getSwitch(PlayerSetting.isAudioPrefer()));
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
+        mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
         mBinding.scaleText.setText((scale = ResUtil.getStringArray(R.array.select_scale))[PlayerSetting.getScale()]);
         mBinding.lutText.setText(LutSetting.getSummary());
@@ -93,6 +99,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.scale.setOnClickListener(this::setScale);
         mBinding.lut.setOnClickListener(this::onLut);
         mBinding.osd.setOnClickListener(this::onOsd);
+        mBinding.lyricsOffset.setOnClickListener(this::setLyricsOffset);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
         mBinding.speed.setOnClickListener(this::onSpeed);
         mBinding.buffer.setOnClickListener(this::onBuffer);
@@ -185,6 +192,19 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
             builder.append(items[i]);
         }
         return builder.length() == 0 ? getString(R.string.setting_off) : builder.toString();
+    }
+
+    private void setLyricsOffset(View view) {
+        long value = PlayerSetting.getLyricsTimeOffsetMs() + LYRICS_OFFSET_STEP_MS;
+        if (value > LYRICS_OFFSET_MAX_MS) value = LYRICS_OFFSET_MIN_MS;
+        PlayerSetting.putLyricsTimeOffsetMs(value);
+        mBinding.lyricsOffsetText.setText(getLyricsOffsetText());
+    }
+
+    private String getLyricsOffsetText() {
+        long valueMs = PlayerSetting.getLyricsTimeOffsetMs();
+        if (valueMs == 0) return "0s";
+        return String.format(Locale.getDefault(), "%+.1fs", valueMs / 1000f);
     }
 
     private void onSpeed(View view) {

@@ -13,8 +13,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -63,8 +65,12 @@ public class QqMusicClient {
 
     private List<Entry> search(LyricsRequest request) {
         List<Entry> entries = new ArrayList<>();
-        String keyword = (request.getTitle() + " " + request.getArtist()).trim();
-        if (TextUtils.isEmpty(keyword)) return entries;
+        Set<String> seen = new HashSet<>();
+        for (String keyword : keywords(request)) search(entries, seen, request, keyword);
+        return entries;
+    }
+
+    private void search(List<Entry> entries, Set<String> seen, LyricsRequest request, String keyword) {
         try {
             JSONObject data = qqRequest(
                     "DoSearchForQQMusicLite",
@@ -81,7 +87,7 @@ public class QqMusicClient {
                             .put("page_id", 1)
                             .put("grp", 1));
             JSONArray array = data.optJSONObject("body") == null ? null : data.optJSONObject("body").optJSONArray("item_song");
-            if (array == null) return entries;
+            if (array == null) return;
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.optJSONObject(i);
                 if (item == null) continue;
@@ -92,12 +98,12 @@ public class QqMusicClient {
                 entry.artist = artists(item.optJSONArray("singer"));
                 entry.album = item.optJSONObject("album") == null ? "" : clean(item.optJSONObject("album").optString("name"));
                 entry.durationSec = item.optInt("interval", 0);
-                if (entry.id > 0 && !TextUtils.isEmpty(entry.name)) entries.add(entry);
+                String key = entry.id > 0 ? String.valueOf(entry.id) : entry.mid;
+                if (entry.id > 0 && !TextUtils.isEmpty(entry.name) && seen.add(key)) entries.add(entry);
             }
         } catch (Exception e) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic search failed title=%s error=%s", request.getTitle(), e.getMessage());
         }
-        return entries;
     }
 
     private Entry best(LyricsRequest request, List<Entry> entries) {
@@ -116,9 +122,26 @@ public class QqMusicClient {
     private int score(LyricsRequest request, Entry entry) {
         int score = 0;
         score += textScore(request.getTitle(), entry.name, 58, 32, -50);
-        if (!TextUtils.isEmpty(request.getArtist())) score += textScore(request.getArtist(), entry.artist, 26, 14, -20);
+        if (!TextUtils.isEmpty(request.getArtist())) score += textScore(request.getArtist(), entry.artist, 26, 14, -8);
         score += durationScore(request.getDurationSec(), entry.durationSec);
         return score;
+    }
+
+    private List<String> keywords(LyricsRequest request) {
+        List<String> keywords = new ArrayList<>();
+        String title = request.getTitle();
+        String artist = request.getArtist();
+        if (!TextUtils.isEmpty(title) && !TextUtils.isEmpty(artist)) {
+            addKeyword(keywords, title + " - " + artist);
+            addKeyword(keywords, title + " " + artist);
+        }
+        addKeyword(keywords, title);
+        return keywords;
+    }
+
+    private void addKeyword(List<String> keywords, String keyword) {
+        String value = keyword == null ? "" : keyword.trim();
+        if (!TextUtils.isEmpty(value) && !keywords.contains(value)) keywords.add(value);
     }
 
     private int textScore(String wanted, String actual, int exact, int contains, int mismatch) {

@@ -11,9 +11,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -43,8 +45,12 @@ public class KuwoClient {
 
     private List<Entry> search(LyricsRequest request) {
         List<Entry> entries = new ArrayList<>();
-        String query = (request.getTitle() + " " + request.getArtist()).trim();
-        if (TextUtils.isEmpty(query)) return entries;
+        Set<String> seen = new HashSet<>();
+        for (String query : keywords(request)) search(entries, seen, request, query);
+        return entries;
+    }
+
+    private void search(List<Entry> entries, Set<String> seen, LyricsRequest request, String query) {
         HttpUrl url = HttpUrl.parse("https://search.kuwo.cn/r.s").newBuilder()
                 .addQueryParameter("all", query)
                 .addQueryParameter("ft", "music")
@@ -59,7 +65,7 @@ public class KuwoClient {
         try {
             JSONObject object = new JSONObject(get(url.toString(), Map.of("Referer", "https://www.kuwo.cn/")));
             JSONArray array = object.optJSONArray("abslist");
-            if (array == null) return entries;
+            if (array == null) return;
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.optJSONObject(i);
                 if (item == null) continue;
@@ -69,12 +75,11 @@ public class KuwoClient {
                 entry.artist = clean(first(item, "ARTIST", "AARTIST"));
                 entry.album = clean(item.optString("ALBUM"));
                 entry.durationSec = parseInt(item.optString("DURATION"));
-                if (!TextUtils.isEmpty(entry.id) && !TextUtils.isEmpty(entry.name)) entries.add(entry);
+                if (!TextUtils.isEmpty(entry.id) && !TextUtils.isEmpty(entry.name) && seen.add(entry.id)) entries.add(entry);
             }
         } catch (Exception e) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "kuwo search failed title=%s error=%s", request.getTitle(), e.getMessage());
         }
-        return entries;
     }
 
     private Entry best(LyricsRequest request, List<Entry> entries) {
@@ -93,9 +98,26 @@ public class KuwoClient {
     private int score(LyricsRequest request, Entry entry) {
         int score = 0;
         score += textScore(request.getTitle(), entry.name, 58, 32, -50);
-        if (!TextUtils.isEmpty(request.getArtist())) score += textScore(request.getArtist(), entry.artist, 26, 14, -20);
+        if (!TextUtils.isEmpty(request.getArtist())) score += textScore(request.getArtist(), entry.artist, 26, 14, -8);
         score += durationScore(request.getDurationSec(), entry.durationSec);
         return score;
+    }
+
+    private List<String> keywords(LyricsRequest request) {
+        List<String> keywords = new ArrayList<>();
+        String title = request.getTitle();
+        String artist = request.getArtist();
+        if (!TextUtils.isEmpty(title) && !TextUtils.isEmpty(artist)) {
+            addKeyword(keywords, title + " - " + artist);
+            addKeyword(keywords, title + " " + artist);
+        }
+        addKeyword(keywords, title);
+        return keywords;
+    }
+
+    private void addKeyword(List<String> keywords, String keyword) {
+        String value = keyword == null ? "" : keyword.trim();
+        if (!TextUtils.isEmpty(value) && !keywords.contains(value)) keywords.add(value);
     }
 
     private int textScore(String wanted, String actual, int exact, int contains, int mismatch) {
