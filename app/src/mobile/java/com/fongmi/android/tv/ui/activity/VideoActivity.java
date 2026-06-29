@@ -68,6 +68,7 @@ import com.fongmi.android.tv.model.SiteViewModel;
 import com.fongmi.android.tv.playback.PlaybackEventCollector;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
+import com.fongmi.android.tv.player.lyrics.LyricsController;
 import com.fongmi.android.tv.player.lut.LutPreset;
 import com.fongmi.android.tv.player.lut.LutSetting;
 import com.fongmi.android.tv.player.lut.LutStore;
@@ -124,6 +125,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -142,6 +144,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private QuickAdapter mQuickAdapter;
     private QuickSearchDialog mQuickSearchDialog;
     private ParseAdapter mParseAdapter;
+    private LyricsController mLyrics;
+    private String mDetailLyrics;
+    private String mInlineLyrics;
     private Map<String, View> mActionButtons;
     private SiteViewModel mViewModel;
     private FlagAdapter mFlagAdapter;
@@ -429,6 +434,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mObserveSearch = this::setSearch;
         mBroken = new ArrayList<>();
         mClock = Clock.create();
+        mLyrics = new LyricsController(mBinding.lyrics);
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
         mR3 = this::setOrient;
@@ -680,6 +686,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.swipeLayout.setEnabled(false);
         mBinding.scroll.scrollTo(0, 0);
         mClock.setCallback(null);
+        clearLyrics();
         updateNavigationKey();
         if (service() != null) {
             player().reset();
@@ -736,6 +743,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setText(mBinding.director, R.string.detail_director, item.getDirector());
         setText(mBinding.actor, R.string.detail_actor, item.getActor());
         setText(mBinding.content, 0, item.getContent());
+        setDetailLyrics(item.getContent());
         setText(mBinding.remark, 0, item.getRemarks());
         setOther(mBinding.other, item);
     }
@@ -778,6 +786,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         playerStartTime = System.currentTimeMillis();
         beginPlayHealth();
         SpiderDebug.log("video-flow", "player start key=%s flag=%s episode=%s url=%s", getKey(), flag.getFlag(), episode.getName(), episode.getUrl());
+        mInlineLyrics = mDetailLyrics;
+        clearLyrics();
         mViewModel.playerContent(getKey(), flag.getFlag(), episode.getUrl());
         mBinding.control.title.setSelected(true);
         updateHistory(episode);
@@ -794,7 +804,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         result.getUrl().set(mQualityAdapter.getPosition());
         if (result.hasArtwork() && !shouldKeepPushArtwork()) setArtwork(result.getArtwork());
         if (result.hasPosition()) mHistory.setPosition(result.getPosition());
-        if (result.hasDesc()) setText(mBinding.content, 0, result.getDesc());
+        if (result.hasDesc()) {
+            setText(mBinding.content, 0, result.getDesc());
+            setPlaybackLyrics(result.getDesc());
+        }
         mBinding.control.parse.setVisibility(isUseParse() ? View.VISIBLE : View.GONE);
         startPlayer(getHistoryKey(), result, isUseParse(), getSite().getTimeout(), buildMetadata());
         if (DanmakuApi.canSearch()) DanmakuApi.search(mHistory.getVodName(), getEpisode().getName(), danmaku -> {
@@ -1308,6 +1321,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         player().stop();
         player().clear();
         mClock.setCallback(null);
+        clearLyrics();
         if (mFlagAdapter.isEmpty()) return;
         if (mEpisodeAdapter.isEmpty()) return;
         getPlayer(getFlag(), getEpisode());
@@ -1321,6 +1335,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void onDecode() {
         mClock.setCallback(null);
+        clearLyrics();
         player().toggleDecode();
         setR1Callback();
         setDecode();
@@ -1379,6 +1394,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void onPlayerKernel() {
         mClock.setCallback(null);
+        clearLyrics();
         player().togglePlayer();
         setPlayerKernel();
         setDecode();
@@ -1705,6 +1721,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.progressLayout.showContent();
         mBinding.name.setText(getName());
         setText(mBinding.content, 0, getContent());
+        setDetailLyrics(getContent());
         if (!getPic().isEmpty()) setArtwork(getPic());
         else if (!getWallPic().isEmpty()) setContextWall(getWallPic());
     }
@@ -1866,18 +1883,78 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setDecode();
         setLut();
         setPosition();
+        refreshLyrics();
     }
 
     @Override
     protected void onTracksChanged() {
         updateAudioOnlyState();
+        refreshLyrics();
         setTrackVisible();
         mClock.setCallback(this);
     }
 
     private void updateAudioOnlyState() {
         if (service() == null) return;
-        setAudioOnly(player().haveTrack(C.TRACK_TYPE_AUDIO) && !player().haveTrack(C.TRACK_TYPE_VIDEO));
+        setAudioOnly(LyricsController.isAudioOnly(player()));
+    }
+
+    private void refreshLyrics() {
+        if (mLyrics == null || service() == null) return;
+        if (showInlineLyrics()) return;
+        updateAudioOnlyState();
+        mLyrics.refresh(player(), isAudioOnly() || isMusicLike());
+    }
+
+    private void clearLyrics() {
+        if (mLyrics != null) mLyrics.clear();
+    }
+
+    private void setDetailLyrics(String text) {
+        mDetailLyrics = getTimedLyrics(text);
+        mInlineLyrics = mDetailLyrics;
+    }
+
+    private void setPlaybackLyrics(String text) {
+        String lyrics = getTimedLyrics(text);
+        if (!TextUtils.isEmpty(lyrics)) mInlineLyrics = lyrics;
+    }
+
+    private String getTimedLyrics(String text) {
+        return LyricsController.hasTimedLyrics(text) ? text : "";
+    }
+
+    private boolean showInlineLyrics() {
+        if (TextUtils.isEmpty(mInlineLyrics) || !LyricsController.hasTimedLyrics(mInlineLyrics)) return false;
+        String title = mHistory == null ? getName() : mHistory.getVodName();
+        String artist = getLyricsArtist(title);
+        String signature = getHistoryKey() + "|" + getEpisode().getName();
+        return mLyrics.setInlineLyrics(signature, title, artist, mInlineLyrics, player().getDuration(), player().getPosition());
+    }
+
+    private boolean isMusicLike() {
+        String flag = mFlagAdapter == null || mFlagAdapter.isEmpty() ? "" : getFlag().getShow();
+        String text = (getSite().getKey() + " " + getSite().getName() + " " + flag + " " + getName()).toLowerCase(Locale.ROOT);
+        return text.contains("音乐") || text.contains("音樂") || text.contains("music") || text.contains("song") || text.contains("歌曲") || text.contains("歌单") || text.contains("聽歌") || text.contains("听歌");
+    }
+
+    private String getLyricsArtist(String title) {
+        return getArtistFromEpisode(title, getEpisode().getName());
+    }
+
+    private String getArtistFromEpisode(String title, String episode) {
+        String name = Objects.toString(title, "").trim();
+        String value = Objects.toString(episode, "").trim();
+        if (name.isEmpty() || value.isEmpty() || TextUtils.equals(name, value)) return "";
+        for (String separator : new String[]{" - ", " – ", " — ", "-"}) {
+            if (value.startsWith(name + separator) && value.length() > name.length() + separator.length()) {
+                return value.substring(name.length() + separator.length()).trim();
+            }
+            if (value.endsWith(separator + name) && value.length() > name.length() + separator.length()) {
+                return value.substring(0, value.length() - name.length() - separator.length()).trim();
+            }
+        }
+        return value;
     }
 
     @Override
@@ -1891,6 +1968,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.swipeLayout.setEnabled(true);
         Track.delete(player().getKey());
         mClock.setCallback(null);
+        clearLyrics();
         player().resetTrack();
         player().reset();
         player().stop();
@@ -1924,6 +2002,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 recordPlayHealth(true, "");
                 hideProgress();
                 checkControl();
+                refreshLyrics();
                 player().reset();
                 break;
             case Player.STATE_ENDED:
@@ -1969,6 +2048,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         long position, duration;
         mHistory.setCreateTime(time);
         updatePlaybackHistoryPosition();
+        if (mLyrics != null) mLyrics.update(player().getPosition());
         position = mHistory.getPosition();
         duration = mHistory.getDuration();
         PlaybackEventCollector.get().onProgress(mHistory, player());
@@ -2059,8 +2139,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private MediaMetadata buildMetadata() {
         String title = mHistory.getVodName();
         String episode = getEpisode().getName();
-        boolean empty = episode.isEmpty() || title.equals(episode);
-        String artist = empty ? "" : episode;
+        String artist = getArtistFromEpisode(title, episode);
         return PlayerManager.buildMetadata(title, artist, mHistory.getVodPic());
     }
 
@@ -2233,6 +2312,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     public void onCasted() {
+        clearLyrics();
         player().stop();
     }
 
@@ -2473,6 +2553,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     protected void onDestroy() {
+        if (mLyrics != null) mLyrics.release();
         mClock.release();
         saveHistory(true);
         Timer.get().reset();

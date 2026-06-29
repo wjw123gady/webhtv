@@ -61,6 +61,7 @@ import com.fongmi.android.tv.model.SearchProgress;
 import com.fongmi.android.tv.playback.PlaybackEventCollector;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
+import com.fongmi.android.tv.player.lyrics.LyricsController;
 import com.fongmi.android.tv.player.lut.LutPreset;
 import com.fongmi.android.tv.player.lut.LutStore;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -108,6 +109,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -126,6 +128,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private QuickAdapter mQuickAdapter;
     private FlagAdapter mFlagAdapter;
     private PartAdapter mPartAdapter;
+    private LyricsController mLyrics;
+    private String mDetailLyrics;
+    private String mInlineLyrics;
     private Map<String, View> mActionButtons;
     private QuickSearchDialog mQuickSearchDialog;
     private PlayerOsdController mOsd;
@@ -405,6 +410,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         SpiderDebug.log("video-flow", "initView after playback cost=%dms", System.currentTimeMillis() - start);
         mFrameParams = mBinding.video.getLayoutParams();
         mClock = Clock.create(mBinding.widget.clock);
+        mLyrics = new LyricsController(mBinding.lyrics);
         mKeyDown = CustomKeyDownVod.create(this);
         mObserveDetail = this::setDetail;
         mObservePlayer = this::setPlayer;
@@ -654,6 +660,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         getIntent().putExtra("id", item.getId());
         mBinding.scroll.scrollTo(0, 0);
         mClock.setCallback(null);
+        clearLyrics();
         updateNavigationKey();
         if (service() != null) {
             player().reset();
@@ -710,6 +717,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void setText(Vod item) {
         mBinding.content.setTag(item.getContent());
+        setDetailLyrics(item.getContent());
         setText(mBinding.year, R.string.detail_year, item.getYear());
         setText(mBinding.area, R.string.detail_area, item.getArea());
         setText(mBinding.type, R.string.detail_type, item.getTypeName());
@@ -742,6 +750,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         playerStartTime = System.currentTimeMillis();
         beginPlayHealth();
         SpiderDebug.log("video-flow", "player start key=%s flag=%s episode=%s url=%s", getKey(), flag.getFlag(), episode.getName(), episode.getUrl());
+        mInlineLyrics = mDetailLyrics;
+        clearLyrics();
         mViewModel.playerContent(getKey(), flag.getFlag(), episode.getUrl());
         mBinding.widget.title.setSelected(true);
         updateHistory(episode);
@@ -761,7 +771,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         setQualityVisible(result.getUrl().isMulti());
         result.getUrl().set(mQualityAdapter.getPosition());
         if (result.hasArtwork() && !shouldKeepPushArtwork()) setArtwork(result.getArtwork());
-        if (result.hasDesc()) mBinding.content.setTag(result.getDesc());
+        if (result.hasDesc()) {
+            mBinding.content.setTag(result.getDesc());
+            setPlaybackLyrics(result.getDesc());
+        }
         if (result.hasPosition()) mHistory.setPosition(result.getPosition());
         mBinding.control.parse.setVisibility(isUseParse() ? View.VISIBLE : View.GONE);
         startPlayer(getHistoryKey(), result, isUseParse(), getSite().getTimeout(), buildMetadata());
@@ -1312,6 +1325,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         player().stop();
         player().clear();
         mClock.setCallback(null);
+        clearLyrics();
         if (mFlagAdapter.getItemCount() == 0) return;
         if (mEpisodeAdapter.getItemCount() == 0) return;
         getPlayer(getFlag(), getEpisode());
@@ -1383,6 +1397,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void onPlayerKernel() {
         mClock.setCallback(null);
+        clearLyrics();
         player().togglePlayer();
         setPlayerKernel();
         setDecode();
@@ -1390,6 +1405,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void onDecode() {
         mClock.setCallback(null);
+        clearLyrics();
         player().toggleDecode();
         setDecode();
     }
@@ -1635,7 +1651,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private void showInitialPreview() {
         mBinding.progressLayout.showContent();
         mBinding.name.setText(getName());
-        if (!getContent().isEmpty()) mBinding.content.setTag(getContent());
+        if (!getContent().isEmpty()) {
+            mBinding.content.setTag(getContent());
+            setDetailLyrics(getContent());
+        }
         if (!getPic().isEmpty()) setArtwork(getPic());
         else if (!getWallPic().isEmpty()) setContextWall(getWallPic());
         mBinding.video.requestFocus();
@@ -1777,12 +1796,72 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         setDecode();
         setLut();
         setPosition();
+        refreshLyrics();
     }
 
     @Override
     protected void onTracksChanged() {
+        refreshLyrics();
         setTrackVisible();
         mClock.setCallback(this);
+    }
+
+    private void refreshLyrics() {
+        if (mLyrics == null || service() == null) return;
+        if (showInlineLyrics()) return;
+        setAudioOnly(LyricsController.isAudioOnly(player()));
+        mLyrics.refresh(player(), isAudioOnly() || isMusicLike());
+    }
+
+    private void clearLyrics() {
+        if (mLyrics != null) mLyrics.clear();
+    }
+
+    private void setDetailLyrics(String text) {
+        mDetailLyrics = getTimedLyrics(text);
+        mInlineLyrics = mDetailLyrics;
+    }
+
+    private void setPlaybackLyrics(String text) {
+        String lyrics = getTimedLyrics(text);
+        if (!TextUtils.isEmpty(lyrics)) mInlineLyrics = lyrics;
+    }
+
+    private String getTimedLyrics(String text) {
+        return LyricsController.hasTimedLyrics(text) ? text : "";
+    }
+
+    private boolean showInlineLyrics() {
+        if (TextUtils.isEmpty(mInlineLyrics) || !LyricsController.hasTimedLyrics(mInlineLyrics)) return false;
+        String title = mHistory == null ? getName() : mHistory.getVodName();
+        String artist = getLyricsArtist(title);
+        String signature = getHistoryKey() + "|" + getEpisode().getName();
+        return mLyrics.setInlineLyrics(signature, title, artist, mInlineLyrics, player().getDuration(), player().getPosition());
+    }
+
+    private boolean isMusicLike() {
+        String flag = mFlagAdapter == null || mFlagAdapter.getItemCount() == 0 ? "" : getFlag().getShow();
+        String text = (getSite().getKey() + " " + getSite().getName() + " " + flag + " " + getName()).toLowerCase(Locale.ROOT);
+        return text.contains("音乐") || text.contains("音樂") || text.contains("music") || text.contains("song") || text.contains("歌曲") || text.contains("歌单") || text.contains("聽歌") || text.contains("听歌");
+    }
+
+    private String getLyricsArtist(String title) {
+        return getArtistFromEpisode(title, getEpisode().getName());
+    }
+
+    private String getArtistFromEpisode(String title, String episode) {
+        String name = Objects.toString(title, "").trim();
+        String value = Objects.toString(episode, "").trim();
+        if (name.isEmpty() || value.isEmpty() || TextUtils.equals(name, value)) return "";
+        for (String separator : new String[]{" - ", " – ", " — ", "-"}) {
+            if (value.startsWith(name + separator) && value.length() > name.length() + separator.length()) {
+                return value.substring(name.length() + separator.length()).trim();
+            }
+            if (value.endsWith(separator + name) && value.length() > name.length() + separator.length()) {
+                return value.substring(0, value.length() - name.length() - separator.length()).trim();
+            }
+        }
+        return value;
     }
 
     @Override
@@ -1795,6 +1874,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         recordPlayHealth(false, msg);
         Track.delete(player().getKey());
         mClock.setCallback(null);
+        clearLyrics();
         player().resetTrack();
         player().reset();
         player().stop();
@@ -1817,6 +1897,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             case Player.STATE_READY:
                 recordPlayHealth(true, "");
                 hideProgress();
+                refreshLyrics();
                 player().reset();
                 break;
             case Player.STATE_ENDED:
@@ -1858,6 +1939,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         long position, duration;
         mHistory.setCreateTime(time);
         updatePlaybackHistoryPosition();
+        if (mLyrics != null) mLyrics.update(player().getPosition());
         position = mHistory.getPosition();
         duration = mHistory.getDuration();
         PlaybackEventCollector.get().onProgress(mHistory, player());
@@ -1917,8 +1999,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private MediaMetadata buildMetadata() {
         String title = mHistory.getVodName();
         String episode = getEpisode().getName();
-        boolean empty = episode.isEmpty() || title.equals(episode);
-        String artist = empty ? "" : episode;
+        String artist = getArtistFromEpisode(title, episode);
         return PlayerManager.buildMetadata(title, artist, mHistory.getVodPic());
     }
 
@@ -2395,6 +2476,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     @Override
     protected void onDestroy() {
+        if (mLyrics != null) mLyrics.release();
         mClock.release();
         saveHistory(true);
         DanmakuApi.cancel();
