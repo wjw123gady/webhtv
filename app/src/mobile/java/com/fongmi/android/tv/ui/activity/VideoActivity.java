@@ -156,6 +156,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private android.widget.ArrayAdapter<String> mLyricsResultAdapter;
     private List<LyricsResult> mLyricsSearchResults;
     private String mLyricsSearchKeyword;
+    private String mLyricsSelectedResultKey;
     private String mDetailLyrics;
     private String mInlineLyrics;
     private Map<String, View> mActionButtons;
@@ -1994,6 +1995,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         for (int i = 0; i < results.size(); i++) labels[i] = getLyricsResultLabel(results.get(i));
         if (mLyricsResultDialog != null && mLyricsResultAdapter != null && mLyricsResultDialog.isShowing()) {
             updateLyricsResultAdapter(labels);
+            checkLyricsSelectedResult(mLyricsResultDialog);
             placeLyricsDialogBelowPlayer(mLyricsResultDialog, true, labels.length);
             return;
         }
@@ -2001,7 +2003,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mLyricsResultAdapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_list_item_single_choice, new ArrayList<>(List.of(labels)));
         AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
                 .setTitle(R.string.player_lyrics_select)
-                .setSingleChoiceItems(mLyricsResultAdapter, -1, (d, which) -> {
+                .setSingleChoiceItems(mLyricsResultAdapter, getLyricsSelectedIndex(), (d, which) -> {
                     if (which >= 0 && which < mLyricsSearchResults.size()) applyLyrics(mLyricsSearchResults.get(which));
                 })
                 .setNegativeButton(R.string.dialog_cancel, null)
@@ -2059,7 +2061,28 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void applyLyrics(LyricsResult result) {
         if (mLyrics == null || service() == null) return;
         mInlineLyrics = "";
-        mLyrics.apply(player(), result, true, applied -> Notify.show(applied == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, applied.getSource())));
+        mLyrics.apply(player(), result, true, applied -> {
+            if (applied != null) {
+                mLyricsSelectedResultKey = getLyricsResultKey(applied);
+            }
+            checkLyricsSelectedResult(mLyricsResultDialog);
+            Notify.show(applied == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, applied.getSource()));
+        });
+    }
+
+    private void checkLyricsSelectedResult(AlertDialog dialog) {
+        if (dialog == null || dialog.getListView() == null) return;
+        int index = getLyricsSelectedIndex();
+        if (index >= 0) dialog.getListView().setItemChecked(index, true);
+        else dialog.getListView().clearChoices();
+    }
+
+    private int getLyricsSelectedIndex() {
+        if (TextUtils.isEmpty(mLyricsSelectedResultKey) || mLyricsSearchResults == null) return -1;
+        for (int i = 0; i < mLyricsSearchResults.size(); i++) {
+            if (TextUtils.equals(mLyricsSelectedResultKey, getLyricsResultKey(mLyricsSearchResults.get(i)))) return i;
+        }
+        return -1;
     }
 
     private String getLyricsResultLabel(LyricsResult result) {
@@ -2067,6 +2090,18 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         String artist = TextUtils.isEmpty(result.getArtistName()) ? getString(R.string.player_lyrics_unknown) : result.getArtistName();
         String type = result.hasWordTiming() ? getString(R.string.player_lyrics_word) : result.isSynced() ? getString(R.string.player_lyrics_synced) : getString(R.string.player_lyrics_plain);
         return getString(R.string.player_lyrics_result_item, result.getSource(), type, result.getScore(), title, artist);
+    }
+
+    private String getLyricsResultKey(LyricsResult result) {
+        if (result == null) return "";
+        return TextUtils.join("|", new String[]{
+                String.valueOf(result.getSource()),
+                String.valueOf(result.getTrackName()),
+                String.valueOf(result.getArtistName()),
+                String.valueOf(Math.round(result.getDurationMs() / 1000.0)),
+                String.valueOf(result.hasWordTiming()),
+                String.valueOf(result.getLyrics() == null ? 0 : result.getLyrics().hashCode())
+        });
     }
 
     private void clearLyrics() {
