@@ -1283,11 +1283,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             String source = result.getSource() + (result.isLoginRequired() ? getString(R.string.player_karaoke_track_source_login) : "");
             items[i] = getString(R.string.player_karaoke_track_result_item, source, result.getArtist(), result.getTitle(), result.getNote());
         }
-        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
                 .setTitle(R.string.player_karaoke_track_select)
                 .setNegativeButton(R.string.dialog_negative, null)
-                .setItems(items, (dialog, which) -> importKaraokeTrackUrl(results.get(which).getUrl()))
+                .setItems(items, null)
                 .show();
+        dialog.getListView().setOnItemClickListener((parent, view, which, id) -> importKaraokeTrackUrl(results.get(which).getUrl()));
     }
 
     private void importKaraokeTrackUrl(String url) {
