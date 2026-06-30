@@ -838,7 +838,10 @@
     <string name="player_karaoke_track_keyword">Scoring track keyword</string>
     <string name="player_karaoke_track_import_file">Import UltraStar/MIDI file</string>
     <string name="player_karaoke_track_import_url">Import track URL</string>
-    <string name="player_karaoke_track_url_hint">UltraStar .txt URL, USDB ID, or USDB detail URL</string>
+    <string name="player_karaoke_track_sources">Custom GitHub sources</string>
+    <string name="player_karaoke_track_sources_hint">One repo per line: owner/repo@branch or https://github.com/owner/repo/tree/branch</string>
+    <string name="player_karaoke_track_sources_saved">Scoring track sources saved</string>
+    <string name="player_karaoke_track_url_hint">UltraStar .txt URL, USDB ID, USDB detail URL, or append @Cookie=...</string>
     <string name="player_karaoke_track_clear">Clear current binding</string>
     <string name="player_karaoke_track_searching">Searching scoring tracks...</string>
     <string name="player_karaoke_track_not_found">No scoring track found</string>

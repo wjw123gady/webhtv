@@ -32,6 +32,7 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -167,6 +168,12 @@ public class KaraokeTrackRepository {
         });
     }
 
+    public static void clearSearchCache() {
+        synchronized (SEARCH_CACHE) {
+            SEARCH_CACHE.clear();
+        }
+    }
+
     public static String defaultKeyword(PlayerManager player) {
         String title = getTitle(player);
         if (!TextUtils.isEmpty(title)) return stripExtension(title);
@@ -208,7 +215,20 @@ public class KaraokeTrackRepository {
         Request.Builder builder = new Request.Builder().url(url.trim()).header("User-Agent", userAgent());
         String actualCookie = !TextUtils.isEmpty(cookie) ? cookie : webCookie(url);
         if (!TextUtils.isEmpty(actualCookie)) builder.header("Cookie", actualCookie);
-        Request request = builder.build();
+        return readResponseText(builder.build());
+    }
+
+    static String postRemoteText(String url, Map<String, String> form, String cookie) throws Exception {
+        if (!isHttpUrl(url)) throw new IllegalArgumentException("invalid url");
+        FormBody.Builder body = new FormBody.Builder();
+        if (form != null) for (Map.Entry<String, String> entry : form.entrySet()) body.add(entry.getKey(), entry.getValue());
+        Request.Builder builder = new Request.Builder().url(url.trim()).header("User-Agent", userAgent()).post(body.build());
+        String actualCookie = !TextUtils.isEmpty(cookie) ? cookie : webCookie(url);
+        if (!TextUtils.isEmpty(actualCookie)) builder.header("Cookie", actualCookie);
+        return readResponseText(builder.build());
+    }
+
+    private static String readResponseText(Request request) throws Exception {
         try (Response response = CLIENT.newCall(request).execute()) {
             if (!response.isSuccessful() || response.body() == null) throw new IllegalStateException("http " + response.code());
             long length = response.body().contentLength();

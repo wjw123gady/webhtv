@@ -353,6 +353,14 @@ public class PlayerSetting {
         Prefers.put("karaoke_mic_delay", Math.min(Math.max(value, -1000L), 1000L));
     }
 
+    public static String getKaraokeGithubSources() {
+        return Prefers.getString("karaoke_github_sources");
+    }
+
+    public static void putKaraokeGithubSources(String value) {
+        Prefers.put("karaoke_github_sources", value == null ? "" : value.trim());
+    }
+
     public static boolean isOsdTitle() {
         return Prefers.getBoolean("player_osd_title");
     }

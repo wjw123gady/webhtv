@@ -836,7 +836,10 @@
     <string name="player_karaoke_track_keyword">评分谱关键词</string>
     <string name="player_karaoke_track_import_file">导入 UltraStar/MIDI 文件</string>
     <string name="player_karaoke_track_import_url">导入评分谱链接</string>
-    <string name="player_karaoke_track_url_hint">UltraStar .txt 链接、USDB ID 或 USDB 详情页</string>
+    <string name="player_karaoke_track_sources">自定义 GitHub 谱源</string>
+    <string name="player_karaoke_track_sources_hint">每行一个仓库：owner/repo@branch 或 https://github.com/owner/repo/tree/branch</string>
+    <string name="player_karaoke_track_sources_saved">评分谱源已保存</string>
+    <string name="player_karaoke_track_url_hint">UltraStar .txt 链接、USDB ID、USDB 详情页，或追加 @Cookie=...</string>
     <string name="player_karaoke_track_clear">清除当前绑定</string>
     <string name="player_karaoke_track_searching">正在搜索评分谱...</string>
     <string name="player_karaoke_track_not_found">未找到评分谱</string>

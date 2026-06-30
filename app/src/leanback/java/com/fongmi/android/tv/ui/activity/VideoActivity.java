@@ -1195,6 +1195,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         items.add(getString(R.string.player_karaoke_track_search));
         items.add(getString(R.string.player_karaoke_track_import_file));
         items.add(getString(R.string.player_karaoke_track_import_url));
+        items.add(getString(R.string.player_karaoke_track_sources));
         if (bound) items.add(getString(R.string.player_karaoke_track_clear));
         new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
                 .setTitle(R.string.player_karaoke_track)
@@ -1204,6 +1205,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                     else if (which == 1) showKaraokeTrackSearchDialog();
                     else if (which == 2) chooseKaraokeTrackFile();
                     else if (which == 3) showKaraokeTrackUrlDialog();
+                    else if (which == 4) showKaraokeTrackSourcesDialog();
                     else clearKaraokeTrackBinding();
                 })
                 .show();
@@ -1226,6 +1228,28 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setPositiveButton(R.string.dialog_positive, (dialog, which) -> importKaraokeTrackUrl(input.getText().toString()))
                 .show();
+    }
+
+    private void showKaraokeTrackSourcesDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(false);
+        input.setMinLines(4);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setHint(R.string.player_karaoke_track_sources_hint);
+        input.setText(PlayerSetting.getKaraokeGithubSources());
+        input.setSelectAllOnFocus(false);
+        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
+                .setTitle(R.string.player_karaoke_track_sources)
+                .setView(input)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> saveKaraokeTrackSources(input.getText().toString()))
+                .show();
+    }
+
+    private void saveKaraokeTrackSources(String sources) {
+        PlayerSetting.putKaraokeGithubSources(sources);
+        KaraokeTrackRepository.clearSearchCache();
+        Notify.show(R.string.player_karaoke_track_sources_saved);
     }
 
     private void showKaraokeTrackSearchDialog() {

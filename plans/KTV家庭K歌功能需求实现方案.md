@@ -100,13 +100,14 @@
 
 | 项目或站点 | 实际使用的入口 | 能拿到音符轨吗 | 是否集成 | 结论 |
 | --- | --- | --- | --- | --- |
-| USDB `usdb.animux.de` | 网页 `POST /?link=list` 搜索；详情 `/?link=detail&id={id}`；下载 `/?link=gettxt&id={id}`；编辑页 `/?link=editsongs&id={id}`；可视化页 `view.php?id={id}&database1=deluxe_songs` | 是。登录后编辑页/下载页可拿完整 `.txt`；匿名 `view.php` 含 `giveinfo0(type,start,length,pitch,note,text)`，可结合详情页 BPM/GAP 重建音符轨 | 待做可选 Provider | 2026-06-30 实测：站点和详情页可用；匿名搜索和 `gettxt` 返回未登录；匿名 `view.php` 可显示完整音符。后续可做“用户 Cookie 完整下载”和“已知 ID/详情页 + view 重建”的手动谱源 |
+| USDB `usdb.animux.de` | 网页 `POST /?link=list` 搜索；详情 `/?link=detail&id={id}`；下载 `/?link=gettxt&id={id}`；编辑页 `/?link=editsongs&id=...`；可视化页 `view.php?id={id}&database1=deluxe_songs` | 是。登录后编辑页/下载页可拿完整 `.txt`；匿名 `view.php` 含 `giveinfo0(type,start,length,pitch,note,text)`，可结合详情页 BPM/GAP 重建音符轨 | 已集成可选 Provider | 关键词搜索在用户已有 Cookie 时可用；无登录态时支持 ID/详情页导入和 RSS fallback；导入通过详情页 + view 重建，不强依赖完整下载权限 |
 | `martiinii/UltraStar-CLI` | 代码确认：`src/api/usdb/search.ts` 用 `POST /?link=list`；`lyrics.ts` 用 `GET /?link=editsongs&id=...` 解析 `<textarea>`；`youtube.ts` 用详情页评论解析 YouTube | 是，USDB textarea | 作为实现参考 | 证明 USDB 可抓取，但依赖登录和 HTML 结构，不适合默认静默抓站 |
 | `Salomon-MH/USDB-fetcher` | 读取用户本地 USDB `.txt`，解析 `#VIDEO:v=...` / `#VIDEO:a=...` 后用 `yt-dlp` 下载音视频 | 不负责在线获取 `.txt`，只处理已有谱 | 不集成 | 支持“用户先拿到 UltraStar 文件，再导入 App”的路线 |
 | `ngoc-quoc-huynh/usdb_downloader` | 读取 input 目录已有 `.txt`，保留 headers/lyrics，下载 YouTube 音视频并重写 `#MP3/#VIDEO/#COVER` | 不负责在线获取 `.txt` | 不集成 | 和上面一致，是本地谱面整理工具，不是在线音符轨 API |
-| UltraStar-ES `ultrastar-es.org` | `GET /en/canciones?busqueda={keyword}` 匿名搜索；结果 HTML 内含 artist/title/year/language、YouTube id、`/en/canciones/descargar/txt/{token}`、torrent 链接 | 是，但 txt 下载需要登录态 | 待做可选 Provider | 2026-06-30 实测：站点、首页、搜索页可用；匿名能搜到结果和下载链接；直接下载 txt 会 302 到论坛登录页。后续可做匿名搜索 + 用户 Cookie 下载，或引导用户手动登录下载后导入 |
+| UltraStar-ES `ultrastar-es.org` | `GET /en/canciones?busqueda={keyword}` 匿名搜索；结果 HTML 内含 artist/title/year/language、YouTube id、`/en/canciones/descargar/txt/{token}`、torrent 链接 | 是，但 txt 下载需要登录态 | 已集成可选 Provider | 匿名搜索已接入；下载链接保留登录态提示，用户有 Cookie 时可尝试直接导入，否则手动下载后导入 |
 | `razzertronic/usdx-songs` | GitHub tree API `repos/razzertronic/usdx-songs/git/trees/master?recursive=1`，匹配 `.txt` 后用 raw.githubusercontent.com 下载 | 是，公开 UltraStar `.txt` | 已集成默认搜索 | 2026-06-30 实测可用，仓库许可证 Unlicense；适合默认搜索结果，不打包内容，只按用户选择下载文本 |
 | `Vasil-Pahomov/UltraStarSongs` | GitHub tree API `repos/Vasil-Pahomov/UltraStarSongs/git/trees/master?recursive=1`，匹配 `.txt` 后用 raw.githubusercontent.com 下载 | 是，公开 UltraStar `.txt` | 已集成默认搜索 | 2026-06-30 实测可用，仓库 GPL-3.0 且含音频文件；App 只展示/下载用户选择的 `.txt`，不内置资源 |
+| 用户自定义 GitHub 谱源 | 播放页“评分谱”菜单配置，每行 `owner/repo@branch` 或 GitHub 仓库 URL；内部使用 GitHub tree API + raw 下载 | 是，取决于仓库是否包含 UltraStar `.txt` | 已集成 | 用于后续快速接入新发现的公开谱库，不需要改代码发版 |
 | USDX / Performous / Vocaluxe | 本地扫描 UltraStar 歌曲目录，解析 `.txt`，运行时按 beat/pitch 评分 | 是，但只是本地格式和评分引擎 | 已参考评分模型 | 它们不是在线来源；可继续参考 note bar、line bonus、golden note 等 UI/评分细节 |
 | `ultrastar-score` | 输入 UltraStar `.txt` + 人声音频，解析 note line 并按 Vocaluxe/USDX 思路评分 | 是，但依赖本地 `.txt` | 已参考评分逻辑 | 适合校验半音容差、忽略八度、逐音符/逐行统计 |
 | UltraSinger / UltrastarCreatorTool | YouTube/本地音频 -> 人声分离 -> Whisper/对齐 -> pitch -> 生成 UltraStar/MIDI | 可生成音符轨 | 不进 App 默认链路 | 重型制谱工具，适合未来桌面/自托管服务，不适合手机/TV 播放时即时执行 |
@@ -629,7 +630,7 @@ noteEndMs = noteStartMs + beatToMs(lengthBeat)
 - 已完成：MIDI / KAR 主旋律轨导入启发式。
 - 已完成：实时状态浮层显示当前音高、命中状态、当前句分数、目标音偏差、目标音符时间线、用户音高历史曲线、麦克风音量、分数/覆盖条和连续命中/连续发声提示。
 - 已完成：按分数给出 S+ / S / A / B / C / D / E 娱乐评级。
-- 待完善：更完整的大屏目标音符条、金色音符视觉特效。
+- 已完成：目标音符条支持宽屏自适应、当前音符高亮、命中/偏差即时颜色、金色音符光晕提示。
 
 验收：
 
@@ -651,9 +652,10 @@ noteEndMs = noteStartMs + beatToMs(lengthBeat)
 - 已完成：MIDI / KAR 导入与主旋律轨选择启发式。
 - 已完成：GitHub 公开 UltraStar 谱库搜索，当前接入 `razzertronic/usdx-songs`、`Vasil-Pahomov/UltraStarSongs`。
 - 已完成：UltraStar-ES 匿名搜索，下载仍取决于用户登录态或手动导入。
-- 已完成：USDB ID/详情页通过 `view.php` 重建，默认搜索优先级后置。
+- 已完成：USDB ID/详情页通过 `view.php` 重建；关键词搜索在用户已有登录 Cookie 时走网页 POST 搜索，否则回退 RSS/ID。
 - 已完成：从当前歌词时间轴生成轻量节奏评分谱，作为无人工谱时的可用补位方案。
 - 已完成：正式抽象 `KaraokeTrackProvider` 接口，把 GitHub/UltraStar-ES/USDB 搜索从仓库类里拆出去，便于后续增减谱源。
+- 已完成：播放页“评分谱”菜单增加自定义 GitHub 谱源配置，每行支持 `owner/repo@branch` 或 GitHub 仓库 URL。
 
 验收：
 
