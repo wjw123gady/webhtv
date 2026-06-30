@@ -26,6 +26,7 @@ public class KaraokeStatusView extends LinearLayout {
 
     private final MaterialTextView title;
     private final MaterialTextView detail;
+    private final PitchMeterView pitch;
     private final VolumeMeterView volume;
 
     public KaraokeStatusView(Context context) {
@@ -44,9 +45,13 @@ public class KaraokeStatusView extends LinearLayout {
 
         title = textView(context, 13, true);
         detail = textView(context, 12, false);
+        pitch = new PitchMeterView(context);
         volume = new VolumeMeterView(context);
         addView(title, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
         addView(detail, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        LayoutParams pitchParams = new LayoutParams(dp(156), dp(34));
+        pitchParams.topMargin = dp(8);
+        addView(pitch, pitchParams);
         LayoutParams params = new LayoutParams(dp(112), dp(30));
         params.topMargin = dp(8);
         addView(volume, params);
@@ -62,6 +67,8 @@ public class KaraokeStatusView extends LinearLayout {
         String text = getDetail(status, sample, snapshot, track);
         detail.setText(text);
         detail.setVisibility(text.isEmpty() ? GONE : VISIBLE);
+        pitch.setState(sample, snapshot);
+        pitch.setVisibility(showPitch(status, snapshot) ? VISIBLE : GONE);
         volume.setLevel(getVolumeLevel(status, sample));
         volume.setVisibility(showVolume(status) ? VISIBLE : GONE);
     }
@@ -95,6 +102,13 @@ public class KaraokeStatusView extends LinearLayout {
         return status == KaraokeStatus.FREE_SING || status == KaraokeStatus.SCORING;
     }
 
+    private boolean showPitch(KaraokeStatus status, KaraokeScoreSnapshot snapshot) {
+        return status == KaraokeStatus.SCORING
+                && snapshot != null
+                && snapshot.getTargetNote() != null
+                && snapshot.getTargetNote().isPitchRequired();
+    }
+
     private float getVolumeLevel(KaraokeStatus status, KaraokePitchSample sample) {
         if (!showVolume(status) || sample == null || sample.getTimestampMs() <= 0) return 0;
         return (float) Math.max(0, Math.min(1, Math.sqrt(sample.getVolume()) * 1.6f));
@@ -121,6 +135,91 @@ public class KaraokeStatusView extends LinearLayout {
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private class PitchMeterView extends View {
+
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+        private int targetPitch = -1;
+        private double sungMidi = Double.NaN;
+        private double distance = Double.NaN;
+        private boolean hit;
+        private boolean voiced;
+
+        private PitchMeterView(Context context) {
+            super(context);
+            paint.setTextSize(dp(10));
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+        }
+
+        private void setState(KaraokePitchSample sample, KaraokeScoreSnapshot snapshot) {
+            targetPitch = snapshot == null || snapshot.getTargetNote() == null ? -1 : snapshot.getTargetNote().getPitch();
+            sungMidi = snapshot == null ? Double.NaN : snapshot.getSungMidi();
+            distance = snapshot == null ? Double.NaN : snapshot.getDistanceSemitones();
+            hit = snapshot != null && snapshot.isHit();
+            voiced = sample != null && sample.isVoiced() && !Double.isNaN(sungMidi);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float left = dp(2);
+            float right = getWidth() - dp(2);
+            float centerY = getHeight() - dp(10);
+            float trackHeight = dp(5);
+            float centerX = getWidth() / 2f;
+            float radius = trackHeight / 2f;
+            rect.set(left, centerY - trackHeight / 2f, right, centerY + trackHeight / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0x2EFFFFFF);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+            paint.setColor(0x66FFFFFF);
+            canvas.drawRect(centerX - dp(0.8f), centerY - dp(9), centerX + dp(0.8f), centerY + dp(9), paint);
+            drawTolerance(canvas, centerX, centerY, left, right, trackHeight);
+            drawPitchText(canvas, left, right);
+            drawMarker(canvas, centerX, centerY, left, right);
+        }
+
+        private void drawTolerance(Canvas canvas, float centerX, float centerY, float left, float right, float trackHeight) {
+            float range = 3f;
+            float tolerance = Math.min(range, 0.75f);
+            float half = (right - left) * tolerance / (range * 2f);
+            rect.set(centerX - half, centerY - trackHeight / 2f, centerX + half, centerY + trackHeight / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0x6634D399);
+            canvas.drawRoundRect(rect, trackHeight / 2f, trackHeight / 2f, paint);
+        }
+
+        private void drawPitchText(Canvas canvas, float left, float right) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xCCFFFFFF);
+            paint.setTextAlign(Paint.Align.LEFT);
+            String target = targetPitch < 0 ? "" : KaraokePitch.midiToName(targetPitch);
+            canvas.drawText(target, left, dp(11), paint);
+            if (!voiced) return;
+            paint.setTextAlign(Paint.Align.RIGHT);
+            paint.setColor(hit ? 0xFF34D399 : 0xFFFBBF24);
+            canvas.drawText(KaraokePitch.midiToName((int) Math.round(sungMidi)), right, dp(11), paint);
+        }
+
+        private void drawMarker(Canvas canvas, float centerX, float centerY, float left, float right) {
+            float x = centerX;
+            if (voiced && !Double.isNaN(distance)) {
+                float range = 3f;
+                float normalized = (float) Math.max(-1, Math.min(1, distance / range));
+                x = centerX + normalized * (right - left) / 2f;
+            }
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(voiced ? (hit ? 0xFF34D399 : 0xFFFBBF24) : 0x99FFFFFF);
+            canvas.drawCircle(x, centerY, dp(4.2f), paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(0xD9000000);
+            canvas.drawCircle(x, centerY, dp(4.2f), paint);
+            paint.setStyle(Paint.Style.FILL);
+        }
     }
 
     private static class VolumeMeterView extends View {
