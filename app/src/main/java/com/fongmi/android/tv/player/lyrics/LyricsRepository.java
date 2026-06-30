@@ -11,9 +11,11 @@ import com.github.catvod.utils.Path;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -531,18 +533,15 @@ public class LyricsRepository {
     private LyricsResult readLocal(LyricsRequest request) {
         File source = sourceFile(request.getUrl());
         if (source == null) return null;
-        String name = source.getName();
-        int dot = name.lastIndexOf('.');
-        if (dot <= 0) return null;
         File parent = source.getParentFile();
         if (parent == null) return null;
-        String base = name.substring(0, dot);
-        File ttml = findLocal(parent, base, ".ttml", ".TTML");
+        List<String> bases = localBases(request, source);
+        File ttml = findLocal(parent, bases, ".ttml");
         if (Path.exists(ttml)) {
             String text = TtmlClient.toEnhancedLrc(Path.read(ttml));
             if (!TextUtils.isEmpty(text) && LyricsParser.hasTimedLine(text)) return new LyricsResult("Local TTML", request.getTitle(), request.getArtist(), request.getAlbum(), text, request.getDurationMs(), true, 104);
         }
-        File lrc = findLocal(parent, base, ".lrc", ".LRC");
+        File lrc = findLocal(parent, bases, ".lrc");
         if (!Path.exists(lrc)) return null;
         String text = Path.read(lrc);
         if (TextUtils.isEmpty(text)) return null;
@@ -550,9 +549,67 @@ public class LyricsRepository {
         return new LyricsResult("Local", request.getTitle(), request.getArtist(), request.getAlbum(), text, request.getDurationMs(), synced, 100);
     }
 
-    private File findLocal(File parent, String base, String lower, String upper) {
-        File file = new File(parent, base + lower);
-        return Path.exists(file) ? file : new File(parent, base + upper);
+    private List<String> localBases(LyricsRequest request, File source) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        String sourceBase = fileBase(source.getName());
+        String title = request.getTitle();
+        String artist = request.getArtist();
+        addLocalBase(values, sourceBase);
+        addLocalBase(values, title);
+        addLocalBase(values, request.displayKeyword());
+        if (!TextUtils.isEmpty(artist) && !TextUtils.isEmpty(title)) {
+            addLocalBase(values, artist + " - " + title);
+            addLocalBase(values, title + " - " + artist);
+            addLocalBase(values, artist + "_" + title);
+            addLocalBase(values, title + "." + sourceBase);
+            addLocalBase(values, sourceBase + "." + title);
+        }
+        return new ArrayList<>(values);
+    }
+
+    private void addLocalBase(Set<String> values, String value) {
+        String text = safe(value).trim();
+        if (TextUtils.isEmpty(text)) return;
+        values.add(text);
+        String safe = text.replaceAll("[\\\\/:*?\"<>|]+", " ").replaceAll("\\s+", " ").trim();
+        if (!TextUtils.isEmpty(safe)) values.add(safe);
+    }
+
+    private File findLocal(File parent, List<String> bases, String suffix) {
+        for (String base : bases) {
+            File file = new File(parent, base + suffix);
+            if (Path.exists(file)) return file;
+            file = new File(parent, base + suffix.toUpperCase(Locale.ROOT));
+            if (Path.exists(file)) return file;
+        }
+        File[] files = parent.listFiles();
+        if (files == null) return null;
+        for (File file : files) {
+            if (!file.isFile()) continue;
+            String name = file.getName();
+            if (!name.toLowerCase(Locale.ROOT).endsWith(suffix)) continue;
+            String base = fileBase(name);
+            for (String value : bases) if (sameLocalBase(base, value)) return file;
+        }
+        return null;
+    }
+
+    private boolean sameLocalBase(String a, String b) {
+        return normalizeLocalBase(a).equals(normalizeLocalBase(b));
+    }
+
+    private String normalizeLocalBase(String value) {
+        return Normalizer.normalize(safe(value), Normalizer.Form.NFKC)
+                .replace('　', ' ')
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private String fileBase(String name) {
+        String value = safe(name);
+        int dot = value.lastIndexOf('.');
+        return dot > 0 ? value.substring(0, dot) : value;
     }
 
     private File sourceFile(String url) {

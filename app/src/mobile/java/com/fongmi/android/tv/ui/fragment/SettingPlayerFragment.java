@@ -118,6 +118,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.lyricsSize.setOnClickListener(this::onLyricsSize);
         mBinding.lyricsSource.setOnClickListener(this::onLyricsSource);
         mBinding.desktopLyrics.setOnClickListener(this::setDesktopLyrics);
+        mBinding.desktopLyrics.setOnLongClickListener(this::resetDesktopLyricsPosition);
         mBinding.lyricsCache.setOnClickListener(this::clearLyricsCache);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
         mBinding.speed.setOnClickListener(this::onSpeed);
@@ -229,6 +230,12 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         PlayerSetting.putDesktopLyrics(enabled);
         mBinding.desktopLyricsText.setText(getSwitch(enabled));
         if (enabled && !canDrawOverlays()) openOverlayPermission();
+    }
+
+    private boolean resetDesktopLyricsPosition(View view) {
+        PlayerSetting.resetDesktopLyricsPosition();
+        Notify.show(R.string.player_desktop_lyrics_position_reset);
+        return true;
     }
 
     private boolean canDrawOverlays() {

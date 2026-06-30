@@ -814,6 +814,7 @@
     <string name="player_lyrics_source">Lyric source</string>
     <string name="player_desktop_lyrics">Desktop lyrics</string>
     <string name="player_desktop_lyrics_permission">Allow display over other apps to show desktop lyrics</string>
+    <string name="player_desktop_lyrics_position_reset">Desktop lyrics position reset</string>
     <string name="player_lyrics_cache">Lyric cache</string>
     <string name="player_lyrics_cache_value">%1$d items</string>
     <string name="player_lyrics_cache_cleared">Lyric cache cleared</string>
