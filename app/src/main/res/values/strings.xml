@@ -837,6 +837,7 @@
     <string name="player_karaoke_line_score">Line %1$d%%</string>
     <string name="player_karaoke_track">Scoring track</string>
     <string name="player_karaoke_track_generate">Generate lightweight rhythm track</string>
+    <string name="player_karaoke_track_generate_pitch">Generate experimental pitch track</string>
     <string name="player_karaoke_track_search">Search online tracks</string>
     <string name="player_karaoke_track_keyword">Scoring track keyword</string>
     <string name="player_karaoke_track_import_file">Import UltraStar/MIDI file</string>
@@ -854,6 +855,9 @@
     <string name="player_karaoke_track_imported">Scoring track imported</string>
     <string name="player_karaoke_track_import_failed">Scoring track import failed</string>
     <string name="player_karaoke_track_generated">Lightweight rhythm track generated</string>
+    <string name="player_karaoke_track_generating_pitch">Generating experimental pitch track...</string>
+    <string name="player_karaoke_track_generated_pitch">Experimental pitch track generated</string>
+    <string name="player_karaoke_track_generate_pitch_failed">Failed to generate experimental pitch track</string>
     <string name="player_karaoke_track_generate_failed">Failed to generate rhythm track</string>
     <string name="player_karaoke_track_generate_no_lyrics">No timed lyrics available</string>
     <string name="player_karaoke_track_cleared">Scoring track binding cleared</string>

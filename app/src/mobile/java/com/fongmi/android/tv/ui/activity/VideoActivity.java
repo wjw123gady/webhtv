@@ -1282,6 +1282,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         boolean bound = KaraokeTrackRepository.hasBinding(player());
         ArrayList<String> items = new ArrayList<>();
         items.add(getString(R.string.player_karaoke_track_generate));
+        items.add(getString(R.string.player_karaoke_track_generate_pitch));
         items.add(getString(R.string.player_karaoke_track_search));
         items.add(getString(R.string.player_karaoke_track_import_file));
         items.add(getString(R.string.player_karaoke_track_import_url));
@@ -1292,10 +1293,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setItems(items.toArray(new String[0]), (dialog, which) -> {
                     if (which == 0) generateKaraokeTrack();
-                    else if (which == 1) showKaraokeTrackSearchDialog();
-                    else if (which == 2) chooseKaraokeTrackFile();
-                    else if (which == 3) showKaraokeTrackUrlDialog();
-                    else if (which == 4) showKaraokeTrackSourcesDialog();
+                    else if (which == 1) generateKaraokePitchTrack();
+                    else if (which == 2) showKaraokeTrackSearchDialog();
+                    else if (which == 3) chooseKaraokeTrackFile();
+                    else if (which == 4) showKaraokeTrackUrlDialog();
+                    else if (which == 5) showKaraokeTrackSourcesDialog();
                     else clearKaraokeTrackBinding();
                 })
                 .show();
@@ -1387,6 +1389,32 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         } else {
             String error = result == null ? "" : result.getError();
             Notify.show(getString(R.string.player_karaoke_track_generate_failed) + (TextUtils.isEmpty(error) ? "" : "\n" + error));
+        }
+    }
+
+    private void generateKaraokePitchTrack() {
+        if (service() == null || mLyrics == null || !KaraokeTrackRepository.canGeneratePitch(player(), mLyrics.getLines())) {
+            Notify.show(R.string.player_karaoke_track_generate_no_lyrics);
+            return;
+        }
+        Notify.show(R.string.player_karaoke_track_generating_pitch);
+        Task.execute(() -> {
+            KaraokeTrackRepository.ImportResult result = KaraokeTrackRepository.importGeneratedPitch(player(), mLyrics.getLines());
+            App.post(() -> onKaraokePitchTrackGenerated(result));
+        });
+    }
+
+    private void onKaraokePitchTrackGenerated(KaraokeTrackRepository.ImportResult result) {
+        if (result != null && result.isSuccess()) {
+            Notify.show(R.string.player_karaoke_track_generated_pitch);
+            if (!PlayerSetting.isKaraokeMode()) {
+                PlayerSetting.putKaraokeMode(true);
+                setKaraokeActionState();
+            }
+            refreshLyrics();
+        } else {
+            String error = result == null ? "" : result.getError();
+            Notify.show(getString(R.string.player_karaoke_track_generate_pitch_failed) + (TextUtils.isEmpty(error) ? "" : "\n" + error));
         }
     }
 

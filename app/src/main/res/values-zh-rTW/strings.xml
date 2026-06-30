@@ -819,6 +819,7 @@
     <string name="player_karaoke_line_score">本句 %1$d 分</string>
     <string name="player_karaoke_track">評分譜</string>
     <string name="player_karaoke_track_generate">生成輕量節奏評分譜</string>
+    <string name="player_karaoke_track_generate_pitch">生成實驗音高評分譜</string>
     <string name="player_karaoke_track_search">搜尋線上評分譜</string>
     <string name="player_karaoke_track_keyword">評分譜關鍵字</string>
     <string name="player_karaoke_track_import_file">導入 UltraStar/MIDI 檔案</string>
@@ -836,6 +837,9 @@
     <string name="player_karaoke_track_imported">評分譜已導入</string>
     <string name="player_karaoke_track_import_failed">評分譜導入失敗</string>
     <string name="player_karaoke_track_generated">輕量節奏評分譜已生成</string>
+    <string name="player_karaoke_track_generating_pitch">正在生成實驗音高評分譜...</string>
+    <string name="player_karaoke_track_generated_pitch">實驗音高評分譜已生成</string>
+    <string name="player_karaoke_track_generate_pitch_failed">實驗音高評分譜生成失敗</string>
     <string name="player_karaoke_track_generate_failed">輕量節奏評分譜生成失敗</string>
     <string name="player_karaoke_track_generate_no_lyrics">目前沒有可用的歌詞時間軸</string>
     <string name="player_karaoke_track_cleared">評分譜綁定已清除</string>

@@ -83,6 +83,8 @@ public class KaraokeTrackRepository {
                 if (track != null && track.hasScoredNotes()) return track;
             }
         }
+        KaraokeTrack generatedPitch = readTrack(generatedPitchFile(signature));
+        if (generatedPitch != null && generatedPitch.hasScoredNotes()) return generatedPitch;
         KaraokeTrack generated = readTrack(generatedFile(signature));
         if (generated != null && generated.hasScoredNotes()) return generated;
         return null;
@@ -96,8 +98,23 @@ public class KaraokeTrackRepository {
     public static ImportResult importGenerated(PlayerManager player, List<LyricsLine> lines) {
         if (player == null || player.isEmpty()) return ImportResult.fail("empty player");
         try {
+            String signature = signatureOf(player);
             String text = KaraokeGeneratedTrackBuilder.build(defaultKeyword(player), getArtist(player), lines, player.getDuration());
-            return importText(signatureOf(player), "Generated rhythm scoring track", text);
+            deleteGeneratedBoundIfAny(signature);
+            return importText(generatedFile(signature), "Generated rhythm scoring track", text);
+        } catch (Exception e) {
+            return ImportResult.fail(e.getMessage());
+        }
+    }
+
+    public static ImportResult importGeneratedPitch(PlayerManager player, List<LyricsLine> lines) {
+        if (player == null || player.isEmpty()) return ImportResult.fail("empty player");
+        try {
+            String signature = signatureOf(player);
+            String text = KaraokePitchTrackGenerator.build(player, lines);
+            deleteGeneratedBoundIfAny(signature);
+            delete(generatedFile(signature));
+            return importText(generatedPitchFile(signature), "Generated experimental pitch scoring track", text);
         } catch (Exception e) {
             return ImportResult.fail(e.getMessage());
         }
@@ -116,6 +133,10 @@ public class KaraokeTrackRepository {
 
     public static boolean canGenerate(List<LyricsLine> lines) {
         return KaraokeGeneratedTrackBuilder.canGenerate(lines);
+    }
+
+    public static boolean canGeneratePitch(PlayerManager player, List<LyricsLine> lines) {
+        return KaraokePitchTrackGenerator.canGenerate(player, lines);
     }
 
     public static ImportResult importFile(PlayerManager player, File file) {
@@ -201,12 +222,12 @@ public class KaraokeTrackRepository {
 
     public static boolean hasBinding(PlayerManager player) {
         String signature = signatureOf(player);
-        return hasFile(boundFile(signature)) || hasFile(generatedFile(signature));
+        return hasFile(boundFile(signature)) || hasFile(generatedPitchFile(signature)) || hasFile(generatedFile(signature));
     }
 
     public static boolean clearBinding(PlayerManager player) {
         String signature = signatureOf(player);
-        return delete(boundFile(signature)) | delete(generatedFile(signature));
+        return delete(boundFile(signature)) | delete(generatedPitchFile(signature)) | delete(generatedFile(signature));
     }
 
     private static KaraokeTrack readTrack(File file) {
@@ -401,6 +422,23 @@ public class KaraokeTrackRepository {
         File dir = Path.cache("karaoke_tracks");
         if (!dir.exists()) dir.mkdirs();
         return new File(dir, signature + ".generated.txt");
+    }
+
+    private static File generatedPitchFile(String signature) {
+        if (TextUtils.isEmpty(signature)) return null;
+        File dir = Path.cache("karaoke_tracks");
+        if (!dir.exists()) dir.mkdirs();
+        return new File(dir, signature + ".generated-pitch.txt");
+    }
+
+    private static void deleteGeneratedBoundIfAny(String signature) {
+        File file = boundFile(signature);
+        try {
+            if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_SIDECAR_BYTES) return;
+            String text = readText(file);
+            if (text.contains("Generated rhythm scoring track") || text.contains("Generated experimental pitch scoring track")) delete(file);
+        } catch (Exception ignored) {
+        }
     }
 
     private static boolean hasFile(File file) {
