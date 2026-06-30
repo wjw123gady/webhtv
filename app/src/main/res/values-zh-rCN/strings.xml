@@ -854,8 +854,11 @@
     <string name="player_karaoke_track_import_failed">评分谱导入失败</string>
     <string name="player_karaoke_track_generated">轻量节奏评分谱已生成</string>
     <string name="player_karaoke_track_generating_pitch">正在生成实验音高评分谱...</string>
+    <string name="player_karaoke_track_generating_pitch_message">正在本地分析当前音频并生成带音高的评分谱，完成前请勿关闭播放器。</string>
     <string name="player_karaoke_track_generated_pitch">实验音高评分谱已生成</string>
+    <string name="player_karaoke_track_generated_pitch_message">已应用到当前歌曲，K歌模式已开启。</string>
     <string name="player_karaoke_track_generate_pitch_failed">实验音高评分谱生成失败</string>
+    <string name="player_karaoke_track_generate_pitch_failed_message">未生成评分谱：%1$s</string>
     <string name="player_karaoke_track_generate_failed">轻量节奏评分谱生成失败</string>
     <string name="player_karaoke_track_generate_no_lyrics">当前没有可用的歌词时间轴</string>
     <string name="player_karaoke_track_cleared">评分谱绑定已清除</string>

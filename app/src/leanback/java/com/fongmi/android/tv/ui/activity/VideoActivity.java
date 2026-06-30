@@ -10,11 +10,14 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.style.ClickableSpan;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -143,6 +146,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private KaraokeController mKaraoke;
     private boolean mKaraokeResultShown;
     private AlertDialog mLyricsResultDialog;
+    private AlertDialog mKaraokePitchDialog;
     private android.widget.ArrayAdapter<String> mLyricsResultAdapter;
     private List<LyricsResult> mLyricsSearchResults;
     private String mLyricsSearchKeyword;
@@ -1311,7 +1315,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             Notify.show(R.string.player_karaoke_track_generate_no_lyrics);
             return;
         }
-        Notify.show(R.string.player_karaoke_track_generating_pitch);
+        showKaraokePitchProgress();
         Task.execute(() -> {
             KaraokeTrackRepository.ImportResult result = KaraokeTrackRepository.importGeneratedPitch(input, lines);
             App.post(() -> onKaraokePitchTrackGenerated(result));
@@ -1319,17 +1323,67 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void onKaraokePitchTrackGenerated(KaraokeTrackRepository.ImportResult result) {
+        dismissKaraokePitchProgress();
         if (result != null && result.isSuccess()) {
-            Notify.show(R.string.player_karaoke_track_generated_pitch);
             if (!PlayerSetting.isKaraokeMode()) {
                 PlayerSetting.putKaraokeMode(true);
                 mBinding.control.action.karaoke.setSelected(true);
             }
             refreshLyrics();
+            showKaraokePitchResult(R.string.player_karaoke_track_generated_pitch, getString(R.string.player_karaoke_track_generated_pitch_message));
         } else {
             String error = result == null ? "" : result.getError();
-            Notify.show(getString(R.string.player_karaoke_track_generate_pitch_failed) + (TextUtils.isEmpty(error) ? "" : "\n" + error));
+            showKaraokePitchResult(R.string.player_karaoke_track_generate_pitch_failed, getString(R.string.player_karaoke_track_generate_pitch_failed_message, TextUtils.isEmpty(error) ? getString(R.string.player_karaoke_track_generate_pitch_failed) : error));
         }
+    }
+
+    private void showKaraokePitchProgress() {
+        dismissKaraokePitchProgress();
+        if (isFinishing() || isDestroyed()) {
+            Notify.show(R.string.player_karaoke_track_generating_pitch);
+            return;
+        }
+        LinearLayout layout = new LinearLayout(this);
+        layout.setGravity(Gravity.CENTER_VERTICAL);
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        layout.setPadding(ResUtil.dp2px(24), ResUtil.dp2px(10), ResUtil.dp2px(24), ResUtil.dp2px(10));
+        ProgressBar progress = new ProgressBar(this);
+        progress.setIndeterminate(true);
+        layout.addView(progress, new LinearLayout.LayoutParams(ResUtil.dp2px(40), ResUtil.dp2px(40)));
+        TextView message = new TextView(this);
+        message.setText(R.string.player_karaoke_track_generating_pitch_message);
+        message.setTextSize(15);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        params.setMarginStart(ResUtil.dp2px(16));
+        layout.addView(message, params);
+        mKaraokePitchDialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
+                .setTitle(R.string.player_karaoke_track_generating_pitch)
+                .setView(layout)
+                .setCancelable(false)
+                .create();
+        mKaraokePitchDialog.setCanceledOnTouchOutside(false);
+        mKaraokePitchDialog.show();
+    }
+
+    private void dismissKaraokePitchProgress() {
+        if (mKaraokePitchDialog == null) return;
+        try {
+            if (mKaraokePitchDialog.isShowing()) mKaraokePitchDialog.dismiss();
+        } catch (Exception ignored) {
+        }
+        mKaraokePitchDialog = null;
+    }
+
+    private void showKaraokePitchResult(int title, String message) {
+        if (isFinishing() || isDestroyed()) {
+            Notify.show(message);
+            return;
+        }
+        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton(R.string.dialog_positive, null)
+                .show();
     }
 
     private void showKaraokeTrackResults(List<KaraokeTrackRepository.SearchResult> results) {

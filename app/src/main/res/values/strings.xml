@@ -856,8 +856,11 @@
     <string name="player_karaoke_track_import_failed">Scoring track import failed</string>
     <string name="player_karaoke_track_generated">Lightweight rhythm track generated</string>
     <string name="player_karaoke_track_generating_pitch">Generating experimental pitch track...</string>
+    <string name="player_karaoke_track_generating_pitch_message">Analyzing the current audio locally and generating a pitch scoring track. Keep the player open until it finishes.</string>
     <string name="player_karaoke_track_generated_pitch">Experimental pitch track generated</string>
+    <string name="player_karaoke_track_generated_pitch_message">Applied to the current song and karaoke mode is enabled.</string>
     <string name="player_karaoke_track_generate_pitch_failed">Failed to generate experimental pitch track</string>
+    <string name="player_karaoke_track_generate_pitch_failed_message">No scoring track was generated: %1$s</string>
     <string name="player_karaoke_track_generate_failed">Failed to generate rhythm track</string>
     <string name="player_karaoke_track_generate_no_lyrics">No timed lyrics available</string>
     <string name="player_karaoke_track_cleared">Scoring track binding cleared</string>

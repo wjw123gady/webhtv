@@ -33,9 +33,15 @@ public class KaraokePitchTrackGenerator {
     private static final double MAX_FREQUENCY_HZ = 800.0;
     private static final double MIN_VOLUME = 0.006;
     private static final double MIN_CONFIDENCE = 0.18;
-    private static final double MIN_WINDOW_VALID_RATIO = 0.28;
-    private static final double MAX_WINDOW_SPREAD = 3.0;
+    private static final double MIN_WINDOW_VALID_RATIO = 0.14;
+    private static final double MAX_WINDOW_SPREAD = 8.0;
+    private static final double MIN_RAW_PITCH_RATIO = 0.08;
     private static final double MIN_TRACK_PITCH_RATIO = 0.18;
+    private static final long WINDOW_MARGIN_MS = 70;
+    private static final int MIN_MIDI = 40;
+    private static final int MAX_MIDI = 84;
+    private static final int GAP_FILL_MAX_NOTES = 8;
+    private static final int OUTLIER_STEP = 9;
 
     private KaraokePitchTrackGenerator() {
     }
@@ -59,23 +65,143 @@ public class KaraokePitchTrackGenerator {
         builder.append("#ARTIST:").append(tag(artist, "Unknown")).append('\n');
         builder.append("#BPM:").append(BPM).append('\n');
         builder.append("#GAP:0").append('\n');
-        builder.append("#COMMENT:Generated experimental pitch scoring track from local audio; low confidence notes are rap rhythm notes").append('\n');
+        builder.append("#COMMENT:Generated experimental pitch scoring track from local audio; octave corrected and smoothed").append('\n');
+        List<Note> notes = notes(segments, frames);
+        stabilize(notes);
         int count = 0;
+        int observed = 0;
         int pitched = 0;
-        for (Segment segment : segments) {
+        for (Note note : notes) {
             if (count >= MAX_NOTES) break;
-            PitchWindow window = PitchWindow.from(frames, segment.startMs, segment.endMs);
-            int pitch = window.pitch();
-            char prefix = pitch >= 0 ? ':' : 'R';
-            if (pitch >= 0) pitched++;
-            appendNote(builder, prefix, segment.startMs, segment.endMs, pitch >= 0 ? pitch : RAP_PITCH, segment.text);
+            char prefix = note.pitch >= 0 ? ':' : 'R';
+            if (note.observed) observed++;
+            if (note.pitch >= 0) pitched++;
+            appendNote(builder, prefix, note.segment.startMs, note.segment.endMs, note.pitch >= 0 ? note.pitch : RAP_PITCH, note.segment.text);
             count++;
-            if (segment.lineEnd) builder.append("-\n");
+            if (note.segment.lineEnd) builder.append("-\n");
         }
         if (count < 3) throw new IllegalStateException("not enough notes");
+        if (observed < 3 || observed < Math.round(count * MIN_RAW_PITCH_RATIO)) throw new IllegalStateException("pitch quality too low");
         if (pitched < 3 || pitched < Math.round(count * MIN_TRACK_PITCH_RATIO)) throw new IllegalStateException("pitch quality too low");
         builder.append('E').append('\n');
         return builder.toString();
+    }
+
+    private static List<Note> notes(List<Segment> segments, List<PitchFrame> frames) {
+        List<Note> notes = new ArrayList<>();
+        for (Segment segment : segments) {
+            PitchCandidate candidate = PitchWindow.from(frames, segment.startMs, segment.endMs).candidate();
+            notes.add(new Note(segment, candidate));
+        }
+        return notes;
+    }
+
+    private static void stabilize(List<Note> notes) {
+        correctOctaves(notes);
+        smoothOutliers(notes);
+        fillMissing(notes);
+        correctOctaves(notes);
+        smoothOutliers(notes);
+    }
+
+    private static void correctOctaves(List<Note> notes) {
+        Integer anchor = null;
+        for (Note note : notes) {
+            if (note.pitch < 0) continue;
+            if (anchor != null) note.pitch = normalizeOctave(note.pitch, anchor);
+            if (anchor != null && Math.abs(note.pitch - anchor) > OUTLIER_STEP && note.quality < 0.45) {
+                note.pitch = -1;
+                note.estimated = true;
+                continue;
+            }
+            anchor = note.pitch;
+        }
+        anchor = null;
+        for (int i = notes.size() - 1; i >= 0; i--) {
+            Note note = notes.get(i);
+            if (note.pitch < 0) continue;
+            if (anchor != null) note.pitch = normalizeOctave(note.pitch, anchor);
+            anchor = note.pitch;
+        }
+    }
+
+    private static void smoothOutliers(List<Note> notes) {
+        for (int i = 0; i < notes.size(); i++) {
+            Note note = notes.get(i);
+            if (note.pitch < 0) continue;
+            Neighbor previous = previous(notes, i);
+            Neighbor next = next(notes, i);
+            if (previous == null || next == null || previous.distance > 3 || next.distance > 3) continue;
+            int target = Math.round((previous.note.pitch + next.note.pitch) / 2.0f);
+            note.pitch = normalizeOctave(note.pitch, target);
+            if (Math.abs(note.pitch - target) > OUTLIER_STEP && note.quality < 0.65) {
+                note.pitch = clampMidi(target);
+                note.estimated = true;
+            }
+        }
+    }
+
+    private static void fillMissing(List<Note> notes) {
+        int index = 0;
+        while (index < notes.size()) {
+            if (notes.get(index).pitch >= 0) {
+                index++;
+                continue;
+            }
+            int start = index;
+            while (index < notes.size() && notes.get(index).pitch < 0) index++;
+            int end = index;
+            int length = end - start;
+            Note previous = start > 0 ? notes.get(start - 1) : null;
+            Note next = end < notes.size() ? notes.get(end) : null;
+            if (length > GAP_FILL_MAX_NOTES) continue;
+            if (previous != null && previous.pitch >= 0 && next != null && next.pitch >= 0) {
+                int nextPitch = normalizeOctave(next.pitch, previous.pitch);
+                for (int i = start; i < end; i++) {
+                    float progress = (i - start + 1) / (float) (length + 1);
+                    notes.get(i).pitch = clampMidi(Math.round(previous.pitch + (nextPitch - previous.pitch) * progress));
+                    notes.get(i).estimated = true;
+                }
+            } else if (previous != null && previous.pitch >= 0) {
+                for (int i = start; i < end; i++) {
+                    notes.get(i).pitch = previous.pitch;
+                    notes.get(i).estimated = true;
+                }
+            } else if (next != null && next.pitch >= 0) {
+                for (int i = start; i < end; i++) {
+                    notes.get(i).pitch = next.pitch;
+                    notes.get(i).estimated = true;
+                }
+            }
+        }
+    }
+
+    private static Neighbor previous(List<Note> notes, int index) {
+        for (int i = index - 1; i >= 0; i--) if (notes.get(i).pitch >= 0) return new Neighbor(notes.get(i), index - i);
+        return null;
+    }
+
+    private static Neighbor next(List<Note> notes, int index) {
+        for (int i = index + 1; i < notes.size(); i++) if (notes.get(i).pitch >= 0) return new Neighbor(notes.get(i), i - index);
+        return null;
+    }
+
+    private static int normalizeOctave(int pitch, int reference) {
+        int best = pitch;
+        int bestDistance = Math.abs(best - reference);
+        for (int candidate = pitch - 24; candidate <= pitch + 24; candidate += 12) {
+            if (candidate < MIN_MIDI || candidate > MAX_MIDI) continue;
+            int distance = Math.abs(candidate - reference);
+            if (distance < bestDistance) {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+        return clampMidi(best);
+    }
+
+    private static int clampMidi(int pitch) {
+        return Math.max(MIN_MIDI, Math.min(MAX_MIDI, pitch));
     }
 
     private static void appendNote(StringBuilder builder, char prefix, long startMs, long endMs, int pitch, String lyric) {
@@ -308,6 +434,46 @@ public class KaraokePitchTrackGenerator {
         }
     }
 
+    private static class Note {
+
+        private final Segment segment;
+        private final boolean observed;
+        private final double quality;
+        private int pitch;
+        private boolean estimated;
+
+        private Note(Segment segment, PitchCandidate candidate) {
+            this.segment = segment;
+            this.pitch = candidate.pitch;
+            this.quality = candidate.quality;
+            this.observed = candidate.pitch >= 0;
+        }
+    }
+
+    private static class PitchCandidate {
+
+        private static final PitchCandidate EMPTY = new PitchCandidate(-1, 0);
+
+        private final int pitch;
+        private final double quality;
+
+        private PitchCandidate(int pitch, double quality) {
+            this.pitch = pitch >= 0 ? clampMidi(pitch) : -1;
+            this.quality = Math.max(0, Math.min(1, quality));
+        }
+    }
+
+    private static class Neighbor {
+
+        private final Note note;
+        private final int distance;
+
+        private Neighbor(Note note, int distance) {
+            this.note = note;
+            this.distance = distance;
+        }
+    }
+
     private static class PitchFrame {
 
         private final long timeMs;
@@ -385,22 +551,27 @@ public class KaraokePitchTrackGenerator {
         private static PitchWindow from(List<PitchFrame> frames, long startMs, long endMs) {
             List<Double> values = new ArrayList<>();
             int total = 0;
+            long safeStart = Math.max(0, startMs - WINDOW_MARGIN_MS);
+            long safeEnd = Math.max(safeStart + MIN_NOTE_MS, endMs + WINDOW_MARGIN_MS);
             for (PitchFrame frame : frames) {
-                if (frame.timeMs < startMs) continue;
-                if (frame.timeMs >= endMs) break;
+                if (frame.timeMs < safeStart) continue;
+                if (frame.timeMs >= safeEnd) break;
                 total++;
                 if (frame.valid()) values.add(frame.midi());
             }
             return new PitchWindow(values, total);
         }
 
-        private int pitch() {
-            if (values.size() < 2 || total <= 0 || values.size() / (double) total < MIN_WINDOW_VALID_RATIO) return -1;
+        private PitchCandidate candidate() {
+            if (values.size() < 2 || total <= 0) return PitchCandidate.EMPTY;
+            double ratio = values.size() / (double) total;
+            if (ratio < MIN_WINDOW_VALID_RATIO) return PitchCandidate.EMPTY;
             Collections.sort(values);
             double median = values.get(values.size() / 2);
             double spread = percentile(0.80) - percentile(0.20);
-            if (spread > MAX_WINDOW_SPREAD) return -1;
-            return (int) Math.round(median);
+            if (spread > MAX_WINDOW_SPREAD) return PitchCandidate.EMPTY;
+            double quality = ratio * Math.max(0.15, 1.0 - spread / Math.max(1.0, MAX_WINDOW_SPREAD));
+            return new PitchCandidate((int) Math.round(median), quality);
         }
 
         private double percentile(double p) {
