@@ -106,6 +106,7 @@ import com.fongmi.android.tv.ui.dialog.TmdbSearchDialog;
 import com.fongmi.android.tv.ui.dialog.TrackDialog;
 import com.fongmi.android.tv.ui.helper.DetailThemeVisibility;
 import com.fongmi.android.tv.ui.helper.EpisodeRangePolicy;
+import com.fongmi.android.tv.ui.helper.EpisodeSeasonPolicy;
 import com.fongmi.android.tv.ui.helper.TmdbCinemaTheme;
 import com.fongmi.android.tv.ui.helper.TmdbDetailLabels;
 import com.fongmi.android.tv.ui.helper.TmdbEpisodeGridPolicy;
@@ -3019,19 +3020,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             for (Episode episode : episodes) if (sourceSeasonNumber(episode) == selectedSeasonNumber) visible.add(episode);
             if (!visible.isEmpty()) return visible;
         }
-        int start = 0;
-        for (int i = 0; i < seasonNumbers.size(); i++) {
-            Integer season = seasonNumbers.get(i);
-            int count = Math.max(0, seasonEpisodeCounts.getOrDefault(season, 0));
-            if (season == selectedSeasonNumber) {
-                if (count <= 0) return episodes;
-                int end = i == seasonNumbers.size() - 1 ? episodes.size() : Math.min(episodes.size(), start + count);
-                return start < end ? episodes.subList(start, end) : List.of();
-            }
-            start += count;
-            if (start >= episodes.size()) break;
-        }
-        return episodes;
+        return EpisodeSeasonPolicy.sliceBySeasonCounts(episodes, seasonNumbers, seasonEpisodeCounts, selectedSeasonNumber);
     }
 
     private int seasonForEpisode(Episode episode, List<Episode> episodes) {
@@ -3044,6 +3033,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (selectedSeasonNumber > 0 && sourceEpisodeNumber(episode) > 0) return selectedSeasonNumber;
         int index = episode == null ? -1 : episodes.indexOf(episode);
         if (index < 0) return firstSeasonNumber(matchedTmdbDetail);
+        if (!EpisodeSeasonPolicy.canSliceBySeasonCounts(episodes.size(), seasonNumbers, seasonEpisodeCounts)) return selectedSeasonNumber > 0 ? selectedSeasonNumber : firstSeasonNumber(matchedTmdbDetail);
         int start = 0;
         for (int i = 0; i < seasonNumbers.size(); i++) {
             Integer season = seasonNumbers.get(i);
@@ -5295,6 +5285,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (seasonNumbers.size() <= 1 || selectedSeasonNumber < 0) return new EpisodePosition(selectedSeasonNumber, index + 1);
         int titleSeason = sourceTitleSeasonNumber();
         if (!hasExplicitSeasonNumbers(episodes) && seasonNumbers.contains(titleSeason)) return new EpisodePosition(titleSeason, index + 1);
+        if (!EpisodeSeasonPolicy.canSliceBySeasonCounts(episodes.size(), seasonNumbers, seasonEpisodeCounts)) return new EpisodePosition(selectedSeasonNumber, index + 1);
         int start = 0;
         for (int i = 0; i < seasonNumbers.size(); i++) {
             Integer season = seasonNumbers.get(i);
