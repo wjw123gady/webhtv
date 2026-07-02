@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.player.lyrics.LyricsLine;
 import com.fongmi.android.tv.player.lyrics.LyricsWord;
+import com.github.catvod.crawler.SpiderDebug;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -572,6 +573,7 @@ public class KaraokePitchTrackGenerator {
     }
 
     private static List<PitchFrame> decodeLoop(MediaExtractor extractor, MediaCodec decoder, MediaFormat inputFormat, List<AnalysisWindow> windows, ProgressReporter reporter, long durationMs) {
+        long startMs = System.currentTimeMillis();
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         PitchFrameCollector collector = new PitchFrameCollector(sampleRate(inputFormat), windows);
         boolean inputDone = false;
@@ -606,7 +608,12 @@ public class KaraokePitchTrackGenerator {
                 decoder.releaseOutputBuffer(outputIndex, false);
             }
         }
-        return collector.frames();
+        List<PitchFrame> frames = collector.frames();
+        if (SpiderDebug.isEnabled()) {
+            SpiderDebug.log("karaoke-pitch", "decode/analyze done cost=%sms sourceRate=%d analysisRate=%d frames=%d windows=%d skippedInactive=%d skippedSilent=%d",
+                    System.currentTimeMillis() - startMs, collector.sourceSampleRate(), collector.sampleRate(), frames.size(), windows == null ? 0 : windows.size(), collector.skippedInactive(), collector.skippedSilent());
+        }
+        return frames;
     }
 
     private static void collect(PitchFrameCollector collector, ByteBuffer buffer, MediaCodec.BufferInfo info, MediaFormat format) {
@@ -937,6 +944,8 @@ public class KaraokePitchTrackGenerator {
         private float previousSourceSample;
         private boolean hasPreviousSourceSample;
         private int windowIndex;
+        private int skippedInactive;
+        private int skippedSilent;
         private int sourceSampleRate;
         private int sampleRate;
 
@@ -951,7 +960,7 @@ public class KaraokePitchTrackGenerator {
             if (this.sourceSampleRate == safeSource && this.sampleRate == safeTarget && detector != null) return;
             this.sourceSampleRate = safeSource;
             this.sampleRate = safeTarget;
-            this.detector = new YinPitchDetector(safeTarget, 0.12, 0.08, FRAME_SIZE);
+            this.detector = new YinPitchDetector(safeTarget, 0.12, 0.08, FRAME_SIZE, MIN_FREQUENCY_HZ, MAX_FREQUENCY_HZ);
             this.filter = new VoiceBandpassFilter(safeTarget);
             this.resampleLowPass = safeSource > safeTarget ? Biquad.lowPass(ANALYSIS_LOW_PASS_HZ, safeSource) : null;
             this.resampleStep = safeSource / (double) safeTarget;
@@ -991,11 +1000,18 @@ public class KaraokePitchTrackGenerator {
             if ((sampleCount - FRAME_SIZE) % HOP_SIZE != 0) return;
             long centerSample = sampleCount - FRAME_SIZE / 2L;
             long timeMs = Math.max(0, Math.round(centerSample * 1000.0 / sampleRate));
-            if (!isActive(timeMs)) return;
+            if (!isActive(timeMs)) {
+                skippedInactive++;
+                return;
+            }
             copyFrame();
             double volume = rms(frame);
-            if (volume < SILENCE_PREFILTER_VOLUME) frames.add(new PitchFrame(new KaraokePitchSample(timeMs, 0, volume, 0)));
-            else frames.add(new PitchFrame(detector.detect(frame, frame.length, timeMs)));
+            if (volume < SILENCE_PREFILTER_VOLUME) {
+                skippedSilent++;
+                frames.add(new PitchFrame(new KaraokePitchSample(timeMs, 0, volume, 0)));
+            } else {
+                frames.add(new PitchFrame(detector.detect(frame, frame.length, timeMs, volume)));
+            }
         }
 
         private void copyFrame() {
@@ -1017,6 +1033,22 @@ public class KaraokePitchTrackGenerator {
 
         private List<PitchFrame> frames() {
             return frames;
+        }
+
+        private int sourceSampleRate() {
+            return sourceSampleRate;
+        }
+
+        private int sampleRate() {
+            return sampleRate;
+        }
+
+        private int skippedInactive() {
+            return skippedInactive;
+        }
+
+        private int skippedSilent() {
+            return skippedSilent;
         }
     }
 
