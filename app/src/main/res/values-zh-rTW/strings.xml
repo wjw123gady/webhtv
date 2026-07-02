@@ -923,6 +923,8 @@
     <string name="player_audio_playlist_added">已加入 %1$d 項</string>
     <string name="player_audio_playlist_exists">已在歌單中</string>
     <string name="player_audio_playlist_empty">歌單暫無歌曲</string>
+    <string name="player_audio_playlist_removed">已移除 %1$s</string>
+    <string name="player_audio_playlist_keep_one">歌單至少保留一首歌曲</string>
     <string name="player_audio_repeat">循環</string>
     <string name="player_audio_more">更多</string>
     <string name="player_lyrics_unknown">未知</string>

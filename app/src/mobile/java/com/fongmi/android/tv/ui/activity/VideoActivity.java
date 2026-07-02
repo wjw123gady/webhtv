@@ -192,9 +192,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private String mLyricsSelectedResultKey;
     private String mDetailLyrics;
     private String mInlineLyrics;
+    private String mArtworkRequestUrl;
     private final Map<String, String> mAudioQueueFlags = new HashMap<>();
     private final Map<String, String> mAudioQueueTitles = new HashMap<>();
     private final Map<String, String> mAudioQueueArtists = new HashMap<>();
+    private final Map<String, String> mAudioQueuePics = new HashMap<>();
+    private final Map<String, String> mAudioQueueLyrics = new HashMap<>();
     private Map<String, View> mActionButtons;
     private SiteViewModel mViewModel;
     private FlagAdapter mFlagAdapter;
@@ -948,7 +951,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         beginPlayHealth();
         String playFlag = getEpisodePlayFlag(flag, episode);
         SpiderDebug.log("video-flow", "player start key=%s flag=%s episode=%s url=%s", getKey(), playFlag, episode.getName(), episode.getUrl());
-        mInlineLyrics = mDetailLyrics;
+        mInlineLyrics = getEpisodeInlineLyrics(episode);
+        applyEpisodeArtwork(episode);
         clearLyrics();
         if (isMusicLike()) setAudioStageVisible(true);
         mViewModel.playerContent(getKey(), playFlag, episode.getUrl());
@@ -966,6 +970,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setQualityVisible(result.getUrl().isMulti());
         result.getUrl().set(mQualityAdapter.getPosition());
         if (result.hasArtwork() && !shouldKeepPushArtwork()) setArtwork(result.getArtwork());
+        else applyEpisodeArtwork(getEpisode());
         if (result.hasPosition()) mHistory.setPosition(result.getPosition());
         if (result.hasDesc()) {
             setText(mBinding.content, 0, result.getDesc());
@@ -1594,6 +1599,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             int index = i;
             Episode item = items.get(i);
             TextView view = createAudioSheetItem((i + 1) + ". " + item.getDisplayName(), () -> playAudioQueueEpisode(item));
+            view.setOnLongClickListener(v -> {
+                removeAudioQueueEpisode(item);
+                return true;
+            });
             view.setTextColor(i == selected ? 0xFF7EE7D6 : Color.WHITE);
             view.setBackground(audioSheetItemBackground(i == selected));
             mAudioQueueList.addView(view, audioSheetTopParams(i == 0 ? 4 : 0, 48));
@@ -1606,12 +1615,53 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         onItemClick(item);
     }
 
+    private void removeAudioQueueEpisode(Episode target) {
+        Flag queue = getFlag();
+        if (queue == null || target == null) return;
+        List<Episode> items = queue.getEpisodes();
+        if (items.size() <= 1) {
+            setAudioQueueStatus(getString(R.string.player_audio_playlist_keep_one));
+            return;
+        }
+        int index = indexOfAudioQueueEpisode(items, target);
+        if (index < 0) return;
+        Episode removed = items.get(index);
+        boolean selected = removed.isSelected();
+        Episode next = selected ? items.get(index + 1 < items.size() ? index + 1 : index - 1) : null;
+        items.remove(index);
+        removeAudioQueueMetadata(removed);
+        if (selected && next != null) onItemClick(next);
+        else setEpisodeAdapter(items);
+        renderAudioQueueList();
+        setAudioQueueStatus(getString(R.string.player_audio_playlist_removed, removed.getDisplayName()));
+    }
+
+    private int indexOfAudioQueueEpisode(List<Episode> items, Episode target) {
+        for (int i = 0; i < items.size(); i++) {
+            Episode item = items.get(i);
+            if (!TextUtils.isEmpty(item.getUrl()) && item.getUrl().equals(target.getUrl())) return i;
+            if (item.matches(target)) return i;
+        }
+        return -1;
+    }
+
     private void putAudioQueueMetadata(Episode episode, Vod vod, Episode sourceEpisode, Flag source) {
         String key = audioQueueEpisodeKey(episode);
         mAudioQueueFlags.put(key, source.getFlag());
         mAudioQueueTitles.put(key, vod.getName());
+        mAudioQueuePics.put(key, vod.getPic());
+        mAudioQueueLyrics.put(key, getTimedLyrics(vod.getContent()));
         String artist = getArtistFromEpisode(vod.getName(), sourceEpisode.getName());
         if (!TextUtils.isEmpty(artist)) mAudioQueueArtists.put(key, artist);
+    }
+
+    private void removeAudioQueueMetadata(Episode episode) {
+        String key = audioQueueEpisodeKey(episode);
+        mAudioQueueFlags.remove(key);
+        mAudioQueueTitles.remove(key);
+        mAudioQueueArtists.remove(key);
+        mAudioQueuePics.remove(key);
+        mAudioQueueLyrics.remove(key);
     }
 
     private void applyAudioQueueMetadata(Episode item) {
@@ -2448,11 +2498,19 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void loadArtwork(String url) {
+        String requestUrl = Objects.toString(url, "");
+        mArtworkRequestUrl = requestUrl;
+        if (TextUtils.isEmpty(requestUrl)) {
+            mBinding.exo.setDefaultArtwork(null);
+            mBinding.audioCover.setImageResource(R.drawable.artwork);
+            return;
+        }
         mBinding.audioCover.setImageResource(R.drawable.artwork);
-        ImgUtil.load(this, url, new CustomTarget<>() {
+        ImgUtil.load(this, requestUrl, new CustomTarget<>() {
             @Override
             public void onResourceReady(@NonNull Drawable resource, @Nullable Transition<? super Drawable> transition) {
                 if (isFinishing() || isDestroyed()) return;
+                if (!TextUtils.equals(mArtworkRequestUrl, requestUrl)) return;
                 mBinding.exo.setDefaultArtwork(resource);
                 mBinding.audioCover.setImageDrawable(resource);
             }
@@ -2460,6 +2518,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             @Override
             public void onLoadFailed(@Nullable Drawable errorDrawable) {
                 if (isFinishing() || isDestroyed()) return;
+                if (!TextUtils.equals(mArtworkRequestUrl, requestUrl)) return;
                 mBinding.exo.setDefaultArtwork(errorDrawable);
                 if (errorDrawable == null) mBinding.audioCover.setImageResource(R.drawable.artwork);
                 else mBinding.audioCover.setImageDrawable(errorDrawable);
@@ -2915,6 +2974,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         String episode = item == null ? "" : item.getName();
         String artist = getArtistFromEpisode(title, cleanAudioEpisodeForArtist(episode));
         return TextUtils.equals(artist, title) ? "" : artist;
+    }
+
+    private String getEpisodeArtwork(Episode episode) {
+        String queuedPic = mAudioQueuePics.get(audioQueueEpisodeKey(episode));
+        if (!TextUtils.isEmpty(queuedPic)) return queuedPic;
+        return mHistory == null ? "" : mHistory.getVodPic();
+    }
+
+    private String getEpisodeInlineLyrics(Episode episode) {
+        if (isAudioQueueEpisode(episode)) return Objects.toString(mAudioQueueLyrics.get(audioQueueEpisodeKey(episode)), "");
+        return mDetailLyrics;
+    }
+
+    private void applyEpisodeArtwork(Episode episode) {
+        if (!isAudioQueueEpisode(episode)) return;
+        loadArtwork(mAudioQueuePics.get(audioQueueEpisodeKey(episode)));
     }
 
     private String cleanAudioEpisodeForArtist(String episode) {
@@ -3469,7 +3544,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private MediaMetadata buildMetadata() {
         String title = getAudioStageTitle();
         String artist = getAudioStageArtist(title);
-        return PlayerManager.buildMetadata(title, artist, mHistory.getVodPic());
+        return PlayerManager.buildMetadata(title, artist, getEpisodeArtwork(getEpisode()));
     }
 
     private void setMetadata() {

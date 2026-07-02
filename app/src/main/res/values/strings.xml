@@ -941,6 +941,8 @@
     <string name="player_audio_playlist_added">Added %1$d item(s)</string>
     <string name="player_audio_playlist_exists">Already in playlist</string>
     <string name="player_audio_playlist_empty">No songs in playlist</string>
+    <string name="player_audio_playlist_removed">Removed %1$s</string>
+    <string name="player_audio_playlist_keep_one">Keep at least one song in playlist</string>
     <string name="player_audio_repeat">Repeat</string>
     <string name="player_audio_more">More</string>
     <string name="player_lyrics_unknown">Unknown</string>

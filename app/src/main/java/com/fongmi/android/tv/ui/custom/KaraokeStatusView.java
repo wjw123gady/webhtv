@@ -588,16 +588,15 @@ public class KaraokeStatusView extends LinearLayout {
         }
 
         private int segmentColor(NoteSegment segment, long position) {
-            if (segment.endMs < position) return 0x338E9BAA;
-            if (segment.contains(position)) return segment.pitchRequired ? 0xB3FFFFFF : 0x8838BDF8;
-            if (!segment.pitchRequired) return 0x6638BDF8;
+            if (segment.endMs < position) return 0x33FFFFFF;
+            if (segment.contains(position)) return 0xB3FFFFFF;
             return 0x72FFFFFF;
         }
 
         private int volumeColor(float value) {
             if (value > 0.82f) return 0x35FFFFFF;
             if (value > 0.45f) return 0x2AFFFFFF;
-            return 0x2238BDF8;
+            return 0x20FFFFFF;
         }
 
         private int activeColor(boolean scoredCurrent, int hit, int miss, int pending) {
@@ -748,9 +747,9 @@ public class KaraokeStatusView extends LinearLayout {
         }
 
         private int getActiveColor(float value) {
-            if (value > 0.82f) return 0xFF34D399;
-            if (value > 0.45f) return 0xFF2DD4BF;
-            return 0xFF38BDF8;
+            if (value > 0.82f) return 0xFFFFFFFF;
+            if (value > 0.45f) return 0xCCFFFFFF;
+            return 0x88FFFFFF;
         }
     }
 }
