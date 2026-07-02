@@ -110,14 +110,15 @@ public class LyricsOverlayView extends FrameLayout {
 
     public void setSuppressed(boolean suppressed) {
         this.suppressed = suppressed;
-        if (suppressed) setVisibility(GONE);
+        if (suppressed) setVisibility(hiddenVisibility());
         else if (!lines.isEmpty()) setVisibility(VISIBLE);
+        else setVisibility(hiddenVisibility());
     }
 
     public void setLyrics(LyricsResult result, List<LyricsLine> lines) {
         this.lines = lines == null ? Collections.emptyList() : lines;
         this.index = -1;
-        setVisibility(this.lines.isEmpty() || suppressed ? GONE : VISIBLE);
+        setVisibility(this.lines.isEmpty() || suppressed ? hiddenVisibility() : VISIBLE);
         if (!this.lines.isEmpty()) update(0);
     }
 
@@ -131,7 +132,7 @@ public class LyricsOverlayView extends FrameLayout {
             return;
         }
         if (suppressed) {
-            setVisibility(GONE);
+            setVisibility(hiddenVisibility());
             return;
         }
         this.playing = playing;
@@ -206,7 +207,11 @@ public class LyricsOverlayView extends FrameLayout {
         dragBaseIndex = -1;
         dragPreviewIndex = -1;
         for (MaterialTextView row : rows) row.setText("");
-        setVisibility(GONE);
+        setVisibility(hiddenVisibility());
+    }
+
+    private int hiddenVisibility() {
+        return audioStageMode ? INVISIBLE : GONE;
     }
 
     @Override

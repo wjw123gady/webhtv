@@ -192,7 +192,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private String mLyricsSelectedResultKey;
     private String mDetailLyrics;
     private String mInlineLyrics;
+    private String mPlaybackEpisodeKey;
     private String mArtworkRequestUrl;
+    private String mArtworkRequestOwner;
     private final Map<String, String> mAudioQueueFlags = new HashMap<>();
     private final Map<String, String> mAudioQueueTitles = new HashMap<>();
     private final Map<String, String> mAudioQueueArtists = new HashMap<>();
@@ -950,9 +952,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         playerStartTime = System.currentTimeMillis();
         beginPlayHealth();
         String playFlag = getEpisodePlayFlag(flag, episode);
+        mPlaybackEpisodeKey = audioQueueEpisodeKey(episode);
         SpiderDebug.log("video-flow", "player start key=%s flag=%s episode=%s url=%s", getKey(), playFlag, episode.getName(), episode.getUrl());
         mInlineLyrics = getEpisodeInlineLyrics(episode);
-        applyEpisodeArtwork(episode);
+        applyPlaybackArtwork(episode);
         clearLyrics();
         if (isMusicLike()) setAudioStageVisible(true);
         mViewModel.playerContent(getKey(), playFlag, episode.getUrl());
@@ -970,7 +973,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setQualityVisible(result.getUrl().isMulti());
         result.getUrl().set(mQualityAdapter.getPosition());
         if (result.hasArtwork() && !shouldKeepPushArtwork()) setArtwork(result.getArtwork());
-        else applyEpisodeArtwork(getEpisode());
+        else applyPlaybackArtwork(getPlaybackEpisode());
         if (result.hasPosition()) mHistory.setPosition(result.getPosition());
         if (result.hasDesc()) {
             setText(mBinding.content, 0, result.getDesc());
@@ -2488,7 +2491,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void setArtwork(String url) {
         if (mHistory != null) mHistory.setVodPic(url);
-        loadArtwork(url);
+        loadArtwork(url, mPlaybackEpisodeKey);
         setContextWall(getContextWall());
     }
 
@@ -2498,8 +2501,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void loadArtwork(String url) {
+        loadArtwork(url, mPlaybackEpisodeKey);
+    }
+
+    private void loadArtwork(String url, String owner) {
         String requestUrl = Objects.toString(url, "");
+        String requestOwner = Objects.toString(owner, "");
         mArtworkRequestUrl = requestUrl;
+        mArtworkRequestOwner = requestOwner;
         if (TextUtils.isEmpty(requestUrl)) {
             mBinding.exo.setDefaultArtwork(null);
             mBinding.audioCover.setImageResource(R.drawable.artwork);
@@ -2510,7 +2519,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             @Override
             public void onResourceReady(@NonNull Drawable resource, @Nullable Transition<? super Drawable> transition) {
                 if (isFinishing() || isDestroyed()) return;
-                if (!TextUtils.equals(mArtworkRequestUrl, requestUrl)) return;
+                if (!isCurrentArtworkRequest(requestUrl, requestOwner)) return;
                 mBinding.exo.setDefaultArtwork(resource);
                 mBinding.audioCover.setImageDrawable(resource);
             }
@@ -2518,12 +2527,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             @Override
             public void onLoadFailed(@Nullable Drawable errorDrawable) {
                 if (isFinishing() || isDestroyed()) return;
-                if (!TextUtils.equals(mArtworkRequestUrl, requestUrl)) return;
+                if (!isCurrentArtworkRequest(requestUrl, requestOwner)) return;
                 mBinding.exo.setDefaultArtwork(errorDrawable);
                 if (errorDrawable == null) mBinding.audioCover.setImageResource(R.drawable.artwork);
                 else mBinding.audioCover.setImageDrawable(errorDrawable);
             }
         });
+    }
+
+    private boolean isCurrentArtworkRequest(String url, String owner) {
+        return TextUtils.equals(mArtworkRequestUrl, url) && TextUtils.equals(mArtworkRequestOwner, owner);
     }
 
     private String getContextWall() {
@@ -2982,14 +2995,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return mHistory == null ? "" : mHistory.getVodPic();
     }
 
+    private Episode getPlaybackEpisode() {
+        String key = Objects.toString(mPlaybackEpisodeKey, "");
+        if (TextUtils.isEmpty(key) || getFlag() == null) return getEpisode();
+        for (Episode episode : getFlag().getEpisodes()) {
+            if (TextUtils.equals(audioQueueEpisodeKey(episode), key)) return episode;
+        }
+        return getEpisode();
+    }
+
     private String getEpisodeInlineLyrics(Episode episode) {
         if (isAudioQueueEpisode(episode)) return Objects.toString(mAudioQueueLyrics.get(audioQueueEpisodeKey(episode)), "");
         return mDetailLyrics;
     }
 
-    private void applyEpisodeArtwork(Episode episode) {
-        if (!isAudioQueueEpisode(episode)) return;
-        loadArtwork(mAudioQueuePics.get(audioQueueEpisodeKey(episode)));
+    private void applyPlaybackArtwork(Episode episode) {
+        loadArtwork(getEpisodeArtwork(episode), audioQueueEpisodeKey(episode));
     }
 
     private String cleanAudioEpisodeForArtist(String episode) {

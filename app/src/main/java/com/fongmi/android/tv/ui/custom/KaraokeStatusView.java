@@ -147,7 +147,7 @@ public class KaraokeStatusView extends LinearLayout {
 
     private float getVolumeLevel(KaraokeStatus status, KaraokePitchSample sample) {
         if (!showVolume(status) || sample == null || sample.getTimestampMs() <= 0) return 0;
-        return (float) Math.max(0, Math.min(1, Math.sqrt(sample.getVolume()) * 1.6f));
+        return (float) Math.max(0, Math.min(1, Math.sqrt(sample.getVolume()) * 2.35f));
     }
 
     private MaterialTextView textView(Context context, int sizeSp, boolean bold) {
@@ -278,14 +278,11 @@ public class KaraokeStatusView extends LinearLayout {
         }
 
         private void drawBackground(Canvas canvas, float left, float right, float top, float bottom) {
-            rect.set(left, top, right, bottom);
+            float y = bottom - dp(7);
+            rect.set(left, y - dp(1), right, y + dp(1));
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(0x18FFFFFF);
-            canvas.drawRoundRect(rect, dp(4), dp(4), paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(1));
-            paint.setColor(0x20FFFFFF);
-            canvas.drawRoundRect(rect, dp(4), dp(4), paint);
+            paint.setColor(0x12FFFFFF);
+            canvas.drawRoundRect(rect, dp(1), dp(1), paint);
         }
 
         private void drawNotes(Canvas canvas, float left, float right, float top, float bottom, long start, long end) {
@@ -345,10 +342,10 @@ public class KaraokeStatusView extends LinearLayout {
             float gap = Math.max(1f, width / 150f);
             float barWidth = (width - gap * (BAR_COUNT - 1)) / BAR_COUNT;
             float base = bottom - dp(7);
-            float maxHeight = Math.max(dp(10), (bottom - top) * 0.28f);
+            float maxHeight = Math.max(dp(18), (bottom - top) * 0.48f);
             for (int i = 0; i < BAR_COUNT; i++) {
                 float value = Math.max(0.06f + (i % 5) * 0.01f, bars[i]);
-                float height = maxHeight * Math.min(1f, value);
+                float height = maxHeight * Math.min(1f, 0.18f + value * 0.82f);
                 float x = left + i * (barWidth + gap);
                 rect.set(x, base - height, x + barWidth, base);
                 paint.setStyle(Paint.Style.FILL);
