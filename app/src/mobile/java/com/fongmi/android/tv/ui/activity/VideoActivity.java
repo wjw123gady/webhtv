@@ -652,7 +652,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.audioKeepAction.setOnClickListener(view -> onKeep());
         mBinding.audioSettingAction.setOnClickListener(view -> onSetting());
         mBinding.audioKaraokeAction.setOnClickListener(view -> onKaraokeMode());
-        mBinding.audioBackgroundAction.setOnClickListener(view -> randomizeAudioBackgroundMix());
+        mBinding.audioBackgroundAction.setOnClickListener(view -> randomizeAudioBackgroundMix(false));
         mBinding.audioMoreAction.setOnClickListener(view -> onAudioMore());
         mBinding.audioTrackAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_AUDIO));
         mBinding.audioSubtitleAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_TEXT));
@@ -1877,7 +1877,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                     updateAudioBackgroundPanel(gridRef[0]);
                 },
                 () -> {
-                    randomizeAudioBackgroundMix();
+                    randomizeAudioBackgroundMix(true);
                     updateAudioBackgroundPanel(gridRef[0]);
                 },
         };
@@ -1916,13 +1916,13 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         Notify.show(getString(R.string.player_audio_background_random_decoration_done));
     }
 
-    private void randomizeAudioBackgroundMix() {
+    private void randomizeAudioBackgroundMix(boolean notify) {
         PlayerSetting.putAudioBackground(PlayerSetting.AUDIO_BACKGROUND_RANDOM);
         PlayerSetting.putAudioBackgroundDecorated(true);
         PlayerSetting.putAudioBackgroundSeed(newAudioBackgroundSeed(2, PlayerSetting.getAudioBackgroundSeed()));
         PlayerSetting.putAudioBackgroundDecorationSeed(newAudioBackgroundDecorationSeed());
         applyAudioBackground();
-        Notify.show(getString(R.string.player_audio_background_random_mix_done));
+        if (notify) Notify.show(getString(R.string.player_audio_background_random_mix_done));
     }
 
     private int newAudioBackgroundDecorationSeed() {

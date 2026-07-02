@@ -208,20 +208,22 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             case 2 -> {
                 fillRadial(canvas, w * x2, h * y1, Math.max(w, h) * randomRange(deco, 10, 0.42f, 0.68f), withAlpha(glow, 132), Color.TRANSPARENT);
                 drawSoftFlow(canvas, w, h, deco, 0.28f, 0.66f, 0.26f, withAlpha(accent, 68), withAlpha(accent2, 34));
+                drawStarDust(canvas, w, h, deco, 54, withAlpha(Color.WHITE, 86), true);
             }
             case 3 -> {
-                drawSparseGrain(canvas, w, h, deco, 44, withAlpha(Color.WHITE, 42));
-                drawSoftArc(canvas, w * 0.84f, h * 0.72f, Math.min(w, h) * 0.46f, deco, withAlpha(accent, 86));
+                drawSoftVeil(canvas, w, h, deco, withAlpha(Color.WHITE, 38), withAlpha(accent, 30));
+                drawMistStreaks(canvas, w, h, deco, 7, withAlpha(Color.WHITE, 46));
                 fillRadial(canvas, w * 0.18f, h * 0.82f, Math.max(w, h) * 0.4f, withAlpha(accent2, 58), Color.TRANSPARENT);
             }
             case 4 -> {
-                drawSoftBubble(canvas, w * x2, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.18f, 0.32f), withAlpha(Color.WHITE, 44), withAlpha(accent, 82));
-                drawSoftBubble(canvas, w * x1, h * y2, Math.min(w, h) * randomRange(deco, 11, 0.16f, 0.28f), withAlpha(Color.WHITE, 30), withAlpha(accent2, 66));
+                drawCrystalSlabs(canvas, w, h, deco, withAlpha(Color.WHITE, 28), withAlpha(accent, 34));
+                drawSoftBeam(canvas, w, h, deco + 13, withAlpha(accent2, 58));
                 fillRadial(canvas, w * 0.52f, h * 0.86f, Math.max(w, h) * 0.46f, withAlpha(glow, 64), Color.TRANSPARENT);
             }
             case 5 -> {
                 drawSoftFlow(canvas, w, h, deco, 0.12f, 0.42f, 0.2f, withAlpha(Color.WHITE, 46), withAlpha(accent, 42));
                 drawSoftFlow(canvas, w, h, deco + 41, 0.48f, 0.8f, 0.22f, withAlpha(accent2, 56), withAlpha(Color.WHITE, 22));
+                drawSoftVeil(canvas, w, h, deco + 19, withAlpha(Color.WHITE, 22), withAlpha(accent2, 24));
             }
             case 6 -> {
                 drawSoftBeam(canvas, w, h, deco, withAlpha(accent, 78));
@@ -229,26 +231,30 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
                 fillRadial(canvas, w * x1, h * y2, Math.max(w, h) * 0.42f, withAlpha(Color.WHITE, 24), Color.TRANSPARENT);
             }
             case 7 -> {
-                drawSoftArc(canvas, w * x2, h * y2, Math.min(w, h) * randomRange(deco, 10, 0.34f, 0.58f), deco, withAlpha(Color.WHITE, 58));
-                drawSoftArc(canvas, w * x1, h * y1, Math.min(w, h) * randomRange(deco, 11, 0.18f, 0.34f), deco + 23, withAlpha(accent, 72));
+                drawAuroraCurtain(canvas, w, h, deco, withAlpha(accent, 54), withAlpha(accent2, 38));
+                drawMistStreaks(canvas, w, h, deco + 23, 5, withAlpha(Color.WHITE, 38));
                 fillRadial(canvas, w * 0.5f, h * 0.5f, Math.max(w, h) * 0.36f, withAlpha(accent2, 38), Color.TRANSPARENT);
             }
             case 8 -> {
-                drawSparseGrain(canvas, w, h, deco, 90, withAlpha(Color.WHITE, 28));
+                drawStarDust(canvas, w, h, deco, 96, withAlpha(Color.WHITE, 78), false);
+                drawMistStreaks(canvas, w, h, deco + 29, 4, withAlpha(accent, 26));
                 drawSoftCurrent(canvas, w, h, deco, randomRange(deco, 10, 0.62f, 0.82f), withAlpha(accent2, 34));
             }
             case 9 -> {
                 fillRadial(canvas, w * x2, h * y1, Math.max(w, h) * 0.44f, withAlpha(accent, 98), Color.TRANSPARENT);
-                drawSoftArc(canvas, w * x2, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.22f, 0.42f), deco, withAlpha(accent2, 70));
+                drawAuroraCurtain(canvas, w, h, deco, withAlpha(accent2, 48), withAlpha(Color.WHITE, 24));
+                drawStarDust(canvas, w, h, deco + 37, 38, withAlpha(Color.WHITE, 58), true);
             }
             case 10 -> {
                 fillRadial(canvas, w * 0.18f, h * 0.12f, Math.max(w, h) * 0.62f, withAlpha(Color.WHITE, 42), Color.TRANSPARENT);
                 drawSoftFlow(canvas, w, h, deco, 0.42f, 0.74f, 0.2f, withAlpha(accent, 46), withAlpha(accent2, 24));
+                drawCrystalSlabs(canvas, w, h, deco + 43, withAlpha(Color.WHITE, 20), withAlpha(accent2, 26));
             }
             default -> {
                 fillRadial(canvas, w * x1, h * y1, Math.max(w, h) * 0.48f, withAlpha(Color.WHITE, 50), Color.TRANSPARENT);
                 fillRadial(canvas, w * x2, h * y2, Math.max(w, h) * 0.44f, withAlpha(accent, 66), Color.TRANSPARENT);
                 drawSoftCurrent(canvas, w, h, deco, randomRange(deco, 10, 0.4f, 0.68f), withAlpha(accent2, 42));
+                drawStarDust(canvas, w, h, deco + 47, 46, withAlpha(Color.WHITE, 52), false);
             }
         }
     }
@@ -531,29 +537,6 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         paint.setShader(null);
     }
 
-    private void drawSoftBubble(Canvas canvas, float cx, float cy, float r, int fillColor, int edgeColor) {
-        fillRadial(canvas, cx, cy, r * 1.55f, fillColor, Color.TRANSPARENT);
-        paint.setShader(null);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(Math.max(1f, r / 24f));
-        paint.setColor(edgeColor);
-        canvas.drawCircle(cx, cy, r, paint);
-        paint.setStyle(Paint.Style.FILL);
-    }
-
-    private void drawSoftArc(Canvas canvas, float cx, float cy, float r, int seed, int color) {
-        paint.setShader(null);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setStrokeWidth(Math.max(1.4f, r * randomRange(seed, 730, 0.016f, 0.034f)));
-        paint.setColor(color);
-        float start = randomRange(seed, 731, 0f, 280f);
-        float sweep = randomRange(seed, 732, 64f, 150f);
-        canvas.drawArc(cx - r, cy - r, cx + r, cy + r, start, sweep, false, paint);
-        paint.setStrokeCap(Paint.Cap.BUTT);
-        paint.setStyle(Paint.Style.FILL);
-    }
-
     private void drawSoftBeam(Canvas canvas, int w, int h, int seed, int color) {
         float topX = w * randomRange(seed, 740, 0.08f, 0.92f);
         float bottomX = w * randomRange(seed, 741, -0.1f, 1.1f);
@@ -566,6 +549,93 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         paint.setShader(new LinearGradient(topX, 0, bottomX, h, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
         canvas.drawPath(path, paint);
         paint.setShader(null);
+    }
+
+    private void drawAuroraCurtain(Canvas canvas, int w, int h, int seed, int color, int color2) {
+        for (int i = 0; i < 4; i++) {
+            float x = w * randomRange(seed, 760 + i, -0.16f, 0.92f);
+            float width = w * randomRange(seed, 780 + i, 0.18f, 0.34f);
+            float lean = w * randomRange(seed, 800 + i, -0.18f, 0.22f);
+            path.reset();
+            path.moveTo(x, -h * 0.08f);
+            path.cubicTo(x + lean, h * 0.2f, x - lean * 0.5f, h * 0.48f, x + lean, h * 1.08f);
+            path.lineTo(x + width + lean, h * 1.08f);
+            path.cubicTo(x + width - lean * 0.3f, h * 0.56f, x + width + lean, h * 0.24f, x + width * 0.8f, -h * 0.08f);
+            path.close();
+            paint.setShader(new LinearGradient(x, 0, x + lean, h, i % 2 == 0 ? color : color2, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            canvas.drawPath(path, paint);
+            paint.setShader(null);
+        }
+    }
+
+    private void drawSoftVeil(Canvas canvas, int w, int h, int seed, int color, int color2) {
+        path.reset();
+        path.moveTo(-w * 0.16f, h * randomRange(seed, 820, 0.22f, 0.52f));
+        path.cubicTo(w * 0.12f, h * randomRange(seed, 821, 0.08f, 0.36f), w * 0.46f, h * randomRange(seed, 822, 0.32f, 0.72f), w * 1.16f, h * randomRange(seed, 823, 0.18f, 0.56f));
+        path.lineTo(w * 1.16f, h * randomRange(seed, 824, 0.58f, 0.94f));
+        path.cubicTo(w * 0.58f, h * randomRange(seed, 825, 0.84f, 1.06f), w * 0.22f, h * randomRange(seed, 826, 0.52f, 0.88f), -w * 0.16f, h * randomRange(seed, 827, 0.74f, 1.02f));
+        path.close();
+        paint.setShader(new LinearGradient(0, 0, w, h, color, color2, Shader.TileMode.CLAMP));
+        canvas.drawPath(path, paint);
+        paint.setShader(null);
+    }
+
+    private void drawMistStreaks(Canvas canvas, int w, int h, int seed, int count, int color) {
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        for (int i = 0; i < count; i++) {
+            float y = h * randomRange(seed, 840 + i, 0.08f, 0.88f);
+            float x = w * randomRange(seed, 860 + i, -0.14f, 0.74f);
+            float len = w * randomRange(seed, 880 + i, 0.22f, 0.58f);
+            float drift = h * randomRange(seed, 900 + i, -0.035f, 0.035f);
+            paint.setStrokeWidth(Math.max(1.2f, w * randomRange(seed, 920 + i, 0.002f, 0.007f)));
+            paint.setColor(withAlpha(color, 14 + Math.floorMod(mixSeed(seed + i * 31), 34)));
+            canvas.drawLine(x, y, x + len, y + drift, paint);
+        }
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawCrystalSlabs(Canvas canvas, int w, int h, int seed, int color, int color2) {
+        for (int i = 0; i < 4; i++) {
+            float x = w * randomRange(seed, 940 + i, -0.12f, 0.88f);
+            float y = h * randomRange(seed, 960 + i, 0.08f, 0.74f);
+            float ww = w * randomRange(seed, 980 + i, 0.18f, 0.36f);
+            float hh = h * randomRange(seed, 1000 + i, 0.08f, 0.18f);
+            float skew = w * randomRange(seed, 1020 + i, -0.1f, 0.12f);
+            path.reset();
+            path.moveTo(x + skew, y);
+            path.lineTo(x + ww + skew * 0.35f, y + hh * 0.1f);
+            path.lineTo(x + ww - skew, y + hh);
+            path.lineTo(x - skew * 0.45f, y + hh * 0.86f);
+            path.close();
+            paint.setShader(new LinearGradient(x, y, x + ww, y + hh, i % 2 == 0 ? color : color2, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            canvas.drawPath(path, paint);
+            paint.setShader(null);
+        }
+    }
+
+    private void drawStarDust(Canvas canvas, int w, int h, int seed, int count, int color, boolean twinkle) {
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        for (int i = 0; i < count; i++) {
+            float x = w * randomRange(seed, 1040 + i * 2, 0.02f, 0.98f);
+            float y = h * randomRange(seed, 1041 + i * 2, 0.02f, 0.92f);
+            float size = Math.max(1f, Math.min(w, h) * randomRange(seed, 1180 + i, 0.0012f, 0.0048f));
+            int alpha = 16 + Math.floorMod(mixSeed(seed + i * 37), twinkle ? 92 : 48);
+            paint.setStrokeWidth(Math.max(1f, size * 0.58f));
+            paint.setColor(withAlpha(color, alpha));
+            if (twinkle && i % 9 == 0) {
+                canvas.drawLine(x - size, y, x + size, y, paint);
+                canvas.drawLine(x, y - size, x, y + size, paint);
+            } else {
+                canvas.drawPoint(x, y, paint);
+            }
+        }
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        paint.setStyle(Paint.Style.FILL);
     }
 
     private void drawSparseGrain(Canvas canvas, int w, int h, int seed, int count, int color) {
@@ -610,42 +680,50 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     }
 
     private int randomBackgroundColor(int seed, int slot) {
-        int mode = Math.floorMod(mixSeed(seed + 0x51ED270B), 8);
+        int mode = Math.floorMod(mixSeed(seed + 0x51ED270B), 10);
         int mixed = mixSeed(seed + slot * 0x9E3779B9);
         float hue = Math.floorMod(mixed, 360);
         float satNoise = ((mixed >>> 9) & 0xFF) / 255f;
         float valNoise = ((mixed >>> 17) & 0xFF) / 255f;
         switch (mode) {
             case 0 -> {
-                return Color.HSVToColor(new float[]{hue, 0.48f + satNoise * 0.44f, 0.88f + valNoise * 0.12f});
+                return Color.HSVToColor(new float[]{hue, 0.58f + satNoise * 0.34f, 0.9f + valNoise * 0.1f});
             }
             case 1 -> {
-                return Color.HSVToColor(new float[]{hue, 0.28f + satNoise * 0.42f, 0.78f + valNoise * 0.2f});
+                float peachHue = (18f + slot * 22f + satNoise * 34f) % 360f;
+                return Color.HSVToColor(new float[]{peachHue, 0.48f + satNoise * 0.34f, 0.86f + valNoise * 0.12f});
             }
             case 2 -> {
-                float deepHue = (210f + slot * 24f + satNoise * 54f) % 360f;
-                return Color.HSVToColor(new float[]{deepHue, 0.56f + satNoise * 0.34f, slot == 1 ? 0.22f + valNoise * 0.24f : 0.08f + valNoise * 0.18f});
+                float aquaHue = (168f + slot * 28f + satNoise * 46f) % 360f;
+                return Color.HSVToColor(new float[]{aquaHue, 0.5f + satNoise * 0.36f, 0.8f + valNoise * 0.18f});
             }
             case 3 -> {
-                float goldHue = slot == 1 ? 42f + satNoise * 18f : 250f + satNoise * 42f;
-                float value = slot == 1 ? 0.34f + valNoise * 0.24f : 0.06f + valNoise * 0.12f;
-                return Color.HSVToColor(new float[]{goldHue % 360f, 0.5f + satNoise * 0.38f, value});
+                float candyHue = (300f + slot * 26f + satNoise * 52f) % 360f;
+                return Color.HSVToColor(new float[]{candyHue, 0.54f + satNoise * 0.36f, 0.84f + valNoise * 0.16f});
             }
             case 4 -> {
-                float wineHue = 322f + slot * 16f + satNoise * 24f;
-                return Color.HSVToColor(new float[]{wineHue % 360f, 0.48f + satNoise * 0.4f, 0.1f + valNoise * (slot == 1 ? 0.3f : 0.18f)});
+                float limeHue = (72f + slot * 24f + satNoise * 50f) % 360f;
+                return Color.HSVToColor(new float[]{limeHue, 0.46f + satNoise * 0.36f, 0.82f + valNoise * 0.16f});
             }
             case 5 -> {
-                float forestHue = 126f + slot * 20f + satNoise * 42f;
-                return Color.HSVToColor(new float[]{forestHue % 360f, 0.46f + satNoise * 0.38f, 0.1f + valNoise * (slot == 1 ? 0.28f : 0.16f)});
+                float skyHue = (196f + slot * 20f + satNoise * 40f) % 360f;
+                return Color.HSVToColor(new float[]{skyHue, 0.38f + satNoise * 0.36f, 0.82f + valNoise * 0.16f});
             }
             case 6 -> {
-                float emberHue = 12f + slot * 18f + satNoise * 34f;
-                return Color.HSVToColor(new float[]{emberHue % 360f, 0.5f + satNoise * 0.38f, 0.12f + valNoise * (slot == 1 ? 0.32f : 0.18f)});
+                float prismHue = (hue + slot * 42f) % 360f;
+                return Color.HSVToColor(new float[]{prismHue, 0.42f + satNoise * 0.42f, 0.78f + valNoise * 0.2f});
+            }
+            case 7 -> {
+                float violetHue = (252f + slot * 24f + satNoise * 46f) % 360f;
+                return Color.HSVToColor(new float[]{violetHue, 0.58f + satNoise * 0.32f, slot == 1 ? 0.42f + valNoise * 0.24f : 0.24f + valNoise * 0.2f});
+            }
+            case 8 -> {
+                float emeraldHue = (150f + slot * 24f + satNoise * 42f) % 360f;
+                return Color.HSVToColor(new float[]{emeraldHue, 0.56f + satNoise * 0.32f, slot == 1 ? 0.44f + valNoise * 0.24f : 0.26f + valNoise * 0.18f});
             }
             default -> {
-                float nightHue = 188f + slot * 28f + satNoise * 64f;
-                return Color.HSVToColor(new float[]{nightHue % 360f, 0.38f + satNoise * 0.42f, 0.14f + valNoise * (slot == 1 ? 0.34f : 0.22f)});
+                float nightHue = (205f + slot * 28f + satNoise * 54f) % 360f;
+                return Color.HSVToColor(new float[]{nightHue, 0.52f + satNoise * 0.34f, slot == 1 ? 0.38f + valNoise * 0.24f : 0.2f + valNoise * 0.2f});
             }
         }
     }
