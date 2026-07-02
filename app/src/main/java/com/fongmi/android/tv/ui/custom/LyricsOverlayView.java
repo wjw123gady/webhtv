@@ -14,6 +14,7 @@ import android.text.style.ForegroundColorSpan;
 import android.text.style.ReplacementSpan;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -35,7 +36,7 @@ public class LyricsOverlayView extends FrameLayout {
 
     private static final int ROWS = 5;
     private static final long WORD_REFRESH_MS = 50;
-    private static final int PRIMARY_COLOR = 0xFF7EE7D6;
+    private static final int PRIMARY_COLOR = 0xFFFFC766;
 
     private final LinearLayout box;
     private final MaterialTextView[] rows = new MaterialTextView[ROWS];
@@ -46,9 +47,18 @@ public class LyricsOverlayView extends FrameLayout {
     private boolean audioStageMode;
     private boolean suppressed;
     private boolean playing;
+    private boolean dragging;
     private int index = -1;
+    private int dragBaseIndex = -1;
+    private int dragPreviewIndex = -1;
+    private float dragStartY;
     private long basePositionMs;
     private long baseRealtimeMs;
+    private SeekListener seekListener;
+
+    public interface SeekListener {
+        void onLyricsSeek(long positionMs);
+    }
 
     public LyricsOverlayView(Context context) {
         this(context, null);
@@ -86,11 +96,16 @@ public class LyricsOverlayView extends FrameLayout {
     public void setAudioStageMode(boolean audioStageMode) {
         if (this.audioStageMode == audioStageMode) return;
         this.audioStageMode = audioStageMode;
+        setClickable(audioStageMode);
         LayoutParams params = (LayoutParams) box.getLayoutParams();
-        params.gravity = audioStageMode ? Gravity.TOP | Gravity.CENTER_HORIZONTAL : Gravity.CENTER;
+        params.gravity = Gravity.CENTER;
         box.setLayoutParams(params);
         box.setPadding(dp(18), dp(10), dp(18), dp(10));
         applyStyle();
+    }
+
+    public void setSeekListener(SeekListener seekListener) {
+        this.seekListener = seekListener;
     }
 
     public void setSuppressed(boolean suppressed) {
@@ -122,6 +137,7 @@ public class LyricsOverlayView extends FrameLayout {
         this.playing = playing;
         this.basePositionMs = Math.max(0, positionMs);
         this.baseRealtimeMs = SystemClock.elapsedRealtime();
+        if (dragging) return;
         int nextIndex = LyricsParser.findLine(lines, positionMs);
         if (nextIndex == index) {
             renderPrimaryLine(positionMs);
@@ -186,8 +202,74 @@ public class LyricsOverlayView extends FrameLayout {
         stopWordRefresh();
         lines = Collections.emptyList();
         index = -1;
+        dragging = false;
+        dragBaseIndex = -1;
+        dragPreviewIndex = -1;
         for (MaterialTextView row : rows) row.setText("");
         setVisibility(GONE);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (!audioStageMode || suppressed || lines.isEmpty() || seekListener == null) return super.onTouchEvent(event);
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                beginLyricsDrag(event.getY());
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                updateLyricsDrag(event.getY());
+                return true;
+            case MotionEvent.ACTION_UP:
+                finishLyricsDrag(true);
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                finishLyricsDrag(false);
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    private void beginLyricsDrag(float y) {
+        if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+        stopWordRefresh();
+        dragging = true;
+        dragStartY = y;
+        dragBaseIndex = index >= 0 ? index : LyricsParser.findLine(lines, basePositionMs);
+        dragPreviewIndex = clampLineIndex(dragBaseIndex);
+    }
+
+    private void updateLyricsDrag(float y) {
+        if (!dragging) return;
+        int offset = Math.round((dragStartY - y) / Math.max(dp(34), getHeight() / (float) Math.max(3, visibleRows())));
+        int next = clampLineIndex(dragBaseIndex + offset);
+        if (next == dragPreviewIndex) return;
+        dragPreviewIndex = next;
+        index = next;
+        render(lines.get(next).getTimeMs());
+    }
+
+    private void finishLyricsDrag(boolean seek) {
+        if (!dragging) return;
+        if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+        int target = clampLineIndex(dragPreviewIndex);
+        dragging = false;
+        dragBaseIndex = -1;
+        dragPreviewIndex = -1;
+        if (seek && target >= 0 && target < lines.size()) {
+            long position = lines.get(target).getTimeMs();
+            index = target;
+            render(position);
+            seekListener.onLyricsSeek(position);
+        } else if (!lines.isEmpty()) {
+            index = -1;
+            update(basePositionMs, playing);
+        }
+    }
+
+    private int clampLineIndex(int value) {
+        if (lines.isEmpty()) return -1;
+        return Math.max(0, Math.min(lines.size() - 1, value));
     }
 
     @Override

@@ -125,6 +125,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/shape_audio_player_background"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:gravity="center_horizontal"
                         android:orientation="vertical"
                         android:paddingStart="24dp"
@@ -244,8 +246,8 @@
                         <com.fongmi.android.tv.ui.custom.LyricsOverlayView
                             android:id="@+id/audioLyrics"
                             android:layout_width="match_parent"
-                            android:layout_height="212dp"
-                            android:layout_marginTop="18dp" />
+                            android:layout_height="164dp"
+                            android:layout_marginTop="14dp" />
 
                         <com.fongmi.android.tv.ui.custom.KaraokeStatusView
                             android:id="@+id/audioKaraoke"

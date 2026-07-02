@@ -16,6 +16,14 @@ public class LyricsParser {
     private static final Pattern WORD_TIME = Pattern.compile("<\\d+,-?\\d+>");
     private static final Pattern WORD_TOKEN = Pattern.compile("<(\\d+),(-?\\d+)>([^<]*)");
     private static final long AUX_TOLERANCE_MS = 800;
+    private static final List<String> CREDIT_BLOCKED_LABELS = List.of(
+            "企划", "策划", "监制", "制作", "制作人", "出品", "发行", "统筹", "项目", "宣发", "推广", "营销", "文案", "封面", "设计", "摄影", "版权",
+            "演唱", "原唱", "翻唱", "歌手", "艺人",
+            "编曲", "配器", "和声", "和音", "合音", "伴唱", "配唱", "声乐指导", "音乐总监", "录音", "混音", "母带", "母带工程", "音频编辑", "调音", "缩混",
+            "钢琴", "吉他", "鼓", "鼓手", "贝斯", "键盘", "弦乐", "管弦", "管乐", "小提琴", "大提琴", "萨克斯", "长笛", "短笛", "笛子", "古琴", "二胡",
+            "op", "sp", "cp", "publisher", "copyright", "producer", "production", "arranger", "arrangement", "mix", "mixing", "master", "mastering", "recording", "vocal", "chorus", "artist", "singer",
+            "piano", "guitar", "drum", "drums", "bass", "keyboard", "strings", "violin", "cello", "sax", "flute"
+    );
 
     private static class Mark {
 
@@ -101,6 +109,7 @@ public class LyricsParser {
             for (String raw : text.replace("\r", "").split("\n")) {
                 String line = raw.trim();
                 if (line.isEmpty() || line.startsWith("[") && line.endsWith("]")) continue;
+                if (shouldDropCreditLine(line)) continue;
                 texts.add(line);
             }
         }
@@ -153,6 +162,7 @@ public class LyricsParser {
         if (isPrefixTimed(raw, marks)) {
             Content content = parseContent(raw.substring(marks.get(marks.size() - 1).end));
             if (content.text.isEmpty()) return;
+            if (shouldDropCreditLine(content.text)) return;
             for (Mark mark : marks) lines.add(new LyricsLine(mark.time, content.text, content.words));
             return;
         }
@@ -163,6 +173,10 @@ public class LyricsParser {
             Content content = parseContent(raw.substring(mark.end, next));
             pending.add(mark.time);
             if (content.text.isEmpty()) continue;
+            if (shouldDropCreditLine(content.text)) {
+                pending.clear();
+                continue;
+            }
             for (long time : pending) lines.add(new LyricsLine(time, content.text, content.words));
             pending.clear();
         }
@@ -224,6 +238,7 @@ public class LyricsParser {
             if (marks.isEmpty()) continue;
             Content content = parseContent(raw.substring(marks.get(marks.size() - 1).end));
             if (content.text.isEmpty()) continue;
+            if (shouldDropCreditLine(content.text)) continue;
             for (Mark mark : marks) output.add(new AuxLine(mark.time, content.text));
         }
     }
@@ -260,4 +275,32 @@ public class LyricsParser {
     private static String cleanTimedLyric(String text) {
         return cleanLyric(TIME.matcher(text == null ? "" : text).replaceAll(""));
     }
+
+    private static boolean shouldDropCreditLine(String text) {
+        String value = text == null ? "" : text.trim();
+        if (value.isEmpty()) return false;
+        int index = firstCreditDelimiter(value);
+        if (index <= 0 || index > 24) return false;
+        String label = normalizeCreditLabel(value.substring(0, index));
+        if (label.isEmpty()) return false;
+        return isBlockedCreditLabel(label);
+    }
+
+    private static int firstCreditDelimiter(String text) {
+        int colon = text.indexOf(':');
+        int full = text.indexOf('：');
+        if (colon < 0) return full;
+        if (full < 0) return colon;
+        return Math.min(colon, full);
+    }
+
+    private static String normalizeCreditLabel(String label) {
+        return label.replaceAll("[\\s　\\[\\]【】()（）《》〈〉「」『』·•_\\-/|｜]+", "").toLowerCase();
+    }
+
+    private static boolean isBlockedCreditLabel(String label) {
+        for (String item : CREDIT_BLOCKED_LABELS) if (label.equals(item) || label.contains(item)) return true;
+        return false;
+    }
+
 }
