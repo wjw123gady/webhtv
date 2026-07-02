@@ -1209,12 +1209,12 @@
     </string-array>
 
     <string-array name="select_audio_background">
-        <item>封面氛围</item>
-        <item>黑胶幕布</item>
-        <item>霓虹蓝紫</item>
-        <item>暮色红酒</item>
-        <item>铜橙暖光</item>
-        <item>深海墨绿</item>
+        <item>封面彩光</item>
+        <item>蜜桃日落</item>
+        <item>海盐薄荷</item>
+        <item>极光糖果</item>
+        <item>晴空蓝橙</item>
+        <item>玫瑰汽水</item>
     </string-array>
 
     <string-array name="select_track">

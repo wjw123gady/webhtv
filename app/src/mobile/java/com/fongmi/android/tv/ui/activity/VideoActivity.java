@@ -3252,11 +3252,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             return;
         }
         int resId = switch (PlayerSetting.getAudioBackground()) {
-            case PlayerSetting.AUDIO_BACKGROUND_BLACK -> R.drawable.shape_audio_player_background_black;
-            case PlayerSetting.AUDIO_BACKGROUND_NEON -> R.drawable.shape_audio_player_background;
-            case PlayerSetting.AUDIO_BACKGROUND_WINE -> R.drawable.shape_audio_player_background_warm;
-            case PlayerSetting.AUDIO_BACKGROUND_AMBER -> R.drawable.shape_audio_player_background_amber;
-            case PlayerSetting.AUDIO_BACKGROUND_TEAL -> R.drawable.shape_audio_player_background_violet;
+            case PlayerSetting.AUDIO_BACKGROUND_SUNSET -> R.drawable.shape_audio_player_background_sunset;
+            case PlayerSetting.AUDIO_BACKGROUND_MINT -> R.drawable.shape_audio_player_background_mint;
+            case PlayerSetting.AUDIO_BACKGROUND_CANDY -> R.drawable.shape_audio_player_background_candy;
+            case PlayerSetting.AUDIO_BACKGROUND_SKY -> R.drawable.shape_audio_player_background_sky;
+            case PlayerSetting.AUDIO_BACKGROUND_ROSE -> R.drawable.shape_audio_player_background_rose;
             default -> R.drawable.shape_audio_player_background;
         };
         mBinding.audioStage.setBackgroundResource(resId);
@@ -3268,17 +3268,17 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private int extractAudioArtworkColor(@Nullable Drawable drawable) {
-        if (drawable == null) return Color.rgb(55, 45, 68);
+        if (drawable == null) return Color.rgb(255, 111, 145);
         Bitmap bitmap = null;
         try {
             bitmap = createPaletteBitmap(drawable);
             Palette palette = Palette.from(bitmap).maximumColorCount(8).generate();
             Palette.Swatch swatch = palette.getVibrantSwatch();
-            if (swatch == null) swatch = palette.getMutedSwatch();
+            if (swatch == null) swatch = palette.getLightVibrantSwatch();
             if (swatch == null) swatch = palette.getDominantSwatch();
-            return swatch == null ? Color.rgb(55, 45, 68) : swatch.getRgb();
+            return swatch == null ? Color.rgb(255, 111, 145) : swatch.getRgb();
         } catch (Exception ignored) {
-            return Color.rgb(55, 45, 68);
+            return Color.rgb(255, 111, 145);
         } finally {
             if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
         }
@@ -3297,13 +3297,18 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private Drawable createAudioArtworkBackground(int color) {
         float[] hsv = new float[3];
         Color.colorToHSV(color, hsv);
-        hsv[1] = Math.min(0.72f, Math.max(0.32f, hsv[1] * 0.95f));
-        hsv[2] = Math.min(0.34f, Math.max(0.16f, hsv[2] * 0.48f));
+        hsv[1] = Math.min(0.9f, Math.max(0.48f, hsv[1] * 1.15f));
+        hsv[2] = Math.min(1f, Math.max(0.74f, hsv[2] * 1.18f));
         int start = Color.HSVToColor(hsv);
-        hsv[1] = Math.min(0.62f, hsv[1] * 0.9f);
-        hsv[2] = Math.max(0.07f, hsv[2] * 0.48f);
+        hsv[0] = (hsv[0] + 34f) % 360f;
+        hsv[1] = Math.min(0.86f, Math.max(0.42f, hsv[1] * 0.92f));
+        hsv[2] = Math.min(0.98f, Math.max(0.7f, hsv[2] * 0.94f));
         int center = Color.HSVToColor(hsv);
-        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{start, center, Color.rgb(3, 3, 4)});
+        hsv[0] = (hsv[0] + 172f) % 360f;
+        hsv[1] = Math.min(0.78f, Math.max(0.36f, hsv[1] * 0.82f));
+        hsv[2] = Math.min(0.88f, Math.max(0.58f, hsv[2] * 0.84f));
+        int end = Color.HSVToColor(hsv);
+        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{start, center, end});
         drawable.setDither(true);
         return drawable;
     }

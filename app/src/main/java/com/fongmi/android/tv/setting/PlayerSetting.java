@@ -13,11 +13,11 @@ public class PlayerSetting {
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
     public static final int AUDIO_BACKGROUND_ARTWORK = 0;
-    public static final int AUDIO_BACKGROUND_BLACK = 1;
-    public static final int AUDIO_BACKGROUND_NEON = 2;
-    public static final int AUDIO_BACKGROUND_WINE = 3;
-    public static final int AUDIO_BACKGROUND_AMBER = 4;
-    public static final int AUDIO_BACKGROUND_TEAL = 5;
+    public static final int AUDIO_BACKGROUND_SUNSET = 1;
+    public static final int AUDIO_BACKGROUND_MINT = 2;
+    public static final int AUDIO_BACKGROUND_CANDY = 3;
+    public static final int AUDIO_BACKGROUND_SKY = 4;
+    public static final int AUDIO_BACKGROUND_ROSE = 5;
     private static final int DEFAULT_PLAY_CACHE_OPTION = 0;
 
     public static int getPlayer() {
@@ -151,11 +151,11 @@ public class PlayerSetting {
     }
 
     public static int getAudioBackground() {
-        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_TEAL);
+        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ROSE);
     }
 
     public static void putAudioBackground(int background) {
-        Prefers.put("audio_background", Math.min(Math.max(background, AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_TEAL));
+        Prefers.put("audio_background", Math.min(Math.max(background, AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ROSE));
     }
 
     public static boolean isBackgroundOff() {
