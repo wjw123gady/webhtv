@@ -113,7 +113,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             case PlayerSetting.AUDIO_BACKGROUND_CANDY -> 0xFF8D43C8;
             case PlayerSetting.AUDIO_BACKGROUND_SKY -> 0xFF277BC4;
             case PlayerSetting.AUDIO_BACKGROUND_ROSE -> 0xFF9D3E7A;
-            case PlayerSetting.AUDIO_BACKGROUND_CYBER -> 0xFF1435A8;
+            case PlayerSetting.AUDIO_BACKGROUND_CYBER -> 0xFF25B7F5;
             case PlayerSetting.AUDIO_BACKGROUND_FOREST -> 0xFF1B7C6B;
             case PlayerSetting.AUDIO_BACKGROUND_LEMON -> 0xFF65B879;
             case PlayerSetting.AUDIO_BACKGROUND_DUSK -> 0xFF5C4AC4;
@@ -190,9 +190,10 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     private void drawCyber(Canvas canvas, int w, int h) {
         fillLinear(canvas, w, h, 0xFF00D4FF, 0xFFFF2FB3, 0xFFFFF25C, true);
         if (!decorated) return;
-        drawGrid(canvas, w, h, 0x55FFFFFF, Math.max(22, w / 14));
-        drawRibbon(canvas, w, h, 0.14f, 0.4f, 0xAA001B34, 0x22001B34);
-        drawRibbon(canvas, w, h, 0.62f, 0.88f, 0x88FFFFFF, 0x18FFFFFF);
+        fillRadial(canvas, w * 0.18f, h * 0.18f, Math.max(w, h) * 0.52f, 0x55FFFFFF, Color.TRANSPARENT);
+        fillRadial(canvas, w * 0.84f, h * 0.72f, Math.max(w, h) * 0.58f, 0x44FF7BD5, Color.TRANSPARENT);
+        drawCyberPerspectiveGrid(canvas, w, h);
+        drawSoftVeil(canvas, w, h, 0x7E57C2, 0x22FFFFFF, 0x18FF7BD5);
     }
 
     private void drawForest(Canvas canvas, int w, int h) {
@@ -759,6 +760,29 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             if (vertical) canvas.drawLine(i, 0, i + w * 0.18f, h, paint);
             else canvas.drawLine(0, i, w, i + h * 0.16f, paint);
         }
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawCyberPerspectiveGrid(Canvas canvas, int w, int h) {
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.SQUARE);
+        paint.setStrokeWidth(Math.max(1f, w / 520f));
+        paint.setColor(0x45FFFFFF);
+        float vx = w * 0.52f;
+        float vy = -h * 0.18f;
+        int lines = 13;
+        for (int i = -2; i <= lines; i++) {
+            float x = w * i / (float) (lines - 2);
+            canvas.drawLine(vx, vy, x, h * 1.04f, paint);
+        }
+        for (int i = 0; i < 12; i++) {
+            float y = h * (0.04f + i * i * 0.0085f);
+            float alpha = Math.max(24, 76 - i * 3);
+            paint.setColor(withAlpha(Color.WHITE, (int) alpha));
+            canvas.drawLine(-w * 0.08f, y, w * 1.08f, y + h * 0.075f, paint);
+        }
+        paint.setStrokeCap(Paint.Cap.BUTT);
         paint.setStyle(Paint.Style.FILL);
     }
 

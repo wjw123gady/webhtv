@@ -967,9 +967,11 @@
     <string name="player_audio_background_decorated_turn_off">Hide details</string>
     <string name="player_audio_background_light_effect_turn_on">Light</string>
     <string name="player_audio_background_light_effect_turn_off">Light</string>
+    <string name="player_audio_background_default_preset">Default background</string>
     <string name="player_audio_background_random_plain">New background</string>
     <string name="player_audio_background_random_decoration">New details</string>
     <string name="player_audio_background_random_mix">Random mix</string>
+    <string name="player_audio_background_default_preset_done">Default background applied</string>
     <string name="player_audio_background_random_plain_done">Plain background generated</string>
     <string name="player_audio_background_random_decoration_done">Background details generated</string>
     <string name="player_audio_background_random_mix_done">Background mix generated</string>
