@@ -47,6 +47,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@drawable/shape_audio_player_background"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:paddingStart="28dp"
                 android:paddingEnd="28dp"
                 android:visibility="gone"
@@ -317,15 +319,15 @@
 
                 <androidx.appcompat.widget.AppCompatImageView
                     android:id="@+id/audioBackgroundAction"
-                    android:layout_width="72dp"
-                    android:layout_height="82dp"
+                    android:layout_width="98dp"
+                    android:layout_height="150dp"
                     android:layout_gravity="top|end"
                     android:layout_marginEnd="-28dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:background="@null"
                     android:contentDescription="@string/player_audio_background"
                     android:padding="0dp"
                     android:scaleType="fitXY"
-                    android:src="@drawable/ic_audio_background_drip" />
+                    android:src="@drawable/audio_background_drip" />
 
             </FrameLayout>
 

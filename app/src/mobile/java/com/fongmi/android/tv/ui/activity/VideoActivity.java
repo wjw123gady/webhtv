@@ -12,7 +12,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -115,6 +114,7 @@ import com.fongmi.android.tv.ui.adapter.ParseAdapter;
 import com.fongmi.android.tv.ui.adapter.QualityAdapter;
 import com.fongmi.android.tv.ui.adapter.QuickAdapter;
 import com.fongmi.android.tv.ui.base.ViewType;
+import com.fongmi.android.tv.ui.custom.AudioPlayerBackgroundDrawable;
 import com.fongmi.android.tv.ui.custom.CustomKeyDown;
 import com.fongmi.android.tv.ui.custom.CustomMovement;
 import com.fongmi.android.tv.ui.custom.CustomSeekView;
@@ -698,6 +698,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void applyAudioStageInsets() {
         if (mBinding == null) return;
         mBinding.audioStage.setPaddingRelative(mBinding.audioStage.getPaddingStart(), ResUtil.dp2px(18) + mStatusBarInset, mBinding.audioStage.getPaddingEnd(), ResUtil.dp2px(14) + mEpisodeBottomInset);
+        applyAudioBackgroundActionInsets();
+    }
+
+    private void applyAudioBackgroundActionInsets() {
+        ViewGroup.LayoutParams raw = mBinding.audioBackgroundAction.getLayoutParams();
+        if (!(raw instanceof FrameLayout.LayoutParams params)) return;
+        int top = -mBinding.audioStage.getPaddingTop();
+        if (params.topMargin == top) return;
+        params.topMargin = top;
+        mBinding.audioBackgroundAction.setLayoutParams(params);
     }
 
     private void updateEpisodeViewportHeight() {
@@ -3248,25 +3258,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void applyAudioBackground() {
         if (mBinding == null) return;
-        if (PlayerSetting.getAudioBackground() == PlayerSetting.AUDIO_BACKGROUND_ARTWORK) {
-            mBinding.audioStage.setBackground(createAudioArtworkBackground(mAudioArtworkColor));
-            return;
-        }
-        int resId = switch (PlayerSetting.getAudioBackground()) {
-            case PlayerSetting.AUDIO_BACKGROUND_DARK_NEON -> R.drawable.shape_audio_player_background_dark_neon;
-            case PlayerSetting.AUDIO_BACKGROUND_BLACK_GOLD -> R.drawable.shape_audio_player_background_black_gold;
-            case PlayerSetting.AUDIO_BACKGROUND_SUNSET -> R.drawable.shape_audio_player_background_sunset;
-            case PlayerSetting.AUDIO_BACKGROUND_MINT -> R.drawable.shape_audio_player_background_mint;
-            case PlayerSetting.AUDIO_BACKGROUND_CANDY -> R.drawable.shape_audio_player_background_candy;
-            case PlayerSetting.AUDIO_BACKGROUND_SKY -> R.drawable.shape_audio_player_background_sky;
-            case PlayerSetting.AUDIO_BACKGROUND_ROSE -> R.drawable.shape_audio_player_background_rose;
-            case PlayerSetting.AUDIO_BACKGROUND_CYBER -> R.drawable.shape_audio_player_background_cyber;
-            case PlayerSetting.AUDIO_BACKGROUND_FOREST -> R.drawable.shape_audio_player_background_forest;
-            case PlayerSetting.AUDIO_BACKGROUND_LEMON -> R.drawable.shape_audio_player_background_lemon;
-            case PlayerSetting.AUDIO_BACKGROUND_DUSK -> R.drawable.shape_audio_player_background_dusk;
-            default -> R.drawable.shape_audio_player_background;
-        };
-        mBinding.audioStage.setBackgroundResource(resId);
+        mBinding.audioStage.setBackground(new AudioPlayerBackgroundDrawable(PlayerSetting.getAudioBackground(), mAudioArtworkColor));
     }
 
     private void updateAudioArtworkColor(@Nullable Drawable drawable) {
@@ -3299,31 +3291,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
         drawable.draw(canvas);
         return bitmap;
-    }
-
-    private Drawable createAudioArtworkBackground(int color) {
-        float[] hsv = new float[3];
-        Color.colorToHSV(color, hsv);
-        hsv[1] = Math.min(0.9f, Math.max(0.48f, hsv[1] * 1.15f));
-        hsv[2] = Math.min(1f, Math.max(0.74f, hsv[2] * 1.18f));
-        int start = Color.HSVToColor(hsv);
-        hsv[0] = (hsv[0] + 34f) % 360f;
-        hsv[1] = Math.min(0.86f, Math.max(0.42f, hsv[1] * 0.92f));
-        hsv[2] = Math.min(0.98f, Math.max(0.7f, hsv[2] * 0.94f));
-        int center = Color.HSVToColor(hsv);
-        hsv[0] = (hsv[0] + 172f) % 360f;
-        hsv[1] = Math.min(0.78f, Math.max(0.36f, hsv[1] * 0.82f));
-        hsv[2] = Math.min(0.88f, Math.max(0.58f, hsv[2] * 0.84f));
-        int end = Color.HSVToColor(hsv);
-        return createReadableAudioBackground(start, center, end);
-    }
-
-    private Drawable createReadableAudioBackground(int start, int center, int end) {
-        GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{start, center, end});
-        GradientDrawable scrim = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x52000000, 0x26000000, 0x82000000});
-        base.setDither(true);
-        scrim.setDither(true);
-        return new LayerDrawable(new Drawable[]{base, scrim});
     }
 
     private void setAudioRepeatSelected(boolean selected) {
