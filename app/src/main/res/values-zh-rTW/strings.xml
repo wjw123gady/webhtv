@@ -936,6 +936,7 @@
     <string name="player_audio_playlist_name_hint">歌單名稱</string>
     <string name="player_audio_repeat">循環</string>
     <string name="player_audio_more">更多</string>
+    <string name="player_audio_background">背景</string>
     <string name="player_lyrics_unknown">未知</string>
     <string name="player_lyrics_result_item">%1$s · %2$s · %3$d\n%4$s - %5$s</string>
     <string name="player_lyrics_rows_value">%1$d 行</string>
@@ -1188,6 +1189,13 @@
         <item>輕鬆</item>
         <item>標準</item>
         <item>嚴格</item>
+    </string-array>
+
+    <string-array name="select_audio_background">
+        <item>深夜漸層</item>
+        <item>純黑沉浸</item>
+        <item>暖色舞台</item>
+        <item>藍紫氛圍</item>
     </string-array>
 
     <string-array name="select_track">

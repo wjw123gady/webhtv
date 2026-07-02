@@ -12,6 +12,10 @@ public class PlayerSetting {
     public static final int IJK = 1;
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
+    public static final int AUDIO_BACKGROUND_DEFAULT = 0;
+    public static final int AUDIO_BACKGROUND_BLACK = 1;
+    public static final int AUDIO_BACKGROUND_WARM = 2;
+    public static final int AUDIO_BACKGROUND_VIOLET = 3;
     private static final int DEFAULT_PLAY_CACHE_OPTION = 0;
 
     public static int getPlayer() {
@@ -142,6 +146,14 @@ public class PlayerSetting {
 
     public static void putBackground(int background) {
         Prefers.put("background", background);
+    }
+
+    public static int getAudioBackground() {
+        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_DEFAULT), AUDIO_BACKGROUND_DEFAULT), AUDIO_BACKGROUND_VIOLET);
+    }
+
+    public static void putAudioBackground(int background) {
+        Prefers.put("audio_background", Math.min(Math.max(background, AUDIO_BACKGROUND_DEFAULT), AUDIO_BACKGROUND_VIOLET));
     }
 
     public static boolean isBackgroundOff() {

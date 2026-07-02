@@ -1819,6 +1819,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         ArrayList<Runnable> actions = new ArrayList<>();
         addAudioMoreItem(items, actions, getString(R.string.keep), this::onKeep);
         addAudioMoreItem(items, actions, getString(R.string.nav_setting), this::onSetting);
+        addAudioMoreItem(items, actions, getString(R.string.player_audio_background), this::showAudioBackgroundPanel);
         if (service() != null && !player().isEmpty()) addAudioMoreItem(items, actions, getString(R.string.player_osd), this::onInfo);
         if (service() != null && player().haveTrack(C.TRACK_TYPE_AUDIO)) addAudioMoreItem(items, actions, getString(R.string.play_track_audio), () -> onTrack(C.TRACK_TYPE_AUDIO));
         if (service() != null && (player().haveTrack(C.TRACK_TYPE_TEXT) || player().isVod())) addAudioMoreItem(items, actions, getString(R.string.play_track_text), () -> onTrack(C.TRACK_TYPE_TEXT));
@@ -1834,6 +1835,27 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void addAudioMoreItem(List<String> items, List<Runnable> actions, String label, Runnable action) {
         items.add(label);
         actions.add(action);
+    }
+
+    private void showAudioBackgroundPanel() {
+        BottomSheetDialog dialog = createAudioSheet();
+        LinearLayout root = createAudioSheetRoot();
+        root.addView(createAudioSheetTitle(getString(R.string.player_audio_background)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
+        String[] presets = ResUtil.getStringArray(R.array.select_audio_background);
+        int selected = PlayerSetting.getAudioBackground();
+        String[] labels = new String[presets.length];
+        Runnable[] actions = new Runnable[presets.length];
+        for (int i = 0; i < presets.length; i++) {
+            final int index = i;
+            labels[i] = (i == selected ? "✓ " : "") + presets[i];
+            actions[i] = () -> {
+                PlayerSetting.putAudioBackground(index);
+                applyAudioBackground();
+            };
+        }
+        root.addView(createKaraokeActionGrid(dialog, true, labels, actions, 2), karaokeActionGridParams(10));
+        dialog.setContentView(root);
+        showAudioSheet(dialog);
     }
 
     private TextView createAudioMoreItem(BottomSheetDialog dialog, String label, Runnable action) {
@@ -3139,6 +3161,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void setAudioStageVisible(boolean visible) {
         if (mAudioStageVisible == visible) {
+            if (visible) applyAudioBackground();
             updateAudioStageText();
             updateAudioStageControls();
             return;
@@ -3146,6 +3169,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mAudioStageVisible = visible;
         mBinding.audioStage.setVisibility(visible ? View.VISIBLE : View.GONE);
         if (visible) mBinding.audioStage.bringToFront();
+        if (visible) applyAudioBackground();
         mBinding.lyrics.setSuppressed(visible);
         mBinding.audioLyrics.setSuppressed(!visible);
         syncKaraokeStageVisibility();
@@ -3225,6 +3249,17 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.audioKeepAction.setSelected(Keep.find(getHistoryKey()) != null);
         checkAudioPlayImg(service() != null && player().isPlaying());
         syncAudioCoverRotation();
+    }
+
+    private void applyAudioBackground() {
+        if (mBinding == null) return;
+        int resId = switch (PlayerSetting.getAudioBackground()) {
+            case PlayerSetting.AUDIO_BACKGROUND_BLACK -> R.drawable.shape_audio_player_background_black;
+            case PlayerSetting.AUDIO_BACKGROUND_WARM -> R.drawable.shape_audio_player_background_warm;
+            case PlayerSetting.AUDIO_BACKGROUND_VIOLET -> R.drawable.shape_audio_player_background_violet;
+            default -> R.drawable.shape_audio_player_background;
+        };
+        mBinding.audioStage.setBackgroundResource(resId);
     }
 
     private void setAudioRepeatSelected(boolean selected) {
@@ -4269,6 +4304,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         super.onResume();
         restoreContextWall();
         if (mAudioStageVisible) setArtwork();
+        if (mAudioStageVisible) applyAudioBackground();
         syncKaraokePosition();
     }
 
