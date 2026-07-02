@@ -33,11 +33,14 @@ public class KaraokePitchTrackGenerator {
     private static final long WORD_COMPACT_MS = 280;
     private static final int FRAME_SIZE = 2048;
     private static final int HOP_SIZE = 1024;
+    private static final int ANALYSIS_TARGET_SAMPLE_RATE = 16_000;
+    private static final long ANALYSIS_WINDOW_EXTRA_MS = 600;
     private static final double ANALYSIS_HIGH_PASS_HZ = 80.0;
     private static final double ANALYSIS_LOW_PASS_HZ = 3500.0;
     private static final double MIN_FREQUENCY_HZ = 80.0;
     private static final double MAX_FREQUENCY_HZ = 800.0;
     private static final double MIN_VOLUME = 0.006;
+    private static final double SILENCE_PREFILTER_VOLUME = 0.003;
     private static final double MIN_CONFIDENCE = 0.18;
     private static final double MIN_WINDOW_VALID_RATIO = 0.14;
     private static final double MAX_WINDOW_SPREAD = 8.0;
@@ -100,7 +103,7 @@ public class KaraokePitchTrackGenerator {
         reporter.update(1, STAGE_PREPARE);
         List<Segment> segments = segments(lines, input.getDuration());
         if (segments.size() < 3) throw new IllegalStateException("not enough lyric timing");
-        List<PitchFrame> frames = decode(input, reporter);
+        List<PitchFrame> frames = decode(input, segments, reporter);
         if (frames.isEmpty()) throw new IllegalStateException("no pitch frames");
         reporter.update(78, STAGE_ANALYZE);
         String text = buildText(input.getKeyword(), input.getArtist(), segments, frames, reporter);
@@ -537,7 +540,7 @@ public class KaraokePitchTrackGenerator {
                 .append(lyric(lyric)).append('\n');
     }
 
-    private static List<PitchFrame> decode(KaraokeTrackRepository.MediaInput input, ProgressReporter reporter) throws Exception {
+    private static List<PitchFrame> decode(KaraokeTrackRepository.MediaInput input, List<Segment> segments, ProgressReporter reporter) throws Exception {
         MediaExtractor extractor = new MediaExtractor();
         MediaCodec decoder = null;
         try {
@@ -552,7 +555,7 @@ public class KaraokePitchTrackGenerator {
             decoder = MediaCodec.createDecoderByType(mime);
             decoder.configure(format, null, null, 0);
             decoder.start();
-            return decodeLoop(extractor, decoder, format, reporter, durationMs(input, format));
+            return decodeLoop(extractor, decoder, format, analysisWindows(segments), reporter, durationMs(input, format));
         } finally {
             try {
                 extractor.release();
@@ -568,9 +571,9 @@ public class KaraokePitchTrackGenerator {
         }
     }
 
-    private static List<PitchFrame> decodeLoop(MediaExtractor extractor, MediaCodec decoder, MediaFormat inputFormat, ProgressReporter reporter, long durationMs) {
+    private static List<PitchFrame> decodeLoop(MediaExtractor extractor, MediaCodec decoder, MediaFormat inputFormat, List<AnalysisWindow> windows, ProgressReporter reporter, long durationMs) {
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
-        PitchFrameCollector collector = new PitchFrameCollector(sampleRate(inputFormat));
+        PitchFrameCollector collector = new PitchFrameCollector(sampleRate(inputFormat), windows);
         boolean inputDone = false;
         boolean outputDone = false;
         MediaFormat outputFormat = inputFormat;
@@ -595,7 +598,7 @@ public class KaraokePitchTrackGenerator {
             int outputIndex = decoder.dequeueOutputBuffer(info, 10_000);
             if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 outputFormat = decoder.getOutputFormat();
-                collector.setSampleRate(sampleRate(outputFormat));
+                collector.setSourceSampleRate(sampleRate(outputFormat));
             } else if (outputIndex >= 0) {
                 ByteBuffer output = decoder.getOutputBuffer(outputIndex);
                 if (output != null && info.size > 0) collect(collector, output, info, outputFormat);
@@ -668,6 +671,21 @@ public class KaraokePitchTrackGenerator {
         if (input != null && input.getDuration() > 0) return input.getDuration();
         if (format != null && format.containsKey(MediaFormat.KEY_DURATION)) return Math.max(0, format.getLong(MediaFormat.KEY_DURATION) / 1000L);
         return 0;
+    }
+
+    private static List<AnalysisWindow> analysisWindows(List<Segment> segments) {
+        List<AnalysisWindow> windows = new ArrayList<>();
+        if (segments == null || segments.isEmpty()) return windows;
+        for (Segment segment : segments) {
+            long start = Math.max(0, segment.startMs - ANALYSIS_WINDOW_EXTRA_MS);
+            long end = Math.max(start + MIN_NOTE_MS, segment.endMs + ANALYSIS_WINDOW_EXTRA_MS);
+            if (!windows.isEmpty() && start <= windows.get(windows.size() - 1).endMs) {
+                windows.get(windows.size() - 1).endMs = Math.max(windows.get(windows.size() - 1).endMs, end);
+            } else {
+                windows.add(new AnalysisWindow(start, end));
+            }
+        }
+        return windows;
     }
 
     private static List<Segment> segments(List<LyricsLine> lines, long durationMs) {
@@ -891,43 +909,110 @@ public class KaraokePitchTrackGenerator {
         }
     }
 
+    private static class AnalysisWindow {
+
+        private final long startMs;
+        private long endMs;
+
+        private AnalysisWindow(long startMs, long endMs) {
+            this.startMs = startMs;
+            this.endMs = endMs;
+        }
+    }
+
     private static class PitchFrameCollector {
 
         private final float[] ring = new float[FRAME_SIZE];
         private final float[] frame = new float[FRAME_SIZE];
+        private final List<AnalysisWindow> windows;
         private final List<PitchFrame> frames = new ArrayList<>();
         private YinPitchDetector detector;
         private VoiceBandpassFilter filter;
+        private Biquad resampleLowPass;
         private long sampleCount;
+        private long sourceSampleCount;
+        private long previousSourceIndex;
+        private double nextOutputSourcePosition;
+        private double resampleStep;
+        private float previousSourceSample;
+        private boolean hasPreviousSourceSample;
+        private int windowIndex;
+        private int sourceSampleRate;
         private int sampleRate;
 
-        private PitchFrameCollector(int sampleRate) {
-            setSampleRate(sampleRate);
+        private PitchFrameCollector(int sourceSampleRate, List<AnalysisWindow> windows) {
+            this.windows = windows == null ? Collections.emptyList() : windows;
+            setSourceSampleRate(sourceSampleRate);
         }
 
-        private void setSampleRate(int sampleRate) {
-            int safe = Math.max(1, sampleRate);
-            if (this.sampleRate == safe && detector != null) return;
-            this.sampleRate = safe;
-            this.detector = new YinPitchDetector(safe, 0.12, 0.08, FRAME_SIZE);
-            this.filter = new VoiceBandpassFilter(safe);
+        private void setSourceSampleRate(int sourceSampleRate) {
+            int safeSource = Math.max(1, sourceSampleRate);
+            int safeTarget = Math.min(safeSource, ANALYSIS_TARGET_SAMPLE_RATE);
+            if (this.sourceSampleRate == safeSource && this.sampleRate == safeTarget && detector != null) return;
+            this.sourceSampleRate = safeSource;
+            this.sampleRate = safeTarget;
+            this.detector = new YinPitchDetector(safeTarget, 0.12, 0.08, FRAME_SIZE);
+            this.filter = new VoiceBandpassFilter(safeTarget);
+            this.resampleLowPass = safeSource > safeTarget ? Biquad.lowPass(ANALYSIS_LOW_PASS_HZ, safeSource) : null;
+            this.resampleStep = safeSource / (double) safeTarget;
         }
 
         private void add(float value) {
+            if (resampleLowPass != null) value = (float) resampleLowPass.process(value);
+            if (sampleRate >= sourceSampleRate) {
+                addResampled(value);
+                sourceSampleCount++;
+                return;
+            }
+            long sourceIndex = sourceSampleCount++;
+            if (!hasPreviousSourceSample) {
+                previousSourceSample = value;
+                previousSourceIndex = sourceIndex;
+                hasPreviousSourceSample = true;
+                addResampled(value);
+                nextOutputSourcePosition = resampleStep;
+                return;
+            }
+            while (nextOutputSourcePosition <= sourceIndex) {
+                double span = Math.max(1, sourceIndex - previousSourceIndex);
+                double fraction = Math.max(0, Math.min(1, (nextOutputSourcePosition - previousSourceIndex) / span));
+                addResampled((float) (previousSourceSample + (value - previousSourceSample) * fraction));
+                nextOutputSourcePosition += resampleStep;
+            }
+            previousSourceSample = value;
+            previousSourceIndex = sourceIndex;
+        }
+
+        private void addResampled(float value) {
             if (filter != null) value = filter.process(value);
             ring[(int) (sampleCount % FRAME_SIZE)] = value;
             sampleCount++;
             if (sampleCount < FRAME_SIZE) return;
             if ((sampleCount - FRAME_SIZE) % HOP_SIZE != 0) return;
-            copyFrame();
             long centerSample = sampleCount - FRAME_SIZE / 2L;
             long timeMs = Math.max(0, Math.round(centerSample * 1000.0 / sampleRate));
-            frames.add(new PitchFrame(detector.detect(frame, frame.length, timeMs)));
+            if (!isActive(timeMs)) return;
+            copyFrame();
+            double volume = rms(frame);
+            if (volume < SILENCE_PREFILTER_VOLUME) frames.add(new PitchFrame(new KaraokePitchSample(timeMs, 0, volume, 0)));
+            else frames.add(new PitchFrame(detector.detect(frame, frame.length, timeMs)));
         }
 
         private void copyFrame() {
             long start = sampleCount - FRAME_SIZE;
             for (int i = 0; i < FRAME_SIZE; i++) frame[i] = ring[(int) ((start + i) % FRAME_SIZE)];
+        }
+
+        private boolean isActive(long timeMs) {
+            if (windows.isEmpty()) return true;
+            while (windowIndex < windows.size() && timeMs > windows.get(windowIndex).endMs) windowIndex++;
+            return windowIndex < windows.size() && timeMs >= windows.get(windowIndex).startMs;
+        }
+
+        private double rms(float[] input) {
+            double sum = 0;
+            for (float sample : input) sum += sample * sample;
+            return Math.min(1, Math.sqrt(sum / Math.max(1, input.length)));
         }
 
         private List<PitchFrame> frames() {
