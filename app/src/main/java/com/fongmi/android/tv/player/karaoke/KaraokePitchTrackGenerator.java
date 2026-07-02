@@ -40,6 +40,7 @@ public class KaraokePitchTrackGenerator {
     private static final int FRAME_SIZE = 2048;
     private static final int HOP_SIZE = 1024;
     private static final int COARSE_HOP_SIZE = 2048;
+    private static final int DETECTOR_BATCH_SIZE = 8;
     private static final int ANALYSIS_TARGET_SAMPLE_RATE = 16_000;
     private static final long ANALYSIS_WINDOW_EXTRA_MS = 600;
     private static final long PRECISION_BOUNDARY_MS = 280;
@@ -995,6 +996,7 @@ public class KaraokePitchTrackGenerator {
         private final List<AnalysisWindow> windows;
         private final List<AnalysisWindow> precisionWindows;
         private final List<FrameJob> frameJobs = new ArrayList<>();
+        private final List<DetectionFrame> pendingDetectionFrames = new ArrayList<>(DETECTOR_BATCH_SIZE);
         private final ExecutorService detectorExecutor = Executors.newFixedThreadPool(detectorThreadCount());
         private final ThreadLocal<DetectorState> detectorState = ThreadLocal.withInitial(DetectorState::new);
         private VoiceBandpassFilter filter;
@@ -1024,6 +1026,7 @@ public class KaraokePitchTrackGenerator {
             int safeSource = Math.max(1, sourceSampleRate);
             int safeTarget = Math.min(safeSource, ANALYSIS_TARGET_SAMPLE_RATE);
             if (this.sourceSampleRate == safeSource && this.sampleRate == safeTarget && filter != null) return;
+            flushDetectionBatch();
             this.sourceSampleRate = safeSource;
             this.sampleRate = safeTarget;
             this.filter = new VoiceBandpassFilter(safeTarget);
@@ -1081,15 +1084,27 @@ public class KaraokePitchTrackGenerator {
                 skippedSilent++;
                 frameJobs.add(FrameJob.ready(new PitchFrame(new KaraokePitchSample(centerMs, 0, volume, 0))));
             } else {
-                float[] input = frame.clone();
-                int rate = sampleRate;
-                frameJobs.add(FrameJob.future(detectorExecutor.submit(() -> {
-                    YinPitchDetector detector = detectorState.get().detector(rate);
-                    KaraokePitchSample sample = detector.detect(input, input.length, centerMs, volume);
-                    if (sample.getConfidence() < MIN_CONFIDENCE) forceFineUntilMs = Math.max(forceFineUntilMs, centerMs + LOW_CONFIDENCE_FINE_MS);
-                    return new PitchFrame(sample);
-                })));
+                pendingDetectionFrames.add(new DetectionFrame(frame.clone(), centerMs, volume, sampleRate));
+                if (pendingDetectionFrames.size() >= DETECTOR_BATCH_SIZE) flushDetectionBatch();
             }
+        }
+
+        private void flushDetectionBatch() {
+            if (pendingDetectionFrames.isEmpty()) return;
+            List<DetectionFrame> batch = new ArrayList<>(pendingDetectionFrames);
+            pendingDetectionFrames.clear();
+            frameJobs.add(FrameJob.future(detectorExecutor.submit(() -> detectBatch(batch))));
+        }
+
+        private List<PitchFrame> detectBatch(List<DetectionFrame> batch) {
+            List<PitchFrame> output = new ArrayList<>(batch.size());
+            for (DetectionFrame item : batch) {
+                YinPitchDetector detector = detectorState.get().detector(item.sampleRate);
+                KaraokePitchSample sample = detector.detect(item.input, item.input.length, item.timeMs, item.volume);
+                if (sample.getConfidence() < MIN_CONFIDENCE) forceFineUntilMs = Math.max(forceFineUntilMs, item.timeMs + LOW_CONFIDENCE_FINE_MS);
+                output.add(new PitchFrame(sample));
+            }
+            return output;
         }
 
         private long timeMs(double sourceIndex) {
@@ -1097,6 +1112,7 @@ public class KaraokePitchTrackGenerator {
         }
 
         private void resetStreamState() {
+            flushDetectionBatch();
             sampleCount = 0;
             lastFrameSampleCount = -1;
             previousSourceIndex = 0;
@@ -1134,12 +1150,15 @@ public class KaraokePitchTrackGenerator {
         }
 
         private List<PitchFrame> frames() {
+            flushDetectionBatch();
             List<PitchFrame> result = new ArrayList<>(frameJobs.size());
             for (FrameJob job : frameJobs) {
-                PitchFrame frame = job.await();
-                if (frame == null) continue;
-                if (frame.volume >= SILENCE_PREFILTER_VOLUME && frame.confidence < MIN_CONFIDENCE) forceFineUntilMs = Math.max(forceFineUntilMs, frame.timeMs + LOW_CONFIDENCE_FINE_MS);
-                result.add(frame);
+                List<PitchFrame> frames = job.await();
+                if (frames == null || frames.isEmpty()) continue;
+                for (PitchFrame frame : frames) {
+                    if (frame.volume >= SILENCE_PREFILTER_VOLUME && frame.confidence < MIN_CONFIDENCE) forceFineUntilMs = Math.max(forceFineUntilMs, frame.timeMs + LOW_CONFIDENCE_FINE_MS);
+                    result.add(frame);
+                }
             }
             detectorExecutor.shutdownNow();
             result.sort(Comparator.comparingLong(frame -> frame.timeMs));
@@ -1169,24 +1188,24 @@ public class KaraokePitchTrackGenerator {
 
         private static class FrameJob {
 
-            private final PitchFrame frame;
-            private final Future<PitchFrame> future;
+            private final List<PitchFrame> frames;
+            private final Future<List<PitchFrame>> future;
 
-            private FrameJob(PitchFrame frame, Future<PitchFrame> future) {
-                this.frame = frame;
+            private FrameJob(List<PitchFrame> frames, Future<List<PitchFrame>> future) {
+                this.frames = frames;
                 this.future = future;
             }
 
             private static FrameJob ready(PitchFrame frame) {
-                return new FrameJob(frame, null);
+                return new FrameJob(Collections.singletonList(frame), null);
             }
 
-            private static FrameJob future(Future<PitchFrame> future) {
+            private static FrameJob future(Future<List<PitchFrame>> future) {
                 return new FrameJob(null, future);
             }
 
-            private PitchFrame await() {
-                if (frame != null) return frame;
+            private List<PitchFrame> await() {
+                if (frames != null) return frames;
                 if (future == null) return null;
                 try {
                     return future.get();
@@ -1196,6 +1215,21 @@ public class KaraokePitchTrackGenerator {
                 } catch (ExecutionException e) {
                     return null;
                 }
+            }
+        }
+
+        private static class DetectionFrame {
+
+            private final float[] input;
+            private final long timeMs;
+            private final double volume;
+            private final int sampleRate;
+
+            private DetectionFrame(float[] input, long timeMs, double volume, int sampleRate) {
+                this.input = input;
+                this.timeMs = timeMs;
+                this.volume = volume;
+                this.sampleRate = sampleRate;
             }
         }
 
