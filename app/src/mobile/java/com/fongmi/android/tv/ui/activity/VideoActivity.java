@@ -1838,7 +1838,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         addAudioMoreItem(items, actions, getString(R.string.player_audio_background), this::showAudioBackgroundPanel);
         if (service() != null && !player().isEmpty()) addAudioMoreItem(items, actions, getString(R.string.player_osd), this::onInfo);
         if (service() != null && player().haveTrack(C.TRACK_TYPE_AUDIO)) addAudioMoreItem(items, actions, getString(R.string.play_track_audio), () -> onTrack(C.TRACK_TYPE_AUDIO));
-        if (service() != null && (player().haveTrack(C.TRACK_TYPE_TEXT) || player().isVod())) addAudioMoreItem(items, actions, getString(R.string.play_track_text), () -> onTrack(C.TRACK_TYPE_TEXT));
         addAudioMoreItem(items, actions, getString(R.string.play_cast), this::onCast);
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
@@ -1869,7 +1868,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 this::randomizeAudioBackgroundMix,
         };
         root.addView(createAudioSheetTitle(getString(R.string.player_audio_background)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
-        root.addView(createKaraokeActionGrid(dialog, true, labels, actions, 2), karaokeActionGridParams(10));
+        root.addView(createKaraokeActionGrid(dialog, true, labels, actions, 2, false), karaokeActionGridParams(10));
         dialog.setContentView(root);
         showAudioSheet(dialog);
     }
@@ -2084,6 +2083,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, int columns) {
+        return createKaraokeActionGrid(dialog, compact, labels, actions, columns, true);
+    }
+
+    private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, int columns, boolean dismissOnClick) {
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
         int safeColumns = Math.max(1, columns);
@@ -2094,7 +2097,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             for (int j = 0; j < safeColumns; j++) {
                 int index = i + j;
                 if (index >= labels.length) break;
-                row.addView(createKaraokeActionButton(dialog, labels[index], actions[index], compact), fullRow ? karaokeActionButtonFullParams() : karaokeActionButtonParams(j > 0));
+                row.addView(createKaraokeActionButton(dialog, labels[index], actions[index], compact, dismissOnClick), fullRow ? karaokeActionButtonFullParams() : karaokeActionButtonParams(j > 0));
                 if (fullRow) break;
             }
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(compact ? 46 : 48));
@@ -2105,6 +2108,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private TextView createKaraokeActionButton(BottomSheetDialog dialog, String label, Runnable action, boolean compact) {
+        return createKaraokeActionButton(dialog, label, action, compact, true);
+    }
+
+    private TextView createKaraokeActionButton(BottomSheetDialog dialog, String label, Runnable action, boolean compact, boolean dismissOnClick) {
         TextView view = createAudioSheetText(label, compact ? 14 : 15, true);
         view.setGravity(Gravity.CENTER);
         view.setSingleLine(true);
@@ -2113,7 +2120,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         view.setTextColor(0xF2FFFFFF);
         view.setBackground(roundRect(0x14FFFFFF, 14, 1, 0x22FFFFFF));
         view.setOnClickListener(v -> {
-            dialog.dismiss();
+            if (dismissOnClick) dialog.dismiss();
             action.run();
         });
         return view;
