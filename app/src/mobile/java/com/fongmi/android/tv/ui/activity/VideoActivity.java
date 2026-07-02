@@ -1861,7 +1861,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         String[] labels = new String[]{
                 getString(PlayerSetting.isAudioBackgroundDecorated() ? R.string.player_audio_background_decorated_turn_off : R.string.player_audio_background_decorated_turn_on),
                 getString(PlayerSetting.isAudioBackgroundLightEffect() ? R.string.player_audio_background_light_effect_on : R.string.player_audio_background_light_effect_off),
-                getString(R.string.player_audio_background_default_preset),
                 getString(R.string.player_audio_background_random_plain),
                 getString(R.string.player_audio_background_random_decoration),
         };
@@ -1874,7 +1873,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                     toggleAudioBackgroundLightEffect();
                     updateAudioBackgroundPanel(gridRef[0]);
                 },
-                this::restoreAudioDefaultBackground,
                 () -> {
                     randomizeAudioPlainBackground();
                     updateAudioBackgroundPanel(gridRef[0]);
@@ -1909,12 +1907,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         PlayerSetting.putAudioBackgroundLightEffect(lightEffect);
         applyAudioBackground();
         Notify.show(getString(lightEffect ? R.string.player_audio_background_light_effect_on : R.string.player_audio_background_light_effect_off));
-    }
-
-    private void restoreAudioDefaultBackground() {
-        PlayerSetting.putAudioBackground(PlayerSetting.AUDIO_BACKGROUND_CYBER);
-        applyAudioBackground();
-        Notify.show(getString(R.string.player_audio_background_default_preset_done));
     }
 
     private void randomizeAudioPlainBackground() {

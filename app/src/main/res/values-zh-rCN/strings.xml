@@ -965,11 +965,9 @@
     <string name="player_audio_background_decorated_turn_off">关闭装饰</string>
     <string name="player_audio_background_light_effect_turn_on">光效</string>
     <string name="player_audio_background_light_effect_turn_off">光效</string>
-    <string name="player_audio_background_default_preset">默认背景</string>
     <string name="player_audio_background_random_plain">换背景</string>
     <string name="player_audio_background_random_decoration">换装饰</string>
     <string name="player_audio_background_random_mix">随机搭配</string>
-    <string name="player_audio_background_default_preset_done">已切换到默认背景</string>
     <string name="player_audio_background_random_plain_done">已随机生成纯背景</string>
     <string name="player_audio_background_random_decoration_done">已随机生成背景装饰</string>
     <string name="player_audio_background_random_mix_done">已随机生成背景搭配</string>

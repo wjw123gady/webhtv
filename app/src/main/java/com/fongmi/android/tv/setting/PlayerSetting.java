@@ -158,7 +158,7 @@ public class PlayerSetting {
     }
 
     public static int getAudioBackground() {
-        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_CYBER), AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_RANDOM);
+        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_RANDOM);
     }
 
     public static void putAudioBackground(int background) {
