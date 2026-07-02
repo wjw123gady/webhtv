@@ -193,6 +193,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private String mDetailLyrics;
     private String mInlineLyrics;
     private final Map<String, String> mAudioQueueFlags = new HashMap<>();
+    private final Map<String, String> mAudioQueueTitles = new HashMap<>();
+    private final Map<String, String> mAudioQueueArtists = new HashMap<>();
     private Map<String, View> mActionButtons;
     private SiteViewModel mViewModel;
     private FlagAdapter mFlagAdapter;
@@ -517,6 +519,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mFrameParams = mBinding.video.getLayoutParams();
         mFrameHeight = mFrameParams.height;
         mBinding.swipeLayout.setEnabled(false);
+        setupAudioStageOverlay();
         mObserveDetail = this::setDetail;
         mObservePlayer = this::setPlayer;
         mObserveSearch = this::setSearch;
@@ -566,6 +569,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             mBinding.progressLayout.showProgress();
         }
         showProgress();
+    }
+
+    private void setupAudioStageOverlay() {
+        ViewGroup parent = (ViewGroup) mBinding.audioStage.getParent();
+        if (parent != null) parent.removeView(mBinding.audioStage);
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
+        params.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        ((ViewGroup) mBinding.getRoot()).addView(mBinding.audioStage, params);
+        mBinding.audioStage.bringToFront();
     }
 
     @Override
@@ -1000,6 +1013,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (shouldEnterFullscreen(item)) return;
         mFlagAdapter.toggle(item);
         setEpisodeAdapter(getFlag().getEpisodes());
+        applyAudioQueueMetadata(item);
         if (isFullscreen()) Notify.show(getString(R.string.play_ready, item.getName()));
         onRefresh();
     }
@@ -1538,7 +1552,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 Episode episode = Episode.create(audioQueueEpisodeName(vod, item, source), item.getUrl());
                 if (containsAudioQueueEpisode(queue.getEpisodes(), episode)) continue;
                 queue.getEpisodes().add(episode);
-                mAudioQueueFlags.put(audioQueueEpisodeKey(episode), source.getFlag());
+                putAudioQueueMetadata(episode, vod, item, source);
                 added++;
             }
         }
@@ -1590,6 +1604,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (item == null) return;
         if (mAudioQueueDialog != null) mAudioQueueDialog.dismiss();
         onItemClick(item);
+    }
+
+    private void putAudioQueueMetadata(Episode episode, Vod vod, Episode sourceEpisode, Flag source) {
+        String key = audioQueueEpisodeKey(episode);
+        mAudioQueueFlags.put(key, source.getFlag());
+        mAudioQueueTitles.put(key, vod.getName());
+        String artist = getArtistFromEpisode(vod.getName(), sourceEpisode.getName());
+        if (!TextUtils.isEmpty(artist)) mAudioQueueArtists.put(key, artist);
+    }
+
+    private void applyAudioQueueMetadata(Episode item) {
+        if (!isAudioQueueEpisode(item)) {
+            updateAudioStageText();
+            return;
+        }
+        updateAudioStageText();
     }
 
     private void setAudioQueueStatus(String text) {
@@ -2758,6 +2788,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }
         mAudioStageVisible = visible;
         mBinding.audioStage.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible) mBinding.audioStage.bringToFront();
         mBinding.lyrics.setSuppressed(visible);
         mBinding.audioLyrics.setSuppressed(!visible);
         syncKaraokeStageVisibility();
@@ -2867,6 +2898,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private String getAudioStageTitle() {
+        Episode episode = getEpisode();
+        String queuedTitle = mAudioQueueTitles.get(audioQueueEpisodeKey(episode));
+        if (!TextUtils.isEmpty(queuedTitle)) return queuedTitle;
+        if (isAudioQueueEpisode(episode) && !TextUtils.isEmpty(episode.getDisplayName())) return episode.getDisplayName();
         if (mHistory != null && !TextUtils.isEmpty(mHistory.getVodName())) return mHistory.getVodName();
         if (!TextUtils.isEmpty(getName())) return getName();
         CharSequence text = mBinding.name.getText();
@@ -2874,7 +2909,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private String getAudioStageArtist(String title) {
-        String episode = getEpisode() == null ? "" : getEpisode().getName();
+        Episode item = getEpisode();
+        String queuedArtist = mAudioQueueArtists.get(audioQueueEpisodeKey(item));
+        if (!TextUtils.isEmpty(queuedArtist)) return queuedArtist;
+        String episode = item == null ? "" : item.getName();
         String artist = getArtistFromEpisode(title, cleanAudioEpisodeForArtist(episode));
         return TextUtils.equals(artist, title) ? "" : artist;
     }
@@ -3186,8 +3224,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private boolean showInlineLyrics() {
         if (TextUtils.isEmpty(mInlineLyrics) || !LyricsController.hasTimedLyrics(mInlineLyrics)) return false;
-        String title = mHistory == null ? getName() : mHistory.getVodName();
-        String artist = getLyricsArtist(title);
+        String title = getAudioStageTitle();
+        String artist = getAudioStageArtist(title);
         String signature = getHistoryKey() + "|" + getEpisode().getName();
         return mLyrics.setInlineLyrics(signature, title, artist, mInlineLyrics, player().getDuration(), player().getPosition());
     }
@@ -3429,9 +3467,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private MediaMetadata buildMetadata() {
-        String title = mHistory.getVodName();
-        String episode = getEpisode().getName();
-        String artist = getArtistFromEpisode(title, episode);
+        String title = getAudioStageTitle();
+        String artist = getAudioStageArtist(title);
         return PlayerManager.buildMetadata(title, artist, mHistory.getVodPic());
     }
 

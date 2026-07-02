@@ -84,7 +84,7 @@ public class KaraokeStatusView extends LinearLayout {
         detail.setVisibility(GONE);
         timeline.setLevel(getVolumeLevel(status, sample));
         timeline.setState(track, snapshot);
-        timeline.setVisibility(showTimeline(status, track, snapshot) ? VISIBLE : GONE);
+        timeline.setVisibility(showMeter(status, track, snapshot) ? VISIBLE : GONE);
     }
 
     private String getTitle(KaraokeStatus status, KaraokeTrack track, KaraokeScoreSnapshot snapshot) {
@@ -139,6 +139,10 @@ public class KaraokeStatusView extends LinearLayout {
                 && track != null
                 && track.hasScoredNotes()
                 && snapshot != null;
+    }
+
+    private boolean showMeter(KaraokeStatus status, KaraokeTrack track, KaraokeScoreSnapshot snapshot) {
+        return showVolume(status) || showTimeline(status, track, snapshot);
     }
 
     private float getVolumeLevel(KaraokeStatus status, KaraokePitchSample sample) {
@@ -251,17 +255,20 @@ public class KaraokeStatusView extends LinearLayout {
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
-            if (track == null || snapshot == null || track.isEmpty()) return;
             float left = dp(2);
             float right = getWidth() - dp(2);
             float top = dp(3);
             float bottom = getHeight() - dp(3);
+            drawBackground(canvas, left, right, top, bottom);
+            drawVolumeBackground(canvas, left, right, top, bottom);
+            if (track == null || snapshot == null || track.isEmpty()) {
+                if (playing) postInvalidateOnAnimation();
+                return;
+            }
             long position = drawPosition();
             long start = Math.max(0, position - WINDOW_BEFORE_MS);
             long end = position + WINDOW_AFTER_MS;
             boolean pitchTrack = track.hasPitchRequiredNotes();
-            drawBackground(canvas, left, right, top, bottom);
-            drawVolumeBackground(canvas, left, right, top, bottom);
             drawNotes(canvas, left, right, top, bottom, start, end);
             if (pitchTrack) drawHistory(canvas, left, right, top, bottom, start, end);
             drawCursor(canvas, left, right, top, bottom);
@@ -284,6 +291,7 @@ public class KaraokeStatusView extends LinearLayout {
         private void drawNotes(Canvas canvas, float left, float right, float top, float bottom, long start, long end) {
             List<KaraokeNote> notes = track.getNotes();
             long position = drawPosition();
+            float cursorX = cursorX(left, right);
             drawTargetGuide(canvas, notes, left, right, top, bottom, start, end);
             NoteSegment segment = null;
             for (KaraokeNote note : notes) {
@@ -292,14 +300,14 @@ public class KaraokeStatusView extends LinearLayout {
                 float x2 = xOf(note.getEndMs(), start, end, left, right);
                 float y = yOf(note.isPitchRequired() ? note.getPitch() : pitchScale.center(), top, bottom);
                 NoteSegment next = new NoteSegment(note, Math.max(left, x1), Math.min(right, Math.max(x2, x1 + dp(2))), y);
-                if (segment != null && segment.canMerge(next, position)) {
+                if (segment != null && segment.canMerge(next)) {
                     segment.merge(next);
                 } else {
-                    if (segment != null) drawSegment(canvas, segment, position);
+                    if (segment != null) drawSegment(canvas, segment, position, cursorX);
                     segment = next;
                 }
             }
-            if (segment != null) drawSegment(canvas, segment, position);
+            if (segment != null) drawSegment(canvas, segment, position, cursorX);
         }
 
         private void drawTargetGuide(Canvas canvas, List<KaraokeNote> notes, float left, float right, float top, float bottom, long start, long end) {
@@ -349,7 +357,7 @@ public class KaraokeStatusView extends LinearLayout {
             }
         }
 
-        private void drawSegment(Canvas canvas, NoteSegment segment, long position) {
+        private void drawSegment(Canvas canvas, NoteSegment segment, long position, float cursorX) {
             boolean current = segment.contains(position);
             boolean scoredCurrent = segment.contains(snapshot.getTargetNote());
             float h = segment.pitchRequired ? dp(isWideLayout() ? 5 : 4) : dp(isWideLayout() ? 7 : 6);
@@ -360,7 +368,7 @@ public class KaraokeStatusView extends LinearLayout {
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(segmentColor(segment, position));
             canvas.drawRoundRect(rect, radius, radius, paint);
-            if (current) drawProgressFill(canvas, segment, position, h, scoredCurrent);
+            if (current) drawProgressFill(canvas, segment, position, h, scoredCurrent, cursorX);
             if (current) drawCurrentStroke(canvas, segment.x1, segment.x2, segment.y, h, scoredCurrent);
         }
 
@@ -380,7 +388,7 @@ public class KaraokeStatusView extends LinearLayout {
             float inset = dp(3);
             rect.set(x1 - inset, y - h / 2f - inset, x2 + inset, y + h / 2f + inset);
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(activeColor(scoredCurrent, 0x2634D399, 0x26FBBF24, 0x20FFFFFF));
+            paint.setColor(activeColor(scoredCurrent, 0x24FFFFFF, 0x26F97364, 0x20FFFFFF));
             canvas.drawRoundRect(rect, h, h, paint);
         }
 
@@ -389,17 +397,18 @@ public class KaraokeStatusView extends LinearLayout {
             rect.set(x1 - inset, y - h / 2f - inset, x2 + inset, y + h / 2f + inset);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(1.2f));
-            paint.setColor(activeColor(scoredCurrent, 0xFF7EE7D6, 0xFFFBBF24, 0xD9FFFFFF));
+            paint.setColor(0xCCFFFFFF);
             canvas.drawRoundRect(rect, h, h, paint);
             paint.setStyle(Paint.Style.FILL);
         }
 
-        private void drawProgressFill(Canvas canvas, NoteSegment segment, long position, float h, boolean scoredCurrent) {
+        private void drawProgressFill(Canvas canvas, NoteSegment segment, long position, float h, boolean scoredCurrent, float cursorX) {
             if (segment.endMs <= segment.startMs) return;
             float progress = (position - segment.startMs) / (float) (segment.endMs - segment.startMs);
             progress = Math.max(0f, Math.min(1f, progress));
             float progressX = segment.x1 + (segment.x2 - segment.x1) * progress;
             progressX = Math.min(segment.x2, Math.max(segment.x1 + dp(1.8f), progressX));
+            progressX = Math.min(progressX, cursorX);
             rect.set(segment.x1, segment.y - h / 2f, progressX, segment.y + h / 2f);
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(activeColor(scoredCurrent, 0xFFFFC766, 0xFFF97364, 0xFFFFC766));
@@ -429,16 +438,20 @@ public class KaraokeStatusView extends LinearLayout {
             paint.setStrokeWidth(dp(2.2f));
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeJoin(Paint.Join.ROUND);
-            paint.setColor(0xEE7EE7D6);
+            paint.setColor(0xCCFFC766);
             canvas.drawPath(path, paint);
             paint.setStyle(Paint.Style.FILL);
         }
 
         private void drawCursor(Canvas canvas, float left, float right, float top, float bottom) {
-            float x = left + (right - left) * WINDOW_BEFORE_MS / (float) (WINDOW_BEFORE_MS + WINDOW_AFTER_MS);
+            float x = cursorX(left, right);
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(0x99FFFFFF);
             canvas.drawRect(x - dp(0.7f), top, x + dp(0.7f), bottom, paint);
+        }
+
+        private float cursorX(float left, float right) {
+            return left + (right - left) * WINDOW_BEFORE_MS / (float) (WINDOW_BEFORE_MS + WINDOW_AFTER_MS);
         }
 
         private void drawSungMarker(Canvas canvas, float left, float right, float top, float bottom) {
@@ -448,7 +461,7 @@ public class KaraokeStatusView extends LinearLayout {
             float x = left + (right - left) * WINDOW_BEFORE_MS / (float) (WINDOW_BEFORE_MS + WINDOW_AFTER_MS);
             float y = yOf((float) midi, top, bottom);
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(snapshot.isHit() ? 0xFF7EE7D6 : 0xFFFBBF24);
+            paint.setColor(snapshot.isHit() ? 0xFFFFC766 : 0xFFF97364);
             canvas.drawCircle(x, y, dp(3.6f), paint);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(1));
@@ -465,7 +478,7 @@ public class KaraokeStatusView extends LinearLayout {
             float phase = (now % 700) / 700f;
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(1.1f));
-            paint.setColor(snapshot.isPerfect() ? 0xBFFBBF24 : 0x9934D399);
+            paint.setColor(snapshot.isPerfect() ? 0xBFFBBF24 : 0x80FFFFFF);
             canvas.drawCircle(x, y, dp(5.5f + phase * 5.5f), paint);
             if (snapshot.isPerfect() || snapshot.hasVibrato()) drawSparkles(canvas, x, y, now, snapshot.hasVibrato());
             paint.setStyle(Paint.Style.FILL);
@@ -480,7 +493,7 @@ public class KaraokeStatusView extends LinearLayout {
                 float radius = dp(vibrato ? 14 : 12) + dp(3) * (float) Math.sin(phase * Math.PI * 2 + i);
                 float sx = x + (float) Math.cos(angle) * radius;
                 float sy = y + (float) Math.sin(angle) * radius * 0.56f;
-                paint.setColor(vibrato && i % 2 == 0 ? 0xCC2DD4BF : 0xDDFBBF24);
+                paint.setColor(vibrato && i % 2 == 0 ? 0xCCFFFFFF : 0xDDFBBF24);
                 canvas.drawCircle(sx, sy, dp(i % 3 == 0 ? 1.8f : 1.25f), paint);
             }
         }
@@ -582,9 +595,9 @@ public class KaraokeStatusView extends LinearLayout {
         }
 
         private int volumeColor(float value) {
-            if (value > 0.82f) return 0x5534D399;
-            if (value > 0.45f) return 0x442DD4BF;
-            return 0x3838BDF8;
+            if (value > 0.82f) return 0x35FFFFFF;
+            if (value > 0.45f) return 0x2AFFFFFF;
+            return 0x2238BDF8;
         }
 
         private int activeColor(boolean scoredCurrent, int hit, int miss, int pending) {
@@ -620,21 +633,10 @@ public class KaraokeStatusView extends LinearLayout {
                 this.y = y;
             }
 
-            private boolean canMerge(NoteSegment next, long position) {
+            private boolean canMerge(NoteSegment next) {
                 if (next == null || pitchRequired != next.pitchRequired) return false;
                 if (pitchRequired && Math.abs(pitch - next.pitch) > 1) return false;
-                if (!samePlaybackSide(next, position)) return false;
                 return next.startMs - endMs <= MAX_JOIN_GAP_MS;
-            }
-
-            private boolean samePlaybackSide(NoteSegment next, long position) {
-                return playbackSide(startMs, endMs, position) == playbackSide(next.startMs, next.endMs, position);
-            }
-
-            private int playbackSide(long start, long end, long position) {
-                if (end < position) return -1;
-                if (start > position) return 1;
-                return 0;
             }
 
             private void merge(NoteSegment next) {
