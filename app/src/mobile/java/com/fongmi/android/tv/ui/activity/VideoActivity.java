@@ -1826,7 +1826,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
         root.addView(createAudioSheetTitle(getString(R.string.player_audio_more)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
-        for (int i = 0; i < items.size(); i++) root.addView(createAudioMoreItem(dialog, items.get(i), actions.get(i)), audioMoreItemParams(i == 0));
+        root.addView(createKaraokeActionGrid(dialog, true, items.toArray(new String[0]), actions.toArray(new Runnable[0]), 3), karaokeActionGridParams(10));
         dialog.setContentView(root);
         showAudioSheet(dialog);
     }
@@ -1943,8 +1943,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (service() == null) return;
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
-        root.addView(createAudioSheetTitle(getString(R.string.player_karaoke_mode)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
-        root.addView(createKaraokeModeSwitch(dialog), audioSheetTopParams(10, 62));
+        root.addView(createKaraokeModeHeader(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(48)));
         root.addView(createAudioSheetSection(getString(R.string.player_karaoke_track)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(40)));
         root.addView(createKaraokeActionGrid(dialog, false,
                 new String[]{
@@ -2060,13 +2059,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
     }
 
-    private View createKaraokeModeSwitch(BottomSheetDialog dialog) {
+    private View createKaraokeModeHeader() {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(ResUtil.dp2px(14), 0, ResUtil.dp2px(14), 0);
+        row.setPadding(0, 0, 0, 0);
         boolean enabled = PlayerSetting.isKaraokeMode();
-        row.setBackground(roundRect(0x12FFFFFF, 16, 1, 0x24FFFFFF));
 
         LinearLayout text = new LinearLayout(this);
         text.setOrientation(LinearLayout.VERTICAL);
@@ -2087,7 +2085,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             status.setTextColor(next ? 0xFFFFC766 : 0x8CFFFFFF);
             updateKaraokeModeToggle(toggle, next);
         });
-        row.addView(toggle, new LinearLayout.LayoutParams(ResUtil.dp2px(54), ResUtil.dp2px(30)));
+        row.addView(toggle, new LinearLayout.LayoutParams(ResUtil.dp2px(50), ResUtil.dp2px(28)));
         return row;
     }
 
@@ -2099,10 +2097,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void updateKaraokeModeToggle(FrameLayout toggle, boolean enabled) {
         toggle.removeAllViews();
-        toggle.setBackground(roundRect(enabled ? 0xFFFFC766 : 0x18FFFFFF, 15, 1, enabled ? 0 : 0x2EFFFFFF));
+        toggle.setBackground(roundRect(enabled ? 0xFFFFC766 : 0x18FFFFFF, 14, 1, enabled ? 0 : 0x2EFFFFFF));
         View knob = new View(this);
-        knob.setBackground(roundRect(enabled ? 0xFF1B1620 : 0xFFE6E8EE, 12, 0, 0));
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ResUtil.dp2px(24), ResUtil.dp2px(24), enabled ? Gravity.RIGHT | Gravity.CENTER_VERTICAL : Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        knob.setBackground(roundRect(enabled ? 0xFF1B1620 : 0xFFE6E8EE, 11, 0, 0));
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ResUtil.dp2px(22), ResUtil.dp2px(22), enabled ? Gravity.RIGHT | Gravity.CENTER_VERTICAL : Gravity.LEFT | Gravity.CENTER_VERTICAL);
         params.leftMargin = ResUtil.dp2px(3);
         params.rightMargin = ResUtil.dp2px(3);
         toggle.addView(knob, params);
