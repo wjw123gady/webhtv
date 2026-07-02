@@ -519,8 +519,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.control.action.episodes.setOnClickListener(view -> onEpisodes());
         mBinding.control.action.scale.setOnClickListener(view -> onScale());
         mBinding.control.action.lut.setOnClickListener(view -> onLut());
-        mBinding.control.action.karaoke.setOnClickListener(view -> onKaraokeMode());
-        mBinding.control.action.karaoke.setOnLongClickListener(view -> onKaraokeTrackPanel());
+        mBinding.control.action.karaoke.setOnClickListener(view -> onKaraokeTrackPanel());
         mBinding.control.action.speed.setOnClickListener(view -> onSpeed());
         mBinding.control.action.reset.setOnClickListener(view -> onReset());
         mBinding.control.action.title.setOnClickListener(view -> onTitle());
@@ -1193,7 +1192,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void onKaraokeMode() {
         boolean enable = !PlayerSetting.isKaraokeMode();
-        if (!enable) showKaraokeResultIfNeeded();
         PlayerSetting.putKaraokeMode(enable);
         mBinding.control.action.karaoke.setSelected(PlayerSetting.isKaraokeMode());
         if (PlayerSetting.isKaraokeMode()) {
@@ -1207,6 +1205,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private boolean onKaraokeTrackPanel() {
         if (service() == null) return true;
         ArrayList<String> items = new ArrayList<>();
+        items.add(getString(PlayerSetting.isKaraokeMode() ? R.string.player_karaoke_mode_disable : R.string.player_karaoke_mode_enable));
         items.add(getString(R.string.player_karaoke_track_generate_pitch));
         items.add(getString(R.string.player_karaoke_track_generate));
         items.add(getString(R.string.player_karaoke_track_clear));
@@ -1215,9 +1214,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 .setTitle(R.string.player_karaoke_track)
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setItems(items.toArray(new String[0]), (dialog, which) -> {
-                    if (which == 0) generateKaraokePitchTrack();
-                    else if (which == 1) generateKaraokeTrack();
-                    else if (which == 2) clearKaraokeTrackBinding();
+                    if (which == 0) onKaraokeMode();
+                    else if (which == 1) generateKaraokePitchTrack();
+                    else if (which == 2) generateKaraokeTrack();
+                    else if (which == 3) clearKaraokeTrackBinding();
                     else showKaraokeTrackAdvancedPanel();
                 })
                 .show();

@@ -816,6 +816,10 @@
     <string name="player_lyrics_size">Lyric size</string>
     <string name="player_lyrics_source">Lyric source</string>
     <string name="player_karaoke_mode">Karaoke mode</string>
+    <string name="player_karaoke_mode_enabled">Enabled</string>
+    <string name="player_karaoke_mode_disabled">Disabled</string>
+    <string name="player_karaoke_mode_enable">Enable</string>
+    <string name="player_karaoke_mode_disable">Disable</string>
     <string name="player_karaoke_difficulty">Karaoke difficulty</string>
     <string name="player_karaoke_mic_delay">Mic delay</string>
     <string name="player_karaoke_status_free">Karaoke · Free sing</string>

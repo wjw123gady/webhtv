@@ -133,7 +133,7 @@ public class KaraokeTrackRepository {
             String text = KaraokePitchTrackGenerator.build(input, lines, progress);
             deleteGeneratedBoundIfAny(signature);
             delete(generatedFile(signature));
-            return importText(generatedPitchFile(signature), "Generated experimental pitch scoring track", text);
+            return importText(generatedPitchFile(signature), "Generated pitch scoring track", text);
         } catch (Exception e) {
             return ImportResult.fail(e.getMessage());
         }
@@ -459,7 +459,7 @@ public class KaraokeTrackRepository {
         try {
             if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_SIDECAR_BYTES) return;
             String text = readText(file);
-            if (text.contains("Generated rhythm scoring track") || text.contains("Generated experimental pitch scoring track")) delete(file);
+            if (text.contains("Generated rhythm scoring track") || text.contains("Generated pitch scoring track") || text.contains("Generated experimental pitch scoring track")) delete(file);
         } catch (Exception ignored) {
         }
     }

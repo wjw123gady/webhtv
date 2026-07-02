@@ -623,7 +623,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.action.scale.setOnClickListener(view -> onScale());
         mBinding.control.action.lut.setOnClickListener(view -> onLut());
         mBinding.control.action.karaoke.setOnClickListener(view -> onKaraokeMode());
-        mBinding.control.action.karaoke.setOnLongClickListener(view -> onKaraokeTrackLongClick());
         mBinding.control.action.speed.setOnClickListener(view -> onSpeed());
         mBinding.control.action.reset.setOnClickListener(view -> onReset());
         mBinding.control.action.title.setOnClickListener(view -> onTitle());
@@ -647,7 +646,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.audioKeepAction.setOnClickListener(view -> onKeep());
         mBinding.audioSettingAction.setOnClickListener(view -> onSetting());
         mBinding.audioKaraokeAction.setOnClickListener(view -> onKaraokeMode());
-        mBinding.audioKaraokeAction.setOnLongClickListener(view -> onKaraokeTrackLongClick());
         mBinding.audioMoreAction.setOnClickListener(view -> onAudioMore());
         mBinding.audioTrackAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_AUDIO));
         mBinding.audioSubtitleAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_TEXT));
@@ -1926,8 +1924,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void onKaraokeMode() {
-        boolean enable = !PlayerSetting.isKaraokeMode();
-        if (!enable) showKaraokeResultIfNeeded();
+        showKaraokeModePanel();
+    }
+
+    private void setKaraokeMode(boolean enable) {
+        if (PlayerSetting.isKaraokeMode() == enable) return;
         PlayerSetting.putKaraokeMode(enable);
         onKaraokeModeChanged();
         showControl();
@@ -1935,49 +1936,61 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     public void onKaraokeTrackPanel() {
-        showKaraokeTrackPanel();
+        showKaraokeModePanel();
     }
 
-    private boolean onKaraokeTrackLongClick() {
-        showKaraokeTrackPanel();
-        return true;
-    }
-
-    private void showKaraokeTrackPanel() {
+    private void showKaraokeModePanel() {
         if (service() == null) return;
-        ArrayList<String> items = new ArrayList<>();
-        items.add(getString(R.string.player_karaoke_track_generate_pitch));
-        items.add(getString(R.string.player_karaoke_track_generate));
-        items.add(getString(R.string.player_karaoke_track_clear));
-        items.add(getString(R.string.player_karaoke_track_advanced));
-        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
-                .setTitle(R.string.player_karaoke_track)
-                .setNegativeButton(R.string.dialog_negative, null)
-                .setItems(items.toArray(new String[0]), (dialog, which) -> {
-                    if (which == 0) generateKaraokePitchTrack();
-                    else if (which == 1) generateKaraokeTrack();
-                    else if (which == 2) clearKaraokeTrackBinding();
-                    else showKaraokeTrackAdvancedPanel();
-                })
-                .show();
+        BottomSheetDialog dialog = createAudioSheet();
+        LinearLayout root = createAudioSheetRoot();
+        root.addView(createAudioSheetTitle(getString(R.string.player_karaoke_mode)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
+        root.addView(createKaraokeModeSwitch(dialog), audioSheetTopParams(8, 58));
+        root.addView(createAudioSheetSection(getString(R.string.player_karaoke_track)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(42)));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_generate_pitch), this::generateKaraokePitchTrack), audioMoreItemParams(true));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_generate), this::generateKaraokeTrack), audioMoreItemParams(false));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_clear), this::clearKaraokeTrackBinding), audioMoreItemParams(false));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_advanced), this::showKaraokeTrackAdvancedPanel), audioMoreItemParams(false));
+        dialog.setContentView(root);
+        showAudioSheet(dialog);
     }
 
     private void showKaraokeTrackAdvancedPanel() {
-        ArrayList<String> items = new ArrayList<>();
-        items.add(getString(R.string.player_karaoke_track_search));
-        items.add(getString(R.string.player_karaoke_track_import_file));
-        items.add(getString(R.string.player_karaoke_track_import_url));
-        items.add(getString(R.string.player_karaoke_track_sources));
-        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
-                .setTitle(R.string.player_karaoke_track_advanced)
-                .setNegativeButton(R.string.dialog_negative, null)
-                .setItems(items.toArray(new String[0]), (dialog, which) -> {
-                    if (which == 0) showKaraokeTrackSearchDialog();
-                    else if (which == 1) chooseKaraokeTrackFile();
-                    else if (which == 2) showKaraokeTrackUrlDialog();
-                    else showKaraokeTrackSourcesDialog();
-                })
-                .show();
+        BottomSheetDialog dialog = createAudioSheet();
+        LinearLayout root = createAudioSheetRoot();
+        root.addView(createAudioSheetTitle(getString(R.string.player_karaoke_track_advanced)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_search), this::showKaraokeTrackSearchDialog), audioMoreItemParams(true));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_import_file), this::chooseKaraokeTrackFile), audioMoreItemParams(false));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_import_url), this::showKaraokeTrackUrlDialog), audioMoreItemParams(false));
+        root.addView(createAudioMoreItem(dialog, getString(R.string.player_karaoke_track_sources), this::showKaraokeTrackSourcesDialog), audioMoreItemParams(false));
+        dialog.setContentView(root);
+        showAudioSheet(dialog);
+    }
+
+    private View createKaraokeModeSwitch(BottomSheetDialog dialog) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(ResUtil.dp2px(12), 0, ResUtil.dp2px(12), 0);
+        boolean enabled = PlayerSetting.isKaraokeMode();
+        row.setBackground(audioSheetItemBackground(enabled));
+
+        LinearLayout text = new LinearLayout(this);
+        text.setOrientation(LinearLayout.VERTICAL);
+        text.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = createAudioSheetText(getString(R.string.player_karaoke_mode), 15, true);
+        TextView status = createAudioSheetText(getString(enabled ? R.string.player_karaoke_mode_enabled : R.string.player_karaoke_mode_disabled), 12, false);
+        status.setTextColor(0xA6FFFFFF);
+        text.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        text.addView(status, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
+
+        TextView action = createAudioSheetButton(getString(enabled ? R.string.player_karaoke_mode_disable : R.string.player_karaoke_mode_enable), !enabled, () -> {
+            setKaraokeMode(!PlayerSetting.isKaraokeMode());
+            dialog.dismiss();
+        });
+        row.setOnClickListener(v -> action.performClick());
+        row.addView(action, new LinearLayout.LayoutParams(ResUtil.dp2px(84), ResUtil.dp2px(40)));
+        return row;
     }
 
     private void chooseKaraokeTrackFile() {
@@ -3381,8 +3394,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private int lyricsResultSheetHeight(int count) {
-        int rows = Math.max(1, Math.min(6, count));
-        return ResUtil.dp2px(rows * 54);
+        int rows = Math.max(1, Math.min(5, count));
+        return ResUtil.dp2px(rows * 72 + 8);
     }
 
     private void showAudioSheet(BottomSheetDialog dialog) {
@@ -3408,14 +3421,34 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         int selected = getLyricsSelectedIndex();
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
-            TextView item = createAudioSheetItem(labels[i], () -> {
+            TextView item = createLyricsResultItem(labels[i], i == selected, () -> {
                 if (index >= 0 && index < mLyricsSearchResults.size()) applyLyrics(mLyricsSearchResults.get(index));
             });
-            item.setTextSize(15);
-            item.setTextColor(i == selected ? 0xFFFFC766 : Color.WHITE);
-            item.setBackground(audioSheetItemBackground(i == selected));
-            mLyricsResultList.addView(item, audioSheetTopParams(i == 0 ? 6 : 0, 50));
+            mLyricsResultList.addView(item, lyricsResultItemParams(i == 0));
         }
+    }
+
+    private TextView createLyricsResultItem(String label, boolean selected, Runnable action) {
+        TextView item = createAudioSheetText(label, 15, false);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(ResUtil.dp2px(14), 0, ResUtil.dp2px(14), 0);
+        item.setSingleLine(false);
+        item.setMaxLines(2);
+        item.setLineSpacing(ResUtil.dp2px(2), 1.0f);
+        item.setTextColor(selected ? 0xFFFFC766 : Color.WHITE);
+        item.setBackground(lyricsResultItemBackground(selected));
+        item.setOnClickListener(v -> action.run());
+        return item;
+    }
+
+    private LinearLayout.LayoutParams lyricsResultItemParams(boolean first) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(64));
+        params.topMargin = ResUtil.dp2px(first ? 8 : 6);
+        return params;
+    }
+
+    private GradientDrawable lyricsResultItemBackground(boolean selected) {
+        return roundRect(selected ? 0x26FFC766 : 0x12FFFFFF, 14, 1, selected ? 0x99FFC766 : 0x22FFFFFF);
     }
 
     private void applyLyrics(LyricsResult result) {

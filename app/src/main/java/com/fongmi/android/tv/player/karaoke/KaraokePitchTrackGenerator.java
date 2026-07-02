@@ -114,7 +114,7 @@ public class KaraokePitchTrackGenerator {
         builder.append("#ARTIST:").append(tag(artist, "Unknown")).append('\n');
         builder.append("#BPM:").append(BPM).append('\n');
         builder.append("#GAP:0").append('\n');
-        builder.append("#COMMENT:Generated experimental pitch scoring track from local audio; octave corrected and smoothed").append('\n');
+        builder.append("#COMMENT:Generated pitch scoring track from local audio; octave corrected and smoothed").append('\n');
         List<Note> notes = notes(segments, frames);
         reporter.update(82, STAGE_ANALYZE);
         stabilize(notes);
