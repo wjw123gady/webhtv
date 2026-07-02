@@ -1207,7 +1207,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         ArrayList<String> items = new ArrayList<>();
         items.add(getString(PlayerSetting.isKaraokeMode() ? R.string.player_karaoke_mode_disable : R.string.player_karaoke_mode_enable));
         items.add(getString(R.string.player_karaoke_track_generate_pitch));
-        items.add(getString(R.string.player_karaoke_track_generate));
         items.add(getString(R.string.player_karaoke_track_clear));
         items.add(getString(R.string.player_karaoke_track_advanced));
         new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
@@ -1216,8 +1215,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 .setItems(items.toArray(new String[0]), (dialog, which) -> {
                     if (which == 0) onKaraokeMode();
                     else if (which == 1) generateKaraokePitchTrack();
-                    else if (which == 2) generateKaraokeTrack();
-                    else if (which == 3) clearKaraokeTrackBinding();
+                    else if (which == 2) clearKaraokeTrackBinding();
                     else showKaraokeTrackAdvancedPanel();
                 })
                 .show();

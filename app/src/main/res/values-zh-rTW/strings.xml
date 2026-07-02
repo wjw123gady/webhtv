@@ -798,10 +798,10 @@
     <string name="player_lyrics_size">歌詞字號</string>
     <string name="player_lyrics_source">歌詞來源</string>
     <string name="player_karaoke_mode">K歌模式</string>
-    <string name="player_karaoke_mode_enabled">已開啟</string>
-    <string name="player_karaoke_mode_disabled">已關閉</string>
-    <string name="player_karaoke_mode_enable">開啟</string>
-    <string name="player_karaoke_mode_disable">關閉</string>
+    <string name="player_karaoke_mode_enabled">目前已開啟</string>
+    <string name="player_karaoke_mode_disabled">目前已關閉</string>
+    <string name="player_karaoke_mode_enable">開啟K歌</string>
+    <string name="player_karaoke_mode_disable">關閉K歌</string>
     <string name="player_karaoke_difficulty">K歌難度</string>
     <string name="player_karaoke_mic_delay">麥克風延遲</string>
     <string name="player_karaoke_status_free">K歌 · 自由唱</string>
@@ -835,6 +835,7 @@
     <string name="player_karaoke_track_import_url">導入評分譜連結</string>
     <string name="player_karaoke_track_sources">自訂 GitHub 譜源</string>
     <string name="player_karaoke_track_advanced">進階選項</string>
+    <string name="player_karaoke_track_back">返回</string>
     <string name="player_karaoke_track_sources_hint">每行一個倉庫：owner/repo@branch 或 https://github.com/owner/repo/tree/branch</string>
     <string name="player_karaoke_track_sources_saved">評分譜源已儲存</string>
     <string name="player_karaoke_track_url_hint">UltraStar .txt 連結、USDB ID、USDB 詳情頁，或追加 @Cookie=...</string>
