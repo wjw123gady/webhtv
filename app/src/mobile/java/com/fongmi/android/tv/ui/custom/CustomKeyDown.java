@@ -102,8 +102,11 @@ public class CustomKeyDown extends GestureDetector.SimpleOnGestureListener imple
     }
 
     private boolean isSide(MotionEvent e) {
-        int four = ResUtil.getScreenWidth(activity) / 4;
-        return !(e.getX() > four) || !(e.getX() < four * 3);
+        // 使用 getRawX 获取屏幕绝对坐标，避免横屏时 View 坐标系统问题
+        int width = ResUtil.getScreenWidth(activity);
+        int four = width / 4;
+        float x = e.getRawX();
+        return !(x > four) || !(x < four * 3);
     }
 
     private void reset() {
@@ -184,8 +187,10 @@ public class CustomKeyDown extends GestureDetector.SimpleOnGestureListener imple
     }
 
     private void checkSide(MotionEvent e2) {
-        int half = ResUtil.getScreenWidth(activity) / 2;
-        if (e2.getX() > half) changeVolume = true;
+        // 使用 getRawX 获取屏幕绝对坐标，确保横屏时正确判断左右区域
+        int width = ResUtil.getScreenWidth(activity);
+        float x = e2.getRawX();
+        if (x > width / 2f) changeVolume = true;
         else changeBright = true;
     }
 
