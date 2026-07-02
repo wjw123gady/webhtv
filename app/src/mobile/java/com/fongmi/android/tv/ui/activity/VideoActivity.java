@@ -1211,12 +1211,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         root.addView(createAudioSheetTitle(getString(R.string.player_lyrics_reload)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(34)));
 
         TextInputLayout layout = new TextInputLayout(this);
-        layout.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
-        layout.setBoxBackgroundColor(0x18FFFFFF);
-        layout.setBoxStrokeColor(0x998EA7FF);
-        layout.setDefaultHintTextColor(ColorStateList.valueOf(0xB8FFFFFF));
-        layout.setHintTextColor(ColorStateList.valueOf(0xD9FFFFFF));
-        layout.setHint(getString(R.string.player_lyrics_keyword));
+        styleAudioSheetInput(layout, getString(R.string.player_lyrics_keyword));
         TextInputEditText input = new TextInputEditText(layout.getContext());
         input.setSingleLine(true);
         input.setMaxLines(1);
@@ -1405,12 +1400,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         root.addView(createAudioSheetTitle(getString(R.string.player_audio_playlist)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32)));
 
         TextInputLayout layout = new TextInputLayout(this);
-        layout.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
-        layout.setBoxBackgroundColor(0x18FFFFFF);
-        layout.setBoxStrokeColor(0x998EA7FF);
-        layout.setDefaultHintTextColor(ColorStateList.valueOf(0xB8FFFFFF));
-        layout.setHintTextColor(ColorStateList.valueOf(0xD9FFFFFF));
-        layout.setHint(getString(R.string.player_audio_playlist_search_hint));
+        styleAudioSheetInput(layout, getString(R.string.player_audio_playlist_search_hint));
         TextInputEditText input = new TextInputEditText(layout.getContext());
         input.setSingleLine(true);
         input.setMaxLines(1);
@@ -1606,7 +1596,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 removeAudioQueueEpisode(item);
                 return true;
             });
-            view.setTextColor(i == selected ? 0xFF7EE7D6 : Color.WHITE);
+            view.setTextColor(i == selected ? 0xFFFFC766 : Color.WHITE);
             view.setBackground(audioSheetItemBackground(i == selected));
             mAudioQueueList.addView(view, audioSheetTopParams(i == 0 ? 4 : 0, 48));
         }
@@ -3120,10 +3110,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mLyricsResultList.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(mLyricsResultList, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, lyricsResultSheetHeight(labels.length)));
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.END);
-        actions.addView(createAudioSheetButton(getString(R.string.dialog_cancel), false, dialog::dismiss), audioSheetButtonParams(false));
-        root.addView(actions, audioSheetTopParams(8, 44));
         dialog.setContentView(root);
         dialog.setOnDismissListener(d -> {
             if (mLyricsResultDialog == dialog) {
@@ -3172,7 +3158,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private TextView createAudioSheetItem(String label, Runnable action) {
         TextView view = createAudioSheetText(label, 15, false);
         view.setGravity(Gravity.CENTER_VERTICAL);
-        view.setPadding(ResUtil.dp2px(6), 0, ResUtil.dp2px(6), 0);
+        view.setPadding(ResUtil.dp2px(12), 0, ResUtil.dp2px(12), 0);
         view.setBackground(audioSheetItemBackground(false));
         view.setSingleLine(false);
         view.setMaxLines(2);
@@ -3184,8 +3170,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         TextView view = createAudioSheetText(label, 15, true);
         view.setGravity(Gravity.CENTER);
         view.setSingleLine(true);
-        view.setTextColor(primary ? 0xFF06100F : Color.WHITE);
-        view.setBackground(roundRect(primary ? 0xFF7EE7D6 : 0x18FFFFFF, 22, primary ? 0 : 1, primary ? 0 : 0x30FFFFFF));
+        view.setTextColor(primary ? 0xFF20160A : Color.WHITE);
+        view.setBackground(roundRect(primary ? 0xFFFFC766 : 0x16FFFFFF, 22, primary ? 0 : 1, primary ? 0 : 0x32FFFFFF));
         view.setOnClickListener(v -> action.run());
         return view;
     }
@@ -3197,7 +3183,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private GradientDrawable audioSheetItemBackground(boolean selected) {
-        return roundRect(selected ? 0x227EE7D6 : 0x00000000, 12, selected ? 1 : 0, selected ? 0x667EE7D6 : 0);
+        return roundRect(selected ? 0x22FFC766 : 0x00000000, 14, selected ? 1 : 0, selected ? 0x66FFC766 : 0);
+    }
+
+    private void styleAudioSheetInput(TextInputLayout layout, String hint) {
+        layout.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
+        layout.setBoxBackgroundColor(0x14FFFFFF);
+        layout.setBoxStrokeColor(0x99FFC766);
+        layout.setDefaultHintTextColor(ColorStateList.valueOf(0xA6FFFFFF));
+        layout.setHintTextColor(ColorStateList.valueOf(0xD9FFFFFF));
+        layout.setHint(hint);
     }
 
     private GradientDrawable roundRect(int color, int radiusDp, int strokeDp, int strokeColor) {
@@ -3241,7 +3236,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 if (index >= 0 && index < mLyricsSearchResults.size()) applyLyrics(mLyricsSearchResults.get(index));
             });
             item.setTextSize(15);
-            item.setTextColor(i == selected ? 0xFF7EE7D6 : Color.WHITE);
+            item.setTextColor(i == selected ? 0xFFFFC766 : Color.WHITE);
             item.setBackground(audioSheetItemBackground(i == selected));
             mLyricsResultList.addView(item, audioSheetTopParams(i == 0 ? 6 : 0, 50));
         }
