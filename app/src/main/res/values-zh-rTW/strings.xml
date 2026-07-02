@@ -938,8 +938,14 @@
     <string name="player_audio_more">更多</string>
     <string name="player_audio_background">背景</string>
     <string name="player_audio_background_value">背景：%1$s</string>
-    <string name="player_audio_background_decorated_on">背景裝飾：開</string>
-    <string name="player_audio_background_decorated_off">背景裝飾：關</string>
+    <string name="player_audio_background_decorated_on">裝飾：已開啟</string>
+    <string name="player_audio_background_decorated_off">裝飾：已關閉</string>
+    <string name="player_audio_background_random_plain">隨機純背景</string>
+    <string name="player_audio_background_random_decoration">隨機背景裝飾</string>
+    <string name="player_audio_background_random_mix">隨機搭配</string>
+    <string name="player_audio_background_random_plain_done">已隨機生成純背景</string>
+    <string name="player_audio_background_random_decoration_done">已隨機生成背景裝飾</string>
+    <string name="player_audio_background_random_mix_done">已隨機生成背景搭配</string>
     <string name="player_lyrics_unknown">未知</string>
     <string name="player_lyrics_result_item">%1$s · %2$s · %3$d\n%4$s - %5$s</string>
     <string name="player_lyrics_rows_value">%1$d 行</string>

@@ -24,6 +24,7 @@ public class PlayerSetting {
     public static final int AUDIO_BACKGROUND_FOREST = 9;
     public static final int AUDIO_BACKGROUND_LEMON = 10;
     public static final int AUDIO_BACKGROUND_DUSK = 11;
+    public static final int AUDIO_BACKGROUND_RANDOM = 12;
     private static final int DEFAULT_PLAY_CACHE_OPTION = 0;
 
     public static int getPlayer() {
@@ -157,11 +158,27 @@ public class PlayerSetting {
     }
 
     public static int getAudioBackground() {
-        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_DUSK);
+        return Math.min(Math.max(Prefers.getInt("audio_background", AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_RANDOM);
     }
 
     public static void putAudioBackground(int background) {
-        Prefers.put("audio_background", Math.min(Math.max(background, AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_DUSK));
+        Prefers.put("audio_background", Math.min(Math.max(background, AUDIO_BACKGROUND_ARTWORK), AUDIO_BACKGROUND_RANDOM));
+    }
+
+    public static int getAudioBackgroundSeed() {
+        return Prefers.getInt("audio_background_seed", 0x5A17B3);
+    }
+
+    public static void putAudioBackgroundSeed(int seed) {
+        Prefers.put("audio_background_seed", seed);
+    }
+
+    public static int getAudioBackgroundDecorationSeed() {
+        return Prefers.getInt("audio_background_decoration_seed", getAudioBackgroundSeed());
+    }
+
+    public static void putAudioBackgroundDecorationSeed(int seed) {
+        Prefers.put("audio_background_decoration_seed", seed);
     }
 
     public static boolean isAudioBackgroundDecorated() {

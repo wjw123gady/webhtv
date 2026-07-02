@@ -25,6 +25,8 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     private final int style;
     private final int artworkColor;
     private final boolean decorated;
+    private final int backgroundSeed;
+    private final int decorationSeed;
     private int alpha;
 
     public AudioPlayerBackgroundDrawable(int style, int artworkColor) {
@@ -32,11 +34,21 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     }
 
     public AudioPlayerBackgroundDrawable(int style, int artworkColor, boolean decorated) {
+        this(style, artworkColor, decorated, 0);
+    }
+
+    public AudioPlayerBackgroundDrawable(int style, int artworkColor, boolean decorated, int seed) {
+        this(style, artworkColor, decorated, seed, seed);
+    }
+
+    public AudioPlayerBackgroundDrawable(int style, int artworkColor, boolean decorated, int backgroundSeed, int decorationSeed) {
         this.paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         this.path = new Path();
         this.style = style;
         this.artworkColor = artworkColor;
         this.decorated = decorated;
+        this.backgroundSeed = backgroundSeed;
+        this.decorationSeed = decorationSeed;
         this.alpha = 255;
     }
 
@@ -60,6 +72,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             case PlayerSetting.AUDIO_BACKGROUND_FOREST -> drawForest(canvas, w, h);
             case PlayerSetting.AUDIO_BACKGROUND_LEMON -> drawLemon(canvas, w, h);
             case PlayerSetting.AUDIO_BACKGROUND_DUSK -> drawDusk(canvas, w, h);
+            case PlayerSetting.AUDIO_BACKGROUND_RANDOM -> drawRandom(canvas, w, h);
             default -> drawArtwork(canvas, w, h);
         }
         drawReadability(canvas, w, h);
@@ -162,6 +175,69 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         fillRadial(canvas, w * 0.68f, h * 0.22f, Math.min(w, h) * 0.22f, 0xAAFFE5A3, Color.TRANSPARENT);
         drawMountain(canvas, w, h, 0.62f, 0x77301954);
         drawMountain(canvas, w, h, 0.74f, 0x884A1841);
+    }
+
+    private void drawRandom(Canvas canvas, int w, int h) {
+        int bg = backgroundSeed == 0 ? 0x5A17B3 : backgroundSeed;
+        int deco = decorationSeed == 0 ? bg : decorationSeed;
+        int start = randomColor(bg, 0, 0.48f, 0.95f);
+        int center = randomColor(bg, 1, 0.42f, 0.98f);
+        int end = randomColor(bg, 2, 0.38f, 0.9f);
+        boolean reverse = (bg & 1) == 0;
+        fillLinear(canvas, w, h, start, center, end, reverse);
+        if (!decorated) return;
+        int motif = Math.floorMod(mixSeed(deco), 12);
+        switch (motif) {
+            case 0 -> {
+                drawRibbon(canvas, w, h, -0.08f, 0.24f, withAlpha(end, 150), withAlpha(end, 32));
+                drawRibbon(canvas, w, h, 0.34f, 0.58f, withAlpha(center, 120), withAlpha(center, 24));
+                drawGrid(canvas, w, h, 0x2CFFFFFF, Math.max(18, w / 18));
+            }
+            case 1 -> {
+                drawVinyl(canvas, w * 0.28f, h * 0.28f, Math.min(w, h) * 0.5f, 0x44FFFFFF, withAlpha(center, 132));
+                drawRibbon(canvas, w, h, 0.5f, 0.76f, withAlpha(end, 130), withAlpha(end, 22));
+            }
+            case 2 -> {
+                fillRadial(canvas, w * 0.72f, h * 0.24f, Math.min(w, h) * 0.26f, 0xCCFFF3A3, Color.TRANSPARENT);
+                drawHorizon(canvas, w, h, withAlpha(rotate(start, 180f, 0.8f, 0.42f), 125), 0.66f, 0.1f);
+            }
+            case 3 -> {
+                drawWave(canvas, w, h, h * 0.36f, h * 0.1f, 0x70FFFFFF, withAlpha(center, 26));
+                drawWave(canvas, w, h, h * 0.6f, h * 0.14f, withAlpha(end, 108), withAlpha(end, 24));
+            }
+            case 4 -> drawCandyStripes(canvas, w, h);
+            case 5 -> {
+                fillRadial(canvas, w * 0.22f, h * 0.18f, Math.min(w, h) * 0.24f, 0xCFFFF6B8, Color.TRANSPARENT);
+                drawCloudBand(canvas, w, h, 0.34f, 0x70FFFFFF);
+            }
+            case 6 -> {
+                drawWave(canvas, w, h, h * 0.34f, h * 0.16f, 0x76FFFFFF, 0x18FFFFFF);
+                drawFineLines(canvas, w, h, 0x2AFFFFFF, true);
+            }
+            case 7 -> {
+                drawGrid(canvas, w, h, 0x58FFFFFF, Math.max(20, w / 15));
+                drawRibbon(canvas, w, h, 0.12f, 0.38f, withAlpha(rotate(start, 210f, 1f, 0.45f), 118), 0x22000000);
+            }
+            case 8 -> {
+                fillRadial(canvas, w * 0.2f, h * 0.16f, Math.min(w, h) * 0.24f, 0xBCFFF0A0, Color.TRANSPARENT);
+                drawLeaf(canvas, w, h, 0.68f, 0.2f, withAlpha(center, 105));
+                drawLeaf(canvas, w, h, 0.82f, 0.48f, withAlpha(start, 90));
+                drawHorizon(canvas, w, h, withAlpha(rotate(center, 170f, 0.85f, 0.42f), 120), 0.72f, 0.09f);
+            }
+            case 9 -> {
+                drawCitrus(canvas, w * 0.76f, h * 0.22f, Math.min(w, h) * 0.25f);
+                drawWave(canvas, w, h, h * 0.76f, h * 0.1f, withAlpha(end, 90), 0x11FFFFFF);
+            }
+            case 10 -> {
+                fillRadial(canvas, w * 0.68f, h * 0.22f, Math.min(w, h) * 0.22f, 0xAAFFE5A3, Color.TRANSPARENT);
+                drawMountain(canvas, w, h, 0.62f, withAlpha(rotate(start, 150f, 0.9f, 0.42f), 120));
+                drawMountain(canvas, w, h, 0.74f, withAlpha(rotate(center, 180f, 0.9f, 0.38f), 135));
+            }
+            default -> {
+                fillRadial(canvas, w * 0.18f, h * 0.18f, Math.max(w, h) * 0.55f, 0x66FFFFFF, Color.TRANSPARENT);
+                fillRadial(canvas, w * 0.82f, h * 0.62f, Math.max(w, h) * 0.42f, withAlpha(end, 72), Color.TRANSPARENT);
+            }
+        }
     }
 
     private void fillLinear(Canvas canvas, int w, int h, int start, int center, int end, boolean reverse) {
@@ -341,6 +417,23 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         hsv[1] = clamp(hsv[1] * satMul, 0.38f, 0.9f);
         hsv[2] = clamp(hsv[2] * valMul, 0.55f, 1f);
         return Color.HSVToColor(hsv);
+    }
+
+    private int randomColor(int seed, int slot, float satMin, float valMin) {
+        int mixed = mixSeed(seed + slot * 0x9E3779B9);
+        float hue = Math.floorMod(mixed, 360);
+        float sat = satMin + (((mixed >>> 9) & 0xFF) / 255f) * (0.92f - satMin);
+        float val = valMin + (((mixed >>> 17) & 0xFF) / 255f) * (1f - valMin);
+        return Color.HSVToColor(new float[]{hue, clamp(sat, 0f, 1f), clamp(val, 0f, 1f)});
+    }
+
+    private int mixSeed(int value) {
+        value ^= value >>> 16;
+        value *= 0x7FEB352D;
+        value ^= value >>> 15;
+        value *= 0x846CA68B;
+        value ^= value >>> 16;
+        return value;
     }
 
     private float clamp(float value, float min, float max) {
