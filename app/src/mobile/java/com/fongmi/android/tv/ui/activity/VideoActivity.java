@@ -1860,7 +1860,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         LinearLayout[] gridRef = new LinearLayout[1];
         String[] labels = new String[]{
                 getString(PlayerSetting.isAudioBackgroundDecorated() ? R.string.player_audio_background_decorated_turn_off : R.string.player_audio_background_decorated_turn_on),
-                getString(PlayerSetting.isAudioBackgroundLightEffect() ? R.string.player_audio_background_light_effect_turn_off : R.string.player_audio_background_light_effect_turn_on),
+                getString(PlayerSetting.isAudioBackgroundLightEffect() ? R.string.player_audio_background_light_effect_on : R.string.player_audio_background_light_effect_off),
                 getString(R.string.player_audio_background_random_plain),
                 getString(R.string.player_audio_background_random_decoration),
         };
@@ -1892,7 +1892,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void updateAudioBackgroundPanel(LinearLayout grid) {
         if (grid == null || grid.getChildCount() == 0 || !(grid.getChildAt(0) instanceof ViewGroup row)) return;
         if (row.getChildCount() > 0 && row.getChildAt(0) instanceof TextView button) button.setText(getString(PlayerSetting.isAudioBackgroundDecorated() ? R.string.player_audio_background_decorated_turn_off : R.string.player_audio_background_decorated_turn_on));
-        if (row.getChildCount() > 1 && row.getChildAt(1) instanceof TextView button) button.setText(getString(PlayerSetting.isAudioBackgroundLightEffect() ? R.string.player_audio_background_light_effect_turn_off : R.string.player_audio_background_light_effect_turn_on));
+        if (row.getChildCount() > 1 && row.getChildAt(1) instanceof TextView button) button.setText(getString(PlayerSetting.isAudioBackgroundLightEffect() ? R.string.player_audio_background_light_effect_on : R.string.player_audio_background_light_effect_off));
     }
 
     private void toggleAudioBackgroundDecorated() {

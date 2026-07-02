@@ -190,7 +190,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAudioBackgroundLightEffect() {
-        return Prefers.getBoolean("audio_background_light_effect", true);
+        return Prefers.getBoolean("audio_background_light_effect", false);
     }
 
     public static void putAudioBackgroundLightEffect(boolean lightEffect) {
