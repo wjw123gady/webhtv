@@ -54,14 +54,15 @@
                 android:visibility="gone"
                 tools:visibility="visible">
 
-                <androidx.appcompat.widget.AppCompatImageView
+                <com.google.android.material.imageview.ShapeableImageView
                     android:id="@+id/audioCover"
                     android:layout_width="188dp"
                     android:layout_height="188dp"
-                    android:background="@drawable/shape_audio_cover"
-                    android:padding="1dp"
                     android:scaleType="centerCrop"
-                    android:src="@drawable/artwork" />
+                    android:src="@drawable/artwork"
+                    app:shapeAppearanceOverlay="@style/ShapeAppearance.WebHTV.AudioCover"
+                    app:strokeColor="@color/white_20"
+                    app:strokeWidth="1dp" />
 
                 <androidx.appcompat.widget.LinearLayoutCompat
                     android:layout_width="0dp"
@@ -99,7 +100,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:visibility="gone">
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/audioBadgeFormat"
@@ -209,8 +211,31 @@
                             android:id="@+id/audioQueueAction"
                             style="@style/VideoActionButton"
                             android:layout_marginEnd="4dp"
-                            android:text="@string/play_episodes"
+                            android:text="@string/player_audio_queue"
                             app:drawableTopCompat="@drawable/ic_action_more_vert" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioKaraokeAction"
+                            style="@style/VideoActionButton"
+                            android:layout_marginEnd="4dp"
+                            android:text="@string/player_karaoke_mode"
+                            app:drawableTopCompat="@drawable/ic_action_audio" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioMoreAction"
+                            style="@style/VideoActionButton"
+                            android:text="@string/player_audio_more"
+                            app:drawableTopCompat="@drawable/ic_action_more_vert" />
+
+                    </androidx.appcompat.widget.LinearLayoutCompat>
+
+                    <androidx.appcompat.widget.LinearLayoutCompat
+                        android:id="@+id/audioToolRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/audioCastAction"
@@ -229,24 +254,9 @@
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/audioSettingAction"
                             style="@style/VideoActionButton"
+                            android:layout_marginEnd="4dp"
                             android:text="@string/nav_setting"
                             app:drawableTopCompat="@drawable/ic_control_setting_shadow" />
-
-                    </androidx.appcompat.widget.LinearLayoutCompat>
-
-                    <androidx.appcompat.widget.LinearLayoutCompat
-                        android:id="@+id/audioToolRow"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:id="@+id/audioKaraokeAction"
-                            style="@style/VideoActionButton"
-                            android:layout_marginEnd="4dp"
-                            android:text="@string/player_karaoke_mode"
-                            app:drawableTopCompat="@drawable/ic_action_audio" />
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/audioTrackAction"

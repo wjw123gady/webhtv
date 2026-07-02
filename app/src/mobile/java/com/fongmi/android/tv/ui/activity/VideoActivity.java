@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.activity;
 
 import android.annotation.SuppressLint;
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -19,6 +20,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.LinearInterpolator;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -170,6 +172,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private AlertDialog mKaraokePitchDialog;
     private ProgressBar mKaraokePitchProgress;
     private TextView mKaraokePitchMessage;
+    private ObjectAnimator mAudioCoverAnimator;
     private android.widget.ArrayAdapter<String> mLyricsResultAdapter;
     private List<LyricsResult> mLyricsSearchResults;
     private String mLyricsSearchKeyword;
@@ -578,12 +581,13 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.audioNext.setOnClickListener(view -> checkNext());
         mBinding.audioPrev.setOnClickListener(view -> checkPrev());
         mBinding.audioLyricsAction.setOnClickListener(view -> onLyricsSearch());
-        mBinding.audioQueueAction.setOnClickListener(view -> onEpisodes());
+        mBinding.audioQueueAction.setOnClickListener(view -> onAudioQueue());
         mBinding.audioCastAction.setOnClickListener(view -> onCast());
         mBinding.audioKeepAction.setOnClickListener(view -> onKeep());
         mBinding.audioSettingAction.setOnClickListener(view -> onSetting());
         mBinding.audioKaraokeAction.setOnClickListener(view -> onKaraokeMode());
         mBinding.audioKaraokeAction.setOnLongClickListener(view -> onKaraokeTrackLongClick());
+        mBinding.audioMoreAction.setOnClickListener(view -> onAudioMore());
         mBinding.audioTrackAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_AUDIO));
         mBinding.audioSubtitleAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_TEXT));
         mBinding.audioInfoAction.setOnClickListener(view -> onInfo());
@@ -830,6 +834,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setText(mBinding.remark, 0, item.getRemarks());
         setOther(mBinding.other, item);
         updateAudioStageText();
+        if (mAudioStageVisible) applyAudioPageMode(true);
     }
 
     private void setText(TextView view, int resId, String text) {
@@ -985,6 +990,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.episodeGroup.setVisibility(groups.size() > 1 ? View.VISIBLE : View.GONE);
         setEpisodeItems(items);
         mBinding.episode.post(this::updateEpisodeViewportHeight);
+        if (mAudioStageVisible) applyAudioPageMode(true);
+        updateAudioStageControls();
     }
 
     private void setEpisodeItems(List<Episode> items) {
@@ -1087,8 +1094,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void setQualityVisible(boolean visible) {
-        mBinding.qualityText.setVisibility(visible ? View.VISIBLE : View.GONE);
-        mBinding.quality.setVisibility(visible ? View.VISIBLE : View.GONE);
+        mBinding.qualityText.setVisibility(visible && !mAudioStageVisible ? View.VISIBLE : View.GONE);
+        mBinding.quality.setVisibility(visible && !mAudioStageVisible ? View.VISIBLE : View.GONE);
     }
 
     private void reverseEpisode(boolean scroll) {
@@ -1231,8 +1238,39 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return items.get(position);
     }
 
+    private boolean hasAdjacentEpisode(int offset) {
+        List<Episode> items = mFlagAdapter == null || mFlagAdapter.isEmpty() ? mEpisodeAdapter.getItems() : getFlag().getEpisodes();
+        if (items.isEmpty()) return false;
+        int position = getSelectedEpisodePosition(items) + offset;
+        return position >= 0 && position < items.size();
+    }
+
     private void onSetting() {
         ControlDialog.create().parent(mBinding).history(mHistory).parse(isUseParse()).player(player()).show(this);
+    }
+
+    private void onAudioQueue() {
+        if (getEpisodeCount() <= 0) return;
+        onEpisodes();
+    }
+
+    private void onAudioMore() {
+        ArrayList<String> items = new ArrayList<>();
+        ArrayList<Runnable> actions = new ArrayList<>();
+        addAudioMoreItem(items, actions, getString(R.string.keep), this::onKeep);
+        addAudioMoreItem(items, actions, getString(R.string.nav_setting), this::onSetting);
+        if (service() != null && !player().isEmpty()) addAudioMoreItem(items, actions, getString(R.string.player_osd), this::onInfo);
+        if (service() != null && player().haveTrack(C.TRACK_TYPE_AUDIO)) addAudioMoreItem(items, actions, getString(R.string.play_track_audio), () -> onTrack(C.TRACK_TYPE_AUDIO));
+        if (service() != null && (player().haveTrack(C.TRACK_TYPE_TEXT) || player().isVod())) addAudioMoreItem(items, actions, getString(R.string.play_track_text), () -> onTrack(C.TRACK_TYPE_TEXT));
+        addAudioMoreItem(items, actions, getString(R.string.play_cast), this::onCast);
+        new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog)
+                .setItems(items.toArray(new String[0]), (dialog, which) -> actions.get(which).run())
+                .show();
+    }
+
+    private void addAudioMoreItem(List<String> items, List<Runnable> actions, String label, Runnable action) {
+        items.add(label);
+        actions.add(action);
     }
 
     private void onLock() {
@@ -2351,6 +2389,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.audioLyrics.setSuppressed(!visible);
         syncKaraokeStageVisibility();
         applyAudioStageLayout(visible);
+        applyAudioPageMode(visible);
         updateAudioStageText();
         updateAudioStageControls();
     }
@@ -2376,6 +2415,28 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.video.setLayoutParams(mFrameParams);
     }
 
+    private void applyAudioPageMode(boolean visible) {
+        mBinding.videoShadow.setVisibility(visible ? View.GONE : View.VISIBLE);
+        mBinding.name.setVisibility(visible ? View.GONE : View.VISIBLE);
+        mBinding.remark.setVisibility(visible ? View.GONE : View.VISIBLE);
+        mBinding.site.setVisibility(visible ? View.GONE : mBinding.site.getText().length() == 0 ? View.GONE : View.VISIBLE);
+        mBinding.other.setVisibility(visible ? View.GONE : mBinding.other.getText().length() == 0 ? View.GONE : View.VISIBLE);
+        mBinding.director.setVisibility(visible ? View.GONE : mBinding.director.getText().length() == 0 ? View.GONE : View.VISIBLE);
+        mBinding.actor.setVisibility(visible ? View.GONE : mBinding.actor.getText().length() == 0 ? View.GONE : View.VISIBLE);
+        mBinding.contentLayout.setVisibility(visible ? View.GONE : mBinding.content.getText().length() == 0 ? View.GONE : View.VISIBLE);
+        mBinding.actionRow.setVisibility(visible ? View.GONE : View.VISIBLE);
+        mBinding.flag.setVisibility(visible || mFlagAdapter == null || mFlagAdapter.isEmpty() ? View.GONE : View.VISIBLE);
+        boolean qualityVisible = mQualityAdapter != null && mQualityAdapter.getItemCount() > 1;
+        boolean episodeGroupVisible = mEpisodeGroupAdapter != null && mEpisodeGroupAdapter.getItemCount() > 1;
+        boolean episodeVisible = mEpisodeAdapter != null && mEpisodeAdapter.getItemCount() > 0;
+        boolean quickVisible = mQuickAdapter != null && mQuickAdapter.getItemCount() > 0;
+        mBinding.qualityText.setVisibility(visible || !qualityVisible ? View.GONE : View.VISIBLE);
+        mBinding.quality.setVisibility(visible || !qualityVisible ? View.GONE : View.VISIBLE);
+        mBinding.episodeGroup.setVisibility(visible || !episodeGroupVisible ? View.GONE : View.VISIBLE);
+        mBinding.episode.setVisibility(visible || !episodeVisible ? View.GONE : View.VISIBLE);
+        mBinding.quick.setVisibility(visible || !quickVisible ? View.GONE : View.VISIBLE);
+    }
+
     private void updateAudioStageText() {
         if (mBinding == null) return;
         String title = getAudioStageTitle();
@@ -2390,18 +2451,39 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void updateAudioStageControls() {
         if (mBinding == null) return;
-        int episodeVisibility = getEpisodeCount() > 1 ? View.VISIBLE : View.GONE;
-        mBinding.audioPrev.setVisibility(episodeVisibility);
-        mBinding.audioNext.setVisibility(episodeVisibility);
-        mBinding.audioQueueAction.setVisibility(episodeVisibility);
-        boolean hasAudioTrack = service() != null && player().haveTrack(C.TRACK_TYPE_AUDIO);
-        boolean hasTextTrack = service() != null && (player().haveTrack(C.TRACK_TYPE_TEXT) || player().isVod());
-        mBinding.audioTrackAction.setVisibility(hasAudioTrack ? View.VISIBLE : View.GONE);
-        mBinding.audioSubtitleAction.setVisibility(hasTextTrack ? View.VISIBLE : View.GONE);
-        mBinding.audioInfoAction.setVisibility(service() == null || player().isEmpty() ? View.GONE : View.VISIBLE);
+        if (mAudioStageVisible) applyAudioPageMode(true);
+        boolean hasPrev = hasAdjacentEpisode(-1);
+        boolean hasNext = hasAdjacentEpisode(1);
+        mBinding.audioPrev.setEnabled(hasPrev);
+        mBinding.audioPrev.setAlpha(hasPrev ? 1f : 0.35f);
+        mBinding.audioNext.setEnabled(hasNext);
+        mBinding.audioNext.setAlpha(hasNext ? 1f : 0.35f);
+        mBinding.audioQueueAction.setVisibility(View.VISIBLE);
         mBinding.audioKaraokeAction.setSelected(PlayerSetting.isKaraokeMode());
         mBinding.audioKeepAction.setSelected(Keep.find(getHistoryKey()) != null);
         checkAudioPlayImg(service() != null && player().isPlaying());
+        syncAudioCoverRotation();
+    }
+
+    private void syncAudioCoverRotation() {
+        if (!mAudioStageVisible || service() == null || !player().isPlaying()) {
+            stopAudioCoverRotation();
+            return;
+        }
+        if (mAudioCoverAnimator == null) {
+            mAudioCoverAnimator = ObjectAnimator.ofFloat(mBinding.audioCover, View.ROTATION, mBinding.audioCover.getRotation(), mBinding.audioCover.getRotation() + 360f);
+            mAudioCoverAnimator.setDuration(20000);
+            mAudioCoverAnimator.setInterpolator(new LinearInterpolator());
+            mAudioCoverAnimator.setRepeatCount(ObjectAnimator.INFINITE);
+            mAudioCoverAnimator.setRepeatMode(ObjectAnimator.RESTART);
+        }
+        if (!mAudioCoverAnimator.isStarted()) mAudioCoverAnimator.start();
+    }
+
+    private void stopAudioCoverRotation() {
+        if (mAudioCoverAnimator == null) return;
+        mAudioCoverAnimator.cancel();
+        mAudioCoverAnimator = null;
     }
 
     private String getAudioStageTitle() {
@@ -2741,6 +2823,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void checkAudioPlayImg(boolean isPlaying) {
         mBinding.audioPlay.setImageResource(isPlaying ? androidx.media3.ui.R.drawable.exo_icon_pause : androidx.media3.ui.R.drawable.exo_icon_play);
+        syncAudioCoverRotation();
     }
 
     @Override
@@ -3311,6 +3394,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     protected void onDestroy() {
         mLyricsSearchSeq++;
         dismissLyricsResultDialog();
+        stopAudioCoverRotation();
         if (mLyrics != null) mLyrics.release();
         if (mKaraoke != null) mKaraoke.release();
         mClock.release();

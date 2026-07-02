@@ -185,7 +185,8 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
         LinearLayoutCompat.LayoutParams params = new LinearLayoutCompat.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.setMarginEnd(ResUtil.dp2px(8));
         button.setLayoutParams(params);
-        button.setText(group);
+        button.setText(displayGroupName(group));
+        button.setTag(group);
         button.setSingleLine(true);
         button.setAllCaps(false);
         button.setMinWidth(0);
@@ -213,10 +214,16 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     private void updateGroupView() {
         for (int i = 0; i < binding.groupList.getChildCount(); i++) {
             View view = binding.groupList.getChildAt(i);
-            boolean selected = ((MaterialButton) view).getText().toString().equals(selectedGroup);
+            boolean selected = TextUtils.equals(String.valueOf(view.getTag()), selectedGroup);
             view.setSelected(selected);
             view.setAlpha(TextUtils.isEmpty(selectedGroup) || selected ? 1.0f : 0.5f);
         }
+    }
+
+    private String displayGroupName(String group) {
+        String text = group == null ? "" : group.trim();
+        if (text.length() >= 2 && text.startsWith("[") && text.endsWith("]")) return text.substring(1, text.length() - 1).trim();
+        return text;
     }
 
     private void centerGroup(View view) {
