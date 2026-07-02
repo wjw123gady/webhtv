@@ -90,8 +90,8 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             case PlayerSetting.AUDIO_BACKGROUND_RANDOM -> drawRandom(canvas, w, h);
             default -> drawArtwork(canvas, w, h);
         }
-        if (lightEffect) drawLightEffect(canvas, w, h);
         drawReadability(canvas, w, h);
+        if (lightEffect) drawLightEffect(canvas, w, h);
         canvas.restore();
         if (lightEffect && animated) scheduleSelf(frameCallback, SystemClock.uptimeMillis() + 66L);
     }
@@ -387,8 +387,8 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
 
     private void drawLightFlow(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
         float sweep = (now % 5200L) / 5200f;
-        drawFlowLight(canvas, w, h, sweep, withAlpha(Color.WHITE, 28 + (int) (phase * 18)), withAlpha(accent2, 18 + (int) (phase * 16)));
-        drawFlowLight(canvas, w, h, (sweep + 0.48f) % 1f, withAlpha(accent, 18 + (int) (phase * 14)), withAlpha(Color.WHITE, 10));
+        drawFlowLight(canvas, w, h, sweep, withAlpha(Color.WHITE, 50 + (int) (phase * 30)), withAlpha(accent2, 36 + (int) (phase * 24)));
+        drawFlowLight(canvas, w, h, (sweep + 0.48f) % 1f, withAlpha(accent, 34 + (int) (phase * 24)), withAlpha(Color.WHITE, 18));
     }
 
     private void drawLightAurora(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
@@ -403,7 +403,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             path.lineTo(x + width + lean, h * 1.08f);
             path.cubicTo(x + width - lean * 0.35f, h * 0.58f, x + width + lean, h * 0.22f, x + width * 0.82f, -h * 0.08f);
             path.close();
-            int color = i % 2 == 0 ? withAlpha(accent, 36 + (int) (phase * 20)) : withAlpha(accent2, 28 + (int) (phase * 18));
+            int color = i % 2 == 0 ? withAlpha(accent, 64 + (int) (phase * 34)) : withAlpha(accent2, 52 + (int) (phase * 30));
             paint.setShader(new LinearGradient(x, 0, x + lean, h, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
             canvas.drawPath(path, paint);
             paint.setShader(null);
@@ -423,7 +423,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             float size = Math.max(1.8f, Math.min(w, h) * randomRange(mixed, 3, 0.0025f, 0.0085f));
             int color = i % 3 == 0 ? accent : i % 3 == 1 ? accent2 : Color.WHITE;
             paint.setStrokeWidth(Math.max(1f, size * 0.55f));
-            paint.setColor(withAlpha(color, 18 + (int) (local * 74)));
+            paint.setColor(withAlpha(color, 30 + (int) (local * 118)));
             if (i % 7 == 0) {
                 canvas.drawLine(x - size, y, x + size, y, paint);
                 canvas.drawLine(x, y - size, x, y + size, paint);
@@ -431,7 +431,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
                 canvas.drawPoint(x, y, paint);
             }
         }
-        fillRadial(canvas, w * (0.18f + phase * 0.58f), h * 0.28f, Math.max(w, h) * 0.38f, withAlpha(accent2, 18), Color.TRANSPARENT);
+        fillRadial(canvas, w * (0.18f + phase * 0.58f), h * 0.28f, Math.max(w, h) * 0.38f, withAlpha(accent2, 38), Color.TRANSPARENT);
         paint.setStrokeCap(Paint.Cap.BUTT);
         paint.setStyle(Paint.Style.FILL);
     }
@@ -440,13 +440,13 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         float cx = w * randomRange(seed, 31, 0.18f, 0.82f);
         float cy = h * randomRange(seed, 32, 0.18f, 0.66f);
         float base = Math.max(w, h) * (0.12f + (now % 2600L) / 2600f * 0.36f);
-        fillRadial(canvas, cx, cy, base * 1.7f, withAlpha(accent, 24 + (int) (phase * 18)), Color.TRANSPARENT);
+        fillRadial(canvas, cx, cy, base * 1.7f, withAlpha(accent, 44 + (int) (phase * 34)), Color.TRANSPARENT);
         paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
         for (int i = 0; i < 3; i++) {
             float r = base + Math.max(w, h) * i * 0.13f;
-            int alpha = Math.max(0, 58 - i * 14 - (int) (r / Math.max(w, h) * 48));
+            int alpha = Math.max(0, 92 - i * 18 - (int) (r / Math.max(w, h) * 54));
             paint.setStrokeWidth(Math.max(1.2f, w * (0.004f + i * 0.0016f)));
             paint.setColor(withAlpha(i % 2 == 0 ? accent : accent2, alpha));
             canvas.drawCircle(cx, cy, r, paint);
@@ -468,7 +468,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             path.lineTo(x + ww * 0.78f, y + hh);
             path.lineTo(x, y + hh * 0.78f);
             path.close();
-            paint.setShader(new LinearGradient(x, y, x + ww, y + hh, new int[]{withAlpha(Color.WHITE, 30), withAlpha(i % 2 == 0 ? accent : accent2, 64), withAlpha(Color.WHITE, 18)}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+            paint.setShader(new LinearGradient(x, y, x + ww, y + hh, new int[]{withAlpha(Color.WHITE, 52), withAlpha(i % 2 == 0 ? accent : accent2, 108), withAlpha(Color.WHITE, 32)}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
             canvas.drawPath(path, paint);
             paint.setShader(null);
         }
@@ -488,7 +488,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             path.lineTo(w * 1.18f, y + amp * 2.2f);
             path.cubicTo(w * 0.68f, y + amp * 2.8f, w * 0.24f, y + amp * 1.1f, -w * 0.18f, y + amp * 2.1f);
             path.close();
-            paint.setShader(new LinearGradient(0, y - amp, w, y + amp * 2.4f, i % 2 == 0 ? withAlpha(accent, 36) : withAlpha(accent2, 32), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            paint.setShader(new LinearGradient(0, y - amp, w, y + amp * 2.4f, i % 2 == 0 ? withAlpha(accent, 66) : withAlpha(accent2, 58), Color.TRANSPARENT, Shader.TileMode.CLAMP));
             canvas.drawPath(path, paint);
             paint.setShader(null);
         }
