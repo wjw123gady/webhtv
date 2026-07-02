@@ -194,58 +194,61 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         float y1 = randomRange(deco, 7, 0.12f, 0.62f);
         float x2 = randomRange(deco, 8, 0.2f, 0.9f);
         float y2 = randomRange(deco, 9, 0.34f, 0.86f);
-        int gridStep = Math.max(16, w / (12 + Math.floorMod(mixSeed(deco + 17), 12)));
         switch (motif) {
             case 0 -> {
-                drawVinyl(canvas, w * x1, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.42f, 0.68f), withAlpha(Color.WHITE, 50), withAlpha(accent, 150));
-                drawOrbitRings(canvas, w * x1, h * y1, Math.min(w, h) * randomRange(deco, 11, 0.16f, 0.34f), deco, withAlpha(accent2, 105));
+                fillRadial(canvas, w * 0.14f, h * 0.2f, Math.max(w, h) * 0.56f, withAlpha(accent, 118), Color.TRANSPARENT);
+                fillRadial(canvas, w * 0.86f, h * 0.18f, Math.max(w, h) * 0.5f, withAlpha(accent2, 92), Color.TRANSPARENT);
+                drawSoftFlow(canvas, w, h, deco, 0.2f, 0.58f, 0.32f, withAlpha(Color.WHITE, 42), withAlpha(glow, 60));
             }
             case 1 -> {
-                drawEqualizerBars(canvas, w, h, deco, randomRange(deco, 10, 0.46f, 0.72f), 0.94f, withAlpha(accent, 132));
-                fillRadial(canvas, w * x2, h * y1, Math.max(w, h) * 0.34f, withAlpha(accent2, 78), Color.TRANSPARENT);
+                drawSoftCurrent(canvas, w, h, deco, randomRange(deco, 10, 0.42f, 0.7f), withAlpha(accent, 72));
+                drawSoftCurrent(canvas, w, h, deco + 31, randomRange(deco, 11, 0.58f, 0.84f), withAlpha(accent2, 52));
+                fillRadial(canvas, w * x1, h * y1, Math.max(w, h) * 0.42f, withAlpha(Color.WHITE, 30), Color.TRANSPARENT);
             }
             case 2 -> {
-                fillRadial(canvas, w * x2, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.22f, 0.38f), withAlpha(glow, 210), Color.TRANSPARENT);
-                fillRadial(canvas, w * x1, h * y2, Math.max(w, h) * randomRange(deco, 11, 0.32f, 0.58f), withAlpha(accent, 95), Color.TRANSPARENT);
-                drawRibbon(canvas, w, h, randomRange(deco, 12, -0.04f, 0.18f), randomRange(deco, 13, 0.34f, 0.58f), withAlpha(accent2, 150), withAlpha(accent2, 24));
+                fillRadial(canvas, w * x2, h * y1, Math.max(w, h) * randomRange(deco, 10, 0.42f, 0.68f), withAlpha(glow, 132), Color.TRANSPARENT);
+                drawSoftFlow(canvas, w, h, deco, 0.28f, 0.66f, 0.26f, withAlpha(accent, 68), withAlpha(accent2, 34));
             }
             case 3 -> {
-                drawWave(canvas, w, h, h * randomRange(deco, 10, 0.26f, 0.48f), h * randomRange(deco, 11, 0.08f, 0.18f), withAlpha(Color.WHITE, 86), withAlpha(accent, 30));
-                drawWave(canvas, w, h, h * randomRange(deco, 12, 0.52f, 0.78f), h * randomRange(deco, 13, 0.12f, 0.24f), withAlpha(accent2, 136), withAlpha(accent2, 28));
-                drawSparkleField(canvas, w, h, deco, 16, withAlpha(Color.WHITE, 70));
+                drawSparseGrain(canvas, w, h, deco, 44, withAlpha(Color.WHITE, 42));
+                drawSoftArc(canvas, w * 0.84f, h * 0.72f, Math.min(w, h) * 0.46f, deco, withAlpha(accent, 86));
+                fillRadial(canvas, w * 0.18f, h * 0.82f, Math.max(w, h) * 0.4f, withAlpha(accent2, 58), Color.TRANSPARENT);
             }
             case 4 -> {
-                drawSparkleField(canvas, w, h, deco, 62, withAlpha(Color.WHITE, 104));
-                fillRadial(canvas, w * x1, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.22f, 0.42f), withAlpha(accent, 120), Color.TRANSPARENT);
+                drawSoftBubble(canvas, w * x2, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.18f, 0.32f), withAlpha(Color.WHITE, 44), withAlpha(accent, 82));
+                drawSoftBubble(canvas, w * x1, h * y2, Math.min(w, h) * randomRange(deco, 11, 0.16f, 0.28f), withAlpha(Color.WHITE, 30), withAlpha(accent2, 66));
+                fillRadial(canvas, w * 0.52f, h * 0.86f, Math.max(w, h) * 0.46f, withAlpha(glow, 64), Color.TRANSPARENT);
             }
             case 5 -> {
-                drawStaffLines(canvas, w, h, deco, randomRange(deco, 10, 0.2f, 0.52f), withAlpha(Color.WHITE, 78), withAlpha(accent, 128));
-                drawWave(canvas, w, h, h * randomRange(deco, 11, 0.66f, 0.84f), h * 0.08f, withAlpha(accent2, 95), 0x11FFFFFF);
+                drawSoftFlow(canvas, w, h, deco, 0.12f, 0.42f, 0.2f, withAlpha(Color.WHITE, 46), withAlpha(accent, 42));
+                drawSoftFlow(canvas, w, h, deco + 41, 0.48f, 0.8f, 0.22f, withAlpha(accent2, 56), withAlpha(Color.WHITE, 22));
             }
             case 6 -> {
-                drawLightBeams(canvas, w, h, deco, withAlpha(accent, 118), withAlpha(accent2, 74));
-                drawFineLines(canvas, w, h, withAlpha(Color.WHITE, 30), false);
+                drawSoftBeam(canvas, w, h, deco, withAlpha(accent, 78));
+                drawSoftBeam(canvas, w, h, deco + 17, withAlpha(accent2, 52));
+                fillRadial(canvas, w * x1, h * y2, Math.max(w, h) * 0.42f, withAlpha(Color.WHITE, 24), Color.TRANSPARENT);
             }
             case 7 -> {
-                drawConstellation(canvas, w, h, deco, withAlpha(Color.WHITE, 120), withAlpha(accent, 90));
-                fillRadial(canvas, w * x2, h * y2, Math.max(w, h) * randomRange(deco, 12, 0.2f, 0.38f), withAlpha(glow, 72), Color.TRANSPARENT);
+                drawSoftArc(canvas, w * x2, h * y2, Math.min(w, h) * randomRange(deco, 10, 0.34f, 0.58f), deco, withAlpha(Color.WHITE, 58));
+                drawSoftArc(canvas, w * x1, h * y1, Math.min(w, h) * randomRange(deco, 11, 0.18f, 0.34f), deco + 23, withAlpha(accent, 72));
+                fillRadial(canvas, w * 0.5f, h * 0.5f, Math.max(w, h) * 0.36f, withAlpha(accent2, 38), Color.TRANSPARENT);
             }
             case 8 -> {
-                drawGrain(canvas, w, h, deco, 115, withAlpha(Color.WHITE, 42));
-                drawFineLines(canvas, w, h, withAlpha(accent2, 42), true);
+                drawSparseGrain(canvas, w, h, deco, 90, withAlpha(Color.WHITE, 28));
+                drawSoftCurrent(canvas, w, h, deco, randomRange(deco, 10, 0.62f, 0.82f), withAlpha(accent2, 34));
             }
             case 9 -> {
-                drawOrbitRings(canvas, w * x2, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.2f, 0.42f), deco, withAlpha(accent, 132));
-                drawSparkleField(canvas, w, h, deco + 71, 28, withAlpha(accent2, 96));
+                fillRadial(canvas, w * x2, h * y1, Math.max(w, h) * 0.44f, withAlpha(accent, 98), Color.TRANSPARENT);
+                drawSoftArc(canvas, w * x2, h * y1, Math.min(w, h) * randomRange(deco, 10, 0.22f, 0.42f), deco, withAlpha(accent2, 70));
             }
             case 10 -> {
-                drawEqualizerBars(canvas, w, h, deco, 0.18f, randomRange(deco, 10, 0.58f, 0.74f), withAlpha(accent, 86));
-                drawEqualizerBars(canvas, w, h, deco + 43, randomRange(deco, 11, 0.6f, 0.78f), 0.96f, withAlpha(accent2, 132));
+                fillRadial(canvas, w * 0.18f, h * 0.12f, Math.max(w, h) * 0.62f, withAlpha(Color.WHITE, 42), Color.TRANSPARENT);
+                drawSoftFlow(canvas, w, h, deco, 0.42f, 0.74f, 0.2f, withAlpha(accent, 46), withAlpha(accent2, 24));
             }
             default -> {
-                drawLightBeams(canvas, w, h, deco, withAlpha(Color.WHITE, 52), withAlpha(accent, 92));
-                drawOrbitRings(canvas, w * x1, h * y2, Math.min(w, h) * randomRange(deco, 10, 0.14f, 0.28f), deco + 91, withAlpha(accent2, 112));
-                drawSparkleField(canvas, w, h, deco + 17, 22, withAlpha(Color.WHITE, 86));
+                fillRadial(canvas, w * x1, h * y1, Math.max(w, h) * 0.48f, withAlpha(Color.WHITE, 50), Color.TRANSPARENT);
+                fillRadial(canvas, w * x2, h * y2, Math.max(w, h) * 0.44f, withAlpha(accent, 66), Color.TRANSPARENT);
+                drawSoftCurrent(canvas, w, h, deco, randomRange(deco, 10, 0.4f, 0.68f), withAlpha(accent2, 42));
             }
         }
     }
@@ -424,23 +427,6 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         paint.setStyle(Paint.Style.FILL);
     }
 
-    private void drawEqualizerBars(Canvas canvas, int w, int h, int seed, float startY, float endY, int color) {
-        paint.setShader(null);
-        paint.setStyle(Paint.Style.FILL);
-        int count = 18 + Math.floorMod(mixSeed(seed + 20), 14);
-        float gap = w * 0.012f;
-        float barW = (w - gap * (count + 1)) / count;
-        float base = h * endY;
-        float maxHeight = h * Math.max(0.08f, endY - startY);
-        for (int i = 0; i < count; i++) {
-            float x = gap + i * (barW + gap);
-            float amp = randomRange(seed, 60 + i, 0.18f, 1f);
-            float top = base - maxHeight * amp;
-            paint.setColor(withAlpha(color, 42 + Math.floorMod(mixSeed(seed + i * 13), 90)));
-            canvas.drawRoundRect(x, top, x + barW, base, barW * 0.48f, barW * 0.48f, paint);
-        }
-    }
-
     private void drawSparkleField(Canvas canvas, int w, int h, int seed, int count, int color) {
         paint.setShader(null);
         paint.setStyle(Paint.Style.FILL);
@@ -514,6 +500,81 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         for (int i = 0; i < count; i++) {
             paint.setColor(withAlpha(color, 14 + Math.floorMod(mixSeed(seed + i * 19), 32)));
             canvas.drawCircle(w * randomRange(seed, 320 + i, 0f, 1f), h * randomRange(seed, 460 + i, 0f, 1f), Math.max(0.8f, w * randomRange(seed, 600 + i, 0.0012f, 0.003f)), paint);
+        }
+    }
+
+    private void drawSoftFlow(Canvas canvas, int w, int h, int seed, float startY, float endY, float thickness, int color, int edgeColor) {
+        float phase = randomRange(seed, 700, -0.12f, 0.12f);
+        path.reset();
+        path.moveTo(-w * 0.2f, h * (startY + phase));
+        path.cubicTo(w * 0.18f, h * (startY - thickness * 0.55f), w * 0.52f, h * (endY - thickness * 0.25f), w * 1.2f, h * (endY + phase * 0.35f));
+        path.lineTo(w * 1.2f, h * (endY + thickness));
+        path.cubicTo(w * 0.62f, h * (endY + thickness * 0.45f), w * 0.28f, h * (startY + thickness * 0.85f), -w * 0.2f, h * (startY + thickness * 0.52f));
+        path.close();
+        paint.setShader(new LinearGradient(0, h * startY, w, h * endY, color, edgeColor, Shader.TileMode.CLAMP));
+        canvas.drawPath(path, paint);
+        paint.setShader(null);
+    }
+
+    private void drawSoftCurrent(Canvas canvas, int w, int h, int seed, float y, int color) {
+        path.reset();
+        float amp = h * randomRange(seed, 720, 0.06f, 0.14f);
+        float y0 = h * y;
+        path.moveTo(-w * 0.12f, y0);
+        path.cubicTo(w * 0.18f, y0 - amp, w * 0.42f, y0 + amp * 0.9f, w * 0.68f, y0 - amp * 0.22f);
+        path.cubicTo(w * 0.88f, y0 - amp * 1.05f, w * 1.04f, y0 + amp * 0.28f, w * 1.12f, y0);
+        path.lineTo(w * 1.12f, y0 + amp * 1.8f);
+        path.cubicTo(w * 0.82f, y0 + amp * 2.2f, w * 0.48f, y0 + amp * 0.8f, -w * 0.12f, y0 + amp * 1.55f);
+        path.close();
+        paint.setShader(new LinearGradient(0, y0 - amp, w, y0 + amp * 2f, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+        canvas.drawPath(path, paint);
+        paint.setShader(null);
+    }
+
+    private void drawSoftBubble(Canvas canvas, float cx, float cy, float r, int fillColor, int edgeColor) {
+        fillRadial(canvas, cx, cy, r * 1.55f, fillColor, Color.TRANSPARENT);
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(Math.max(1f, r / 24f));
+        paint.setColor(edgeColor);
+        canvas.drawCircle(cx, cy, r, paint);
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawSoftArc(Canvas canvas, float cx, float cy, float r, int seed, int color) {
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeWidth(Math.max(1.4f, r * randomRange(seed, 730, 0.016f, 0.034f)));
+        paint.setColor(color);
+        float start = randomRange(seed, 731, 0f, 280f);
+        float sweep = randomRange(seed, 732, 64f, 150f);
+        canvas.drawArc(cx - r, cy - r, cx + r, cy + r, start, sweep, false, paint);
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawSoftBeam(Canvas canvas, int w, int h, int seed, int color) {
+        float topX = w * randomRange(seed, 740, 0.08f, 0.92f);
+        float bottomX = w * randomRange(seed, 741, -0.1f, 1.1f);
+        float width = w * randomRange(seed, 742, 0.28f, 0.54f);
+        path.reset();
+        path.moveTo(topX, h * randomRange(seed, 743, -0.12f, 0.18f));
+        path.lineTo(bottomX - width, h * 1.08f);
+        path.lineTo(bottomX + width, h * 1.08f);
+        path.close();
+        paint.setShader(new LinearGradient(topX, 0, bottomX, h, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+        canvas.drawPath(path, paint);
+        paint.setShader(null);
+    }
+
+    private void drawSparseGrain(Canvas canvas, int w, int h, int seed, int count, int color) {
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.FILL);
+        for (int i = 0; i < count; i++) {
+            float radius = Math.max(0.8f, w * randomRange(seed, 760 + i, 0.0012f, 0.0042f));
+            paint.setColor(withAlpha(color, 10 + Math.floorMod(mixSeed(seed + i * 23), 34)));
+            canvas.drawCircle(w * randomRange(seed, 800 + i, 0f, 1f), h * randomRange(seed, 920 + i, 0f, 1f), radius, paint);
         }
     }
 
