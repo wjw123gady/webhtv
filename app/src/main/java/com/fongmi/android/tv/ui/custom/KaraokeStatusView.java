@@ -226,13 +226,10 @@ public class KaraokeStatusView extends LinearLayout {
         private void setPlaying(boolean playing) {
             if (this.playing == playing) return;
             this.playing = playing;
-            if (!playing && snapshot != null) {
+            if (!playing && snapshot != null && smoothBasePosition < 0) {
                 smoothBasePosition = snapshot.getPositionMs();
                 smoothBaseRealtime = SystemClock.elapsedRealtime();
                 invalidate();
-            } else if (playing) {
-                smoothBasePosition = -1;
-                smoothBaseRealtime = 0;
             }
         }
 
@@ -269,7 +266,7 @@ public class KaraokeStatusView extends LinearLayout {
             long start = Math.max(0, position - WINDOW_BEFORE_MS);
             long end = position + WINDOW_AFTER_MS;
             boolean pitchTrack = track.hasPitchRequiredNotes();
-            drawNotes(canvas, left, right, top, bottom, start, end);
+            drawNotes(canvas, left, right, top, bottom, start, end, position);
             if (pitchTrack) drawHistory(canvas, left, right, top, bottom, start, end);
             drawCursor(canvas, left, right, top, bottom);
             if (pitchTrack) drawSungMarker(canvas, left, right, top, bottom);
@@ -285,9 +282,8 @@ public class KaraokeStatusView extends LinearLayout {
             canvas.drawRoundRect(rect, dp(1), dp(1), paint);
         }
 
-        private void drawNotes(Canvas canvas, float left, float right, float top, float bottom, long start, long end) {
+        private void drawNotes(Canvas canvas, float left, float right, float top, float bottom, long start, long end, long position) {
             List<KaraokeNote> notes = track.getNotes();
-            long position = drawPosition();
             float cursorX = cursorX(left, right);
             drawTargetGuide(canvas, notes, left, right, top, bottom, start, end);
             NoteSegment segment = null;
@@ -533,29 +529,13 @@ public class KaraokeStatusView extends LinearLayout {
             historySize = 0;
             lastHistoryPosition = -1;
             lastHistoryPitch = Float.NaN;
-            smoothBasePosition = -1;
-            smoothBaseRealtime = 0;
         }
 
         private void updateSmoothBase(KaraokeScoreSnapshot snapshot) {
-            if (snapshot == null) {
-                smoothBasePosition = -1;
-                smoothBaseRealtime = 0;
-                return;
-            }
+            if (snapshot == null || smoothBasePosition >= 0) return;
             long now = SystemClock.elapsedRealtime();
             long position = snapshot.getPositionMs();
-            if (!playing) {
-                smoothBasePosition = position;
-                smoothBaseRealtime = now;
-                return;
-            }
-            long current = drawPosition(now);
-            if (smoothBasePosition < 0 || Math.abs(position - current) > 1500) {
-                smoothBasePosition = position;
-            } else {
-                smoothBasePosition = Math.max(position, current);
-            }
+            smoothBasePosition = position;
             smoothBaseRealtime = now;
         }
 
@@ -565,9 +545,9 @@ public class KaraokeStatusView extends LinearLayout {
 
         private long drawPosition(long now) {
             if (snapshot == null) return 0;
-            if (!playing) return snapshot.getPositionMs();
+            if (!playing) return smoothBasePosition >= 0 ? smoothBasePosition : snapshot.getPositionMs();
             if (smoothBasePosition < 0) return snapshot.getPositionMs();
-            long elapsed = Math.max(0, Math.min(260, now - smoothBaseRealtime));
+            long elapsed = Math.max(0, now - smoothBaseRealtime);
             return smoothBasePosition + elapsed;
         }
 

@@ -36,6 +36,7 @@ public class LyricsOverlayView extends FrameLayout {
 
     private static final int ROWS = 5;
     private static final long WORD_REFRESH_MS = 50;
+    private static final long AUDIO_STAGE_WORD_REFRESH_MS = 16;
     private static final int PRIMARY_COLOR = 0xFFFFC766;
 
     private final LinearLayout box;
@@ -141,12 +142,12 @@ public class LyricsOverlayView extends FrameLayout {
         int nextIndex = LyricsParser.findLine(lines, positionMs);
         if (nextIndex == index) {
             renderPrimaryLine(positionMs);
-            scheduleWordRefresh();
+            scheduleWordRefresh(positionMs);
             return;
         }
         index = nextIndex;
         render(positionMs);
-        scheduleWordRefresh();
+        scheduleWordRefresh(positionMs);
         setVisibility(VISIBLE);
     }
 
@@ -397,18 +398,32 @@ public class LyricsOverlayView extends FrameLayout {
         if (nextIndex != index) {
             index = nextIndex;
             render(position);
-            App.post(wordRefresh, WORD_REFRESH_MS);
+            scheduleWordRefresh(position);
             return;
         }
-        if (!lines.get(index).hasWords()) return;
-        renderPrimaryLine(position);
-        App.post(wordRefresh, WORD_REFRESH_MS);
+        if (lines.get(index).hasWords()) renderPrimaryLine(position);
+        scheduleWordRefresh(position);
     }
 
     private void scheduleWordRefresh() {
+        scheduleWordRefresh(basePositionMs);
+    }
+
+    private void scheduleWordRefresh(long positionMs) {
         stopWordRefresh();
-        if (!playing || index < 0 || index >= lines.size() || !lines.get(index).hasWords()) return;
-        App.post(wordRefresh, WORD_REFRESH_MS);
+        if (!playing || dragging || index < 0 || index >= lines.size()) return;
+        long delay = nextRefreshDelay(positionMs);
+        if (delay < 0) return;
+        App.post(wordRefresh, delay);
+    }
+
+    private long nextRefreshDelay(long positionMs) {
+        LyricsLine line = lines.get(index);
+        long nextLineDelay = Long.MAX_VALUE;
+        if (index + 1 < lines.size()) nextLineDelay = Math.max(1, lines.get(index + 1).getTimeMs() - positionMs);
+        if (!line.hasWords()) return nextLineDelay == Long.MAX_VALUE ? -1 : nextLineDelay;
+        long interval = audioStageMode ? AUDIO_STAGE_WORD_REFRESH_MS : WORD_REFRESH_MS;
+        return nextLineDelay == Long.MAX_VALUE ? interval : Math.min(interval, nextLineDelay);
     }
 
     private void stopWordRefresh() {

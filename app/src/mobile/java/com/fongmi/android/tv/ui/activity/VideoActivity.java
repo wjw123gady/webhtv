@@ -3980,6 +3980,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         long position, duration;
         mHistory.setCreateTime(time);
         updatePlaybackHistoryPosition();
+        syncKaraokePosition();
         if (mLyrics != null) mLyrics.update(player());
         if (mKaraoke != null) mKaraoke.update(player(), mLyrics == null ? null : mLyrics.getLines());
         position = mHistory.getPosition();
