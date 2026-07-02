@@ -378,6 +378,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         int accent3 = rotate(accent, 142f + cycle * 36f, 0.82f, 1f);
         drawLightBloom(canvas, w, h, now, phase, accent, accent2);
         drawRecordHalo(canvas, w, h, now, phase, accent, accent3);
+        drawAmbientSweep(canvas, w, h, now, phase, accent, accent2);
         int mode = Math.floorMod(mixSeed(seed ^ decorationSeed ^ style * 0x45D9F3B) + (int) (now / 7800L), 4);
         switch (mode) {
             case 0 -> drawLiquidSilk(canvas, w, h, now, phase, accent, accent2);
@@ -393,8 +394,8 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         float cy = h * (0.22f + 0.1f * (float) Math.sin(now / 2100.0));
         float cx2 = w * (0.88f - 0.72f * ((now % 13700L) / 13700f));
         float cy2 = h * (0.68f + 0.14f * (float) Math.cos(now / 2600.0));
-        fillRadial(canvas, cx, cy, Math.max(w, h) * 0.44f, withAlpha(Color.WHITE, 28 + (int) (phase * 22)), Color.TRANSPARENT);
-        fillRadial(canvas, cx2, cy2, Math.max(w, h) * 0.52f, withAlpha(accent2, 42 + (int) (phase * 34)), Color.TRANSPARENT);
+        fillRadial(canvas, cx, cy, Math.max(w, h) * 0.5f, withAlpha(Color.WHITE, 58 + (int) (phase * 36)), Color.TRANSPARENT);
+        fillRadial(canvas, cx2, cy2, Math.max(w, h) * 0.6f, withAlpha(accent2, 82 + (int) (phase * 48)), Color.TRANSPARENT);
     }
 
     private void drawRecordHalo(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
@@ -405,13 +406,13 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
         for (int i = 0; i < 3; i++) {
-            paint.setStrokeWidth(Math.max(1.2f, w * (0.0024f + i * 0.0014f)));
-            paint.setColor(withAlpha(i == 0 ? Color.WHITE : i == 1 ? accent : accent2, 34 - i * 6));
+            paint.setStrokeWidth(Math.max(1.6f, w * (0.0034f + i * 0.0019f)));
+            paint.setColor(withAlpha(i == 0 ? Color.WHITE : i == 1 ? accent : accent2, 58 - i * 8));
             canvas.drawCircle(cx, cy, r + i * Math.min(w, h) * 0.026f, paint);
         }
         float angle = (now % 5200L) / 5200f * 360f;
-        paint.setStrokeWidth(Math.max(2f, w * 0.006f));
-        paint.setShader(new SweepGradient(cx, cy, new int[]{Color.TRANSPARENT, withAlpha(Color.WHITE, 96), withAlpha(accent2, 68), Color.TRANSPARENT}, new float[]{0f, 0.18f, 0.32f, 1f}));
+        paint.setStrokeWidth(Math.max(3f, w * 0.009f));
+        paint.setShader(new SweepGradient(cx, cy, new int[]{Color.TRANSPARENT, withAlpha(Color.WHITE, 150), withAlpha(accent2, 118), Color.TRANSPARENT}, new float[]{0f, 0.18f, 0.34f, 1f}));
         canvas.save();
         canvas.rotate(angle, cx, cy);
         canvas.drawCircle(cx, cy, r + Math.min(w, h) * 0.045f, paint);
@@ -421,16 +422,33 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         paint.setStyle(Paint.Style.FILL);
     }
 
+    private void drawAmbientSweep(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
+        float progress = (now % 9200L) / 9200f;
+        float cx = w * (-0.28f + progress * 1.56f);
+        float top = h * (0.08f + 0.12f * (float) Math.sin(now / 2600.0));
+        float bottom = h * (0.86f + 0.08f * (float) Math.cos(now / 3100.0));
+        float width = w * 0.34f;
+        path.reset();
+        path.moveTo(cx - width, top);
+        path.cubicTo(cx - width * 0.2f, h * 0.24f, cx + width * 0.24f, h * 0.54f, cx - width * 0.08f, bottom);
+        path.lineTo(cx + width * 0.9f, bottom);
+        path.cubicTo(cx + width * 0.42f, h * 0.56f, cx + width * 0.68f, h * 0.24f, cx + width * 0.18f, top);
+        path.close();
+        paint.setShader(new LinearGradient(cx - width, top, cx + width, bottom, new int[]{Color.TRANSPARENT, withAlpha(accent2, 74 + (int) (phase * 38)), withAlpha(Color.WHITE, 86 + (int) (phase * 42)), withAlpha(accent, 74), Color.TRANSPARENT}, new float[]{0f, 0.25f, 0.5f, 0.75f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawPath(path, paint);
+        paint.setShader(null);
+    }
+
     private void drawLiquidSilk(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
         float drift = (now % 8600L) / 8600f;
-        drawSilkRibbon(canvas, w, h, drift, 0.28f, 0.09f, withAlpha(Color.WHITE, 58 + (int) (phase * 28)), withAlpha(accent, 76));
-        drawSilkRibbon(canvas, w, h, (drift + 0.42f) % 1f, 0.56f, -0.08f, withAlpha(accent2, 72), withAlpha(Color.WHITE, 36));
+        drawSilkRibbon(canvas, w, h, drift, 0.28f, 0.09f, withAlpha(Color.WHITE, 108 + (int) (phase * 48)), withAlpha(accent, 128));
+        drawSilkRibbon(canvas, w, h, (drift + 0.42f) % 1f, 0.56f, -0.08f, withAlpha(accent2, 126), withAlpha(Color.WHITE, 72));
     }
 
     private void drawSilkRibbon(Canvas canvas, int w, int h, float progress, float baseY, float lean, int coreColor, int edgeColor) {
         float x = w * (-0.38f + progress * 1.76f);
         float y = h * (baseY + 0.08f * (float) Math.sin(progress * Math.PI * 2.0));
-        float thick = Math.max(h * 0.032f, w * 0.035f);
+        float thick = Math.max(h * 0.052f, w * 0.056f);
         path.reset();
         path.moveTo(x - w * 0.24f, y);
         path.cubicTo(x + w * 0.1f, y - h * (0.14f + lean), x + w * 0.38f, y + h * (0.18f - lean), x + w * 0.86f, y + h * lean);
@@ -447,16 +465,16 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
         float drift = (now % 9000L) / 9000f;
-        for (int i = 0; i < 64; i++) {
+        for (int i = 0; i < 82; i++) {
             int mixed = mixSeed(seed + i * 131);
             float x = w * (randomRange(mixed, 1, -0.08f, 1.08f) + drift * randomRange(mixed, 3, -0.08f, 0.12f));
             float y = h * (randomRange(mixed, 2, 0.04f, 0.86f) + 0.028f * (float) Math.sin(now / 900.0 + i));
             if (x < -8f || x > w + 8f) x = Math.floorMod((int) x, Math.max(1, w));
             float twinkle = (float) ((Math.sin(now / randomRange(mixed, 4, 360.0f, 980.0f) + i * 0.7f) + 1.0) * 0.5);
-            float size = Math.max(1.4f, Math.min(w, h) * randomRange(mixed, 5, 0.002f, 0.007f));
+            float size = Math.max(1.8f, Math.min(w, h) * randomRange(mixed, 5, 0.003f, 0.011f));
             int color = i % 4 == 0 ? Color.WHITE : i % 4 == 1 ? accent : i % 4 == 2 ? accent2 : accent3;
             paint.setStrokeWidth(Math.max(1f, size * 0.55f));
-            paint.setColor(withAlpha(color, 26 + (int) (twinkle * 112)));
+            paint.setColor(withAlpha(color, 48 + (int) (twinkle * 150)));
             if (i % 8 == 0) {
                 canvas.drawLine(x - size, y, x + size, y, paint);
                 canvas.drawLine(x, y - size, x, y + size, paint);
@@ -481,7 +499,7 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             path.cubicTo(x + width - lean * 0.25f, h * 0.58f, x + width + lean, h * 0.24f, x + width * 0.86f, -h * 0.08f);
             path.close();
             int color = i % 3 == 0 ? accent : i % 3 == 1 ? accent2 : accent3;
-            paint.setShader(new LinearGradient(x, 0, x + lean, h, withAlpha(color, 48 + (int) (phase * 36)), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            paint.setShader(new LinearGradient(x, 0, x + lean, h, withAlpha(color, 88 + (int) (phase * 54)), Color.TRANSPARENT, Shader.TileMode.CLAMP));
             canvas.drawPath(path, paint);
             paint.setShader(null);
         }
@@ -498,8 +516,8 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
             float len = w * randomRange(seed, 90 + i, 0.16f, 0.34f);
             float lift = h * randomRange(seed, 100 + i, -0.06f, 0.08f);
             int color = i % 2 == 0 ? accent : accent2;
-            paint.setStrokeWidth(Math.max(1.4f, w * randomRange(seed, 110 + i, 0.003f, 0.009f)));
-            paint.setShader(new LinearGradient(sx - len, sy - lift, sx, sy, Color.TRANSPARENT, withAlpha(color, 82 + (int) (phase * 42)), Shader.TileMode.CLAMP));
+            paint.setStrokeWidth(Math.max(2.4f, w * randomRange(seed, 110 + i, 0.006f, 0.014f)));
+            paint.setShader(new LinearGradient(sx - len, sy - lift, sx, sy, Color.TRANSPARENT, withAlpha(color, 132 + (int) (phase * 64)), Shader.TileMode.CLAMP));
             path.reset();
             path.moveTo(sx - len, sy - lift);
             path.cubicTo(sx - len * 0.62f, sy + lift, sx - len * 0.22f, sy - lift * 0.4f, sx, sy);
