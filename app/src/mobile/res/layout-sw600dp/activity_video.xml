@@ -147,6 +147,18 @@
 
                     </androidx.appcompat.widget.LinearLayoutCompat>
 
+                    <com.fongmi.android.tv.ui.custom.KaraokeStatusView
+                        android:id="@+id/audioKaraoke"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp" />
+
+                    <com.fongmi.android.tv.ui.custom.LyricsOverlayView
+                        android:id="@+id/audioLyrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="120dp"
+                        android:layout_marginTop="10dp" />
+
                 </androidx.appcompat.widget.LinearLayoutCompat>
 
             </androidx.appcompat.widget.LinearLayoutCompat>

@@ -485,8 +485,15 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBroken = new ArrayList<>();
         mClock = Clock.create();
         mLyrics = new LyricsController(mBinding.lyrics);
+        mLyrics.setSecondaryView(mBinding.audioLyrics);
+        mBinding.audioLyrics.setAudioStageMode(true);
+        mBinding.audioLyrics.setSuppressed(true);
         mKaraoke = new KaraokeController();
-        mKaraoke.setListener((status, track, sample, snapshot) -> mBinding.karaoke.setState(status, track, sample, snapshot));
+        mKaraoke.setListener((status, track, sample, snapshot) -> {
+            mBinding.karaoke.setState(status, track, sample, snapshot);
+            mBinding.audioKaraoke.setState(status, track, sample, snapshot);
+            syncKaraokeStageVisibility();
+        });
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
         mR3 = this::setOrient;
@@ -2308,9 +2315,20 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }
         mAudioStageVisible = visible;
         mBinding.audioStage.setVisibility(visible ? View.VISIBLE : View.GONE);
-        mBinding.lyrics.setAudioStageMode(visible);
+        mBinding.lyrics.setSuppressed(visible);
+        mBinding.audioLyrics.setSuppressed(!visible);
+        syncKaraokeStageVisibility();
         applyAudioStageLayout(visible);
         updateAudioStageText();
+    }
+
+    private void syncKaraokeStageVisibility() {
+        if (mBinding == null) return;
+        if (mAudioStageVisible) {
+            mBinding.karaoke.setVisibility(View.GONE);
+        } else {
+            mBinding.audioKaraoke.setVisibility(View.GONE);
+        }
     }
 
     private void applyAudioStageLayout(boolean visible) {
@@ -2318,12 +2336,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (!visible) {
             if (mFrameHeight > 0) mFrameParams.height = mFrameHeight;
         } else if (isPort()) {
-            int screen = ResUtil.getScreenHeight(this);
-            int min = ResUtil.dp2px(390);
-            int max = ResUtil.dp2px(540);
-            mFrameParams.height = Math.max(min, Math.min(max, screen - ResUtil.dp2px(170)));
+            mFrameParams.height = ResUtil.dp2px(112);
         } else {
-            mFrameParams.height = Math.max(mFrameHeight, ResUtil.dp2px(300));
+            mFrameParams.height = mFrameHeight;
         }
         mBinding.video.setLayoutParams(mFrameParams);
     }

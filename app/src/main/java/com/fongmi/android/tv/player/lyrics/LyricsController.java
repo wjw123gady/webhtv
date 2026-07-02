@@ -22,6 +22,7 @@ public class LyricsController {
 
     private final LyricsRepository repository = new LyricsRepository();
     private final LyricsOverlayView view;
+    private LyricsOverlayView secondaryView;
     private List<LyricsLine> lines = Collections.emptyList();
     private String loadingSignature;
     private String activeSignature;
@@ -38,6 +39,10 @@ public class LyricsController {
 
     public LyricsController(LyricsOverlayView view) {
         this.view = view;
+    }
+
+    public void setSecondaryView(LyricsOverlayView view) {
+        this.secondaryView = view;
     }
 
     public void refresh(PlayerManager player) {
@@ -59,25 +64,25 @@ public class LyricsController {
         loadingSignature = signature;
         activeSignature = null;
         lines = Collections.emptyList();
-        view.clear();
+        clearViews();
         int current = ++sequence;
         repository.loadPreferWord(request, result -> {
             if (current != sequence) return;
             loadingSignature = null;
             if (result == null || !result.isValid()) {
                 emptySignature = signature;
-                view.clear();
+                clearViews();
                 return;
             }
             ArrayList<LyricsLine> parsed = new ArrayList<>(result.getLines(request.getDurationMs()));
             if (parsed.isEmpty()) {
                 emptySignature = signature;
-                view.clear();
+                clearViews();
                 return;
             }
             activeSignature = signature;
             lines = parsed;
-            view.setLyrics(result, parsed);
+            setLyrics(result, parsed);
             update(player);
         });
     }
@@ -105,27 +110,27 @@ public class LyricsController {
         activeSignature = null;
         emptySignature = null;
         lines = Collections.emptyList();
-        view.clear();
+        clearViews();
         int current = ++sequence;
         repository.loadPreferWord(request, true, result -> {
             if (current != sequence) return;
             loadingSignature = null;
             if (result == null || !result.isValid()) {
                 emptySignature = signature;
-                view.clear();
+                clearViews();
                 if (callback != null) callback.onResult(null);
                 return;
             }
             ArrayList<LyricsLine> parsed = new ArrayList<>(result.getLines(request.getDurationMs()));
             if (parsed.isEmpty()) {
                 emptySignature = signature;
-                view.clear();
+                clearViews();
                 if (callback != null) callback.onResult(null);
                 return;
             }
             activeSignature = signature;
             lines = parsed;
-            view.setLyrics(result, parsed);
+            setLyrics(result, parsed);
             update(player);
             if (callback != null) callback.onResult(result);
         });
@@ -162,7 +167,7 @@ public class LyricsController {
         emptySignature = null;
         activeSignature = request.signature();
         lines = parsed;
-        view.setLyrics(result, parsed);
+        setLyrics(result, parsed);
         update(player);
         if (remember) repository.remember(request, result);
         if (current == sequence && callback != null) callback.onResult(result);
@@ -186,7 +191,7 @@ public class LyricsController {
         emptySignature = null;
         activeSignature = key;
         lines = parsed;
-        view.setLyrics(result, parsed);
+        setLyrics(result, parsed);
         update(positionMs);
         if (!result.hasWordTiming()) upgradeInlineLyrics(current, key, signature, title, artist, durationMs, positionMs);
         return true;
@@ -212,7 +217,7 @@ public class LyricsController {
             }
             emptySignature = null;
             lines = parsed;
-            view.setLyrics(result, parsed);
+            setLyrics(result, parsed);
             update(positionMs);
         });
     }
@@ -220,11 +225,13 @@ public class LyricsController {
     public void update(long positionMs) {
         if (lines.isEmpty()) return;
         view.update(adjust(positionMs));
+        if (secondaryView != null) secondaryView.update(adjust(positionMs));
     }
 
     public void update(PlayerManager player) {
         if (player == null || lines.isEmpty()) return;
         view.update(adjust(player.getPosition()), player.isPlaying());
+        if (secondaryView != null) secondaryView.update(adjust(player.getPosition()), player.isPlaying());
     }
 
     public List<LyricsLine> getLines() {
@@ -237,7 +244,17 @@ public class LyricsController {
         activeSignature = null;
         emptySignature = null;
         lines = Collections.emptyList();
+        clearViews();
+    }
+
+    private void setLyrics(LyricsResult result, List<LyricsLine> lines) {
+        view.setLyrics(result, lines);
+        if (secondaryView != null) secondaryView.setLyrics(result, lines);
+    }
+
+    private void clearViews() {
         view.clear();
+        if (secondaryView != null) secondaryView.clear();
     }
 
     public void release() {

@@ -44,6 +44,7 @@ public class LyricsOverlayView extends FrameLayout {
     private boolean compact;
     private boolean desktopMode;
     private boolean audioStageMode;
+    private boolean suppressed;
     private boolean playing;
     private int index = -1;
     private long basePositionMs;
@@ -92,10 +93,16 @@ public class LyricsOverlayView extends FrameLayout {
         applyStyle();
     }
 
+    public void setSuppressed(boolean suppressed) {
+        this.suppressed = suppressed;
+        if (suppressed) setVisibility(GONE);
+        else if (!lines.isEmpty()) setVisibility(VISIBLE);
+    }
+
     public void setLyrics(LyricsResult result, List<LyricsLine> lines) {
         this.lines = lines == null ? Collections.emptyList() : lines;
         this.index = -1;
-        setVisibility(this.lines.isEmpty() ? GONE : VISIBLE);
+        setVisibility(this.lines.isEmpty() || suppressed ? GONE : VISIBLE);
         if (!this.lines.isEmpty()) update(0);
     }
 
@@ -106,6 +113,10 @@ public class LyricsOverlayView extends FrameLayout {
     public void update(long positionMs, boolean playing) {
         if (lines.isEmpty()) {
             clear();
+            return;
+        }
+        if (suppressed) {
+            setVisibility(GONE);
             return;
         }
         this.playing = playing;
