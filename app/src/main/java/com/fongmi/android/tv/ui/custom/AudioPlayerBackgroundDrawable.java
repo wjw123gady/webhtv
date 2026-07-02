@@ -368,21 +368,146 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     }
 
     private void drawLightEffect(Canvas canvas, int w, int h) {
+        if (!animated) return;
         long now = SystemClock.uptimeMillis();
-        float phase = animated ? (float) ((Math.sin(now / 1350.0) + 1.0) * 0.5) : 0.62f;
+        float phase = (float) ((Math.sin(now / 1450.0) + 1.0) * 0.5);
+        float cycle = (now % 7800L) / 7800f;
         int seed = backgroundSeed == 0 ? artworkColor : backgroundSeed;
         int accent = style == PlayerSetting.AUDIO_BACKGROUND_ARTWORK ? vivid(artworkColor, 1.22f, 1.12f) : randomColor(seed, 12, 0.52f, 0.92f);
-        if (!animated) return;
         int accent2 = rotate(accent, 58f + phase * 28f, 0.9f, 1f);
-        int mode = Math.floorMod(mixSeed(seed ^ decorationSeed ^ style * 0x45D9F3B) + (int) (now / 6200L), 5);
+        int accent3 = rotate(accent, 142f + cycle * 36f, 0.82f, 1f);
+        drawLightBloom(canvas, w, h, now, phase, accent, accent2);
+        drawRecordHalo(canvas, w, h, now, phase, accent, accent3);
+        int mode = Math.floorMod(mixSeed(seed ^ decorationSeed ^ style * 0x45D9F3B) + (int) (now / 7800L), 4);
         switch (mode) {
-            case 0 -> drawLightAurora(canvas, w, h, now, phase, accent, accent2);
-            case 1 -> drawLightTwinkle(canvas, w, h, seed, now, phase, accent, accent2);
-            case 2 -> drawLightPulse(canvas, w, h, seed, now, phase, accent, accent2);
-            case 3 -> drawLightPrism(canvas, w, h, seed, now, phase, accent, accent2);
-            default -> drawLightWaves(canvas, w, h, now, phase, accent, accent2);
+            case 0 -> drawLiquidSilk(canvas, w, h, now, phase, accent, accent2);
+            case 1 -> drawParticleDrift(canvas, w, h, seed, now, accent, accent2, accent3);
+            case 2 -> drawNebulaVeil(canvas, w, h, now, phase, accent, accent2, accent3);
+            default -> drawCometTrails(canvas, w, h, seed, now, phase, accent, accent2);
         }
-        drawLightPresence(canvas, w, h, now, phase, accent, accent2);
+    }
+
+    private void drawLightBloom(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
+        float drift = (now % 11000L) / 11000f;
+        float cx = w * (0.1f + 0.78f * drift);
+        float cy = h * (0.22f + 0.1f * (float) Math.sin(now / 2100.0));
+        float cx2 = w * (0.88f - 0.72f * ((now % 13700L) / 13700f));
+        float cy2 = h * (0.68f + 0.14f * (float) Math.cos(now / 2600.0));
+        fillRadial(canvas, cx, cy, Math.max(w, h) * 0.44f, withAlpha(Color.WHITE, 28 + (int) (phase * 22)), Color.TRANSPARENT);
+        fillRadial(canvas, cx2, cy2, Math.max(w, h) * 0.52f, withAlpha(accent2, 42 + (int) (phase * 34)), Color.TRANSPARENT);
+    }
+
+    private void drawRecordHalo(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
+        float cx = w * 0.5f;
+        float cy = h * 0.17f;
+        float r = Math.min(w, h) * (0.17f + phase * 0.018f);
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        for (int i = 0; i < 3; i++) {
+            paint.setStrokeWidth(Math.max(1.2f, w * (0.0024f + i * 0.0014f)));
+            paint.setColor(withAlpha(i == 0 ? Color.WHITE : i == 1 ? accent : accent2, 34 - i * 6));
+            canvas.drawCircle(cx, cy, r + i * Math.min(w, h) * 0.026f, paint);
+        }
+        float angle = (now % 5200L) / 5200f * 360f;
+        paint.setStrokeWidth(Math.max(2f, w * 0.006f));
+        paint.setShader(new SweepGradient(cx, cy, new int[]{Color.TRANSPARENT, withAlpha(Color.WHITE, 96), withAlpha(accent2, 68), Color.TRANSPARENT}, new float[]{0f, 0.18f, 0.32f, 1f}));
+        canvas.save();
+        canvas.rotate(angle, cx, cy);
+        canvas.drawCircle(cx, cy, r + Math.min(w, h) * 0.045f, paint);
+        canvas.restore();
+        paint.setShader(null);
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawLiquidSilk(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
+        float drift = (now % 8600L) / 8600f;
+        drawSilkRibbon(canvas, w, h, drift, 0.28f, 0.09f, withAlpha(Color.WHITE, 58 + (int) (phase * 28)), withAlpha(accent, 76));
+        drawSilkRibbon(canvas, w, h, (drift + 0.42f) % 1f, 0.56f, -0.08f, withAlpha(accent2, 72), withAlpha(Color.WHITE, 36));
+    }
+
+    private void drawSilkRibbon(Canvas canvas, int w, int h, float progress, float baseY, float lean, int coreColor, int edgeColor) {
+        float x = w * (-0.38f + progress * 1.76f);
+        float y = h * (baseY + 0.08f * (float) Math.sin(progress * Math.PI * 2.0));
+        float thick = Math.max(h * 0.032f, w * 0.035f);
+        path.reset();
+        path.moveTo(x - w * 0.24f, y);
+        path.cubicTo(x + w * 0.1f, y - h * (0.14f + lean), x + w * 0.38f, y + h * (0.18f - lean), x + w * 0.86f, y + h * lean);
+        path.lineTo(x + w * 0.86f, y + h * lean + thick);
+        path.cubicTo(x + w * 0.38f, y + h * (0.18f - lean) + thick, x + w * 0.1f, y - h * (0.14f + lean) + thick, x - w * 0.24f, y + thick);
+        path.close();
+        paint.setShader(new LinearGradient(x - w * 0.24f, y, x + w * 0.86f, y + thick, new int[]{Color.TRANSPARENT, edgeColor, coreColor, edgeColor, Color.TRANSPARENT}, new float[]{0f, 0.22f, 0.5f, 0.78f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawPath(path, paint);
+        paint.setShader(null);
+    }
+
+    private void drawParticleDrift(Canvas canvas, int w, int h, int seed, long now, int accent, int accent2, int accent3) {
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        float drift = (now % 9000L) / 9000f;
+        for (int i = 0; i < 64; i++) {
+            int mixed = mixSeed(seed + i * 131);
+            float x = w * (randomRange(mixed, 1, -0.08f, 1.08f) + drift * randomRange(mixed, 3, -0.08f, 0.12f));
+            float y = h * (randomRange(mixed, 2, 0.04f, 0.86f) + 0.028f * (float) Math.sin(now / 900.0 + i));
+            if (x < -8f || x > w + 8f) x = Math.floorMod((int) x, Math.max(1, w));
+            float twinkle = (float) ((Math.sin(now / randomRange(mixed, 4, 360.0f, 980.0f) + i * 0.7f) + 1.0) * 0.5);
+            float size = Math.max(1.4f, Math.min(w, h) * randomRange(mixed, 5, 0.002f, 0.007f));
+            int color = i % 4 == 0 ? Color.WHITE : i % 4 == 1 ? accent : i % 4 == 2 ? accent2 : accent3;
+            paint.setStrokeWidth(Math.max(1f, size * 0.55f));
+            paint.setColor(withAlpha(color, 26 + (int) (twinkle * 112)));
+            if (i % 8 == 0) {
+                canvas.drawLine(x - size, y, x + size, y, paint);
+                canvas.drawLine(x, y - size, x, y + size, paint);
+            } else {
+                canvas.drawPoint(x, y, paint);
+            }
+        }
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawNebulaVeil(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2, int accent3) {
+        float drift = (now % 9800L) / 9800f;
+        for (int i = 0; i < 4; i++) {
+            float x = w * (-0.22f + ((drift + i * 0.27f) % 1.44f));
+            float width = w * (0.22f + i * 0.045f);
+            float lean = w * ((i % 2 == 0 ? 0.16f : -0.18f) + (phase - 0.5f) * 0.1f);
+            path.reset();
+            path.moveTo(x, -h * 0.08f);
+            path.cubicTo(x + lean, h * 0.18f, x - lean * 0.35f, h * 0.5f, x + lean * 0.6f, h * 1.08f);
+            path.lineTo(x + width + lean, h * 1.08f);
+            path.cubicTo(x + width - lean * 0.25f, h * 0.58f, x + width + lean, h * 0.24f, x + width * 0.86f, -h * 0.08f);
+            path.close();
+            int color = i % 3 == 0 ? accent : i % 3 == 1 ? accent2 : accent3;
+            paint.setShader(new LinearGradient(x, 0, x + lean, h, withAlpha(color, 48 + (int) (phase * 36)), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            canvas.drawPath(path, paint);
+            paint.setShader(null);
+        }
+    }
+
+    private void drawCometTrails(Canvas canvas, int w, int h, int seed, long now, float phase, int accent, int accent2) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        float progress = (now % 6800L) / 6800f;
+        for (int i = 0; i < 5; i++) {
+            float offset = (progress + i * 0.19f) % 1f;
+            float sx = w * (-0.18f + offset * 1.36f);
+            float sy = h * randomRange(seed, 80 + i, 0.12f, 0.78f);
+            float len = w * randomRange(seed, 90 + i, 0.16f, 0.34f);
+            float lift = h * randomRange(seed, 100 + i, -0.06f, 0.08f);
+            int color = i % 2 == 0 ? accent : accent2;
+            paint.setStrokeWidth(Math.max(1.4f, w * randomRange(seed, 110 + i, 0.003f, 0.009f)));
+            paint.setShader(new LinearGradient(sx - len, sy - lift, sx, sy, Color.TRANSPARENT, withAlpha(color, 82 + (int) (phase * 42)), Shader.TileMode.CLAMP));
+            path.reset();
+            path.moveTo(sx - len, sy - lift);
+            path.cubicTo(sx - len * 0.62f, sy + lift, sx - len * 0.22f, sy - lift * 0.4f, sx, sy);
+            canvas.drawPath(path, paint);
+            paint.setShader(null);
+        }
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        paint.setStyle(Paint.Style.FILL);
     }
 
     private void drawLightFlow(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
