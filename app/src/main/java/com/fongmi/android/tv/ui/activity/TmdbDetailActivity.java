@@ -6524,12 +6524,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             if (KeyUtil.isActionUp(event)) showInlineControls(true, false);
             return true;
         }
-        if (KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen) {
-            if (KeyUtil.isActionUp(event)) backFromInlineFullscreen();
-            return true;
-        }
         if (KeyUtil.isBackKey(event) && isInlineControlsVisible()) {
             if (KeyUtil.isActionUp(event)) hideInlineControls();
+            return true;
+        }
+        if (KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen) {
+            if (KeyUtil.isActionUp(event)) backFromInlineFullscreen();
             return true;
         }
         if (isInlineControlsVisible()) {
@@ -6830,12 +6830,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             showInlineControls(true, false);
             return;
         }
-        if (Util.isLeanback() && inlineFullscreen) {
-            backFromInlineFullscreen();
-            return;
-        }
         if (isInlineControlsVisible()) {
             hideInlineControls();
+            return;
+        }
+        if (Util.isLeanback() && inlineFullscreen) {
+            backFromInlineFullscreen();
             return;
         }
         if (inlineFullscreen) {

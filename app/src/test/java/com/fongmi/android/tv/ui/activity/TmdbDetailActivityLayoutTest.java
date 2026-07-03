@@ -876,12 +876,12 @@ public class TmdbDetailActivityLayoutTest {
                 pipBody.contains("inlinePiPParent.addView(binding.playerPanel, index, embeddedInlinePlayerLayoutParams(inlinePiPParent, inlinePiPLayoutParams));")
                         && pipBody.contains("binding.playerPanel.setLayoutParams(embeddedInlinePlayerLayoutParams(inlinePiPParent, inlinePiPLayoutParams));")
                         && pipBody.contains("restoreInlinePlayerPanelAfterOverlay();"));
-        assertTrue("leanback fullscreen Back should exit fullscreen before the generic hide-controls branch can consume it",
+        assertTrue("leanback fullscreen Back should hide visible controls before exiting fullscreen",
                 keyBody.indexOf("KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen") >= 0
-                        && keyBody.indexOf("KeyUtil.isBackKey(event) && isInlineControlsVisible()") > keyBody.indexOf("KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen")
+                        && keyBody.indexOf("KeyUtil.isBackKey(event) && isInlineControlsVisible()") < keyBody.indexOf("KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen")
                         && keyBody.contains("if (KeyUtil.isActionUp(event)) backFromInlineFullscreen();")
                         && backBody.indexOf("if (Util.isLeanback() && inlineFullscreen)") >= 0
-                        && backBody.indexOf("if (isInlineControlsVisible())") > backBody.indexOf("if (Util.isLeanback() && inlineFullscreen)")
+                        && backBody.indexOf("if (isInlineControlsVisible())") < backBody.indexOf("if (Util.isLeanback() && inlineFullscreen)")
                         && backBody.contains("backFromInlineFullscreen();"));
     }
 
