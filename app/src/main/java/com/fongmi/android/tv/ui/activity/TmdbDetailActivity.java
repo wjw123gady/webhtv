@@ -212,6 +212,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private List<Episode> episodeIndexSource;
     private List<Episode> explicitSeasonSource;
     private boolean explicitSeasonCache;
+    private List<Episode> visibleEpisodeSource;
+    private List<Episode> visibleEpisodeCache = List.of();
+    private int visibleEpisodeSeason = Integer.MIN_VALUE;
     private final List<String> backdropSlideItems = new ArrayList<>();
     private final Set<String> backdropSlideFailures = new HashSet<>();
     private final Runnable backdropSlideNext = this::loadNextBackdropSlide;
@@ -2895,6 +2898,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void rerenderEpisodeViewportOnly(boolean scrollToSelection) {
+        rerenderEpisodeViewportOnly(scrollToSelection, false);
+    }
+
+    private void rerenderEpisodeViewportOnly(boolean scrollToSelection, boolean rebuildRanges) {
         List<Episode> episodes = selectedFlag == null ? null : selectedFlag.getEpisodes();
         if (episodes == null || episodes.isEmpty()) return;
         List<Episode> visibleEpisodes = visibleEpisodes(episodes);
@@ -2903,11 +2910,13 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         List<EpisodeRangePolicy.Range> ranges = buildCardEpisodeRanges(displayEpisodes, selectedEpisode);
         if (ranges.isEmpty()) {
             renderedEpisodeRangeIndex = -1;
+            if (rebuildRanges) clearEpisodeRanges();
             applyEpisodeViewport(List.of(), Map.of(), false);
             return;
         }
         episodeRangeIndex = resolveEpisodeRangeIndex(ranges);
-        updateEpisodeRangeButtonStates();
+        if (rebuildRanges) renderEpisodeRanges(ranges);
+        else updateEpisodeRangeButtonStates();
         List<Episode> pageItems = ranges.size() > 1 ? EpisodeRangePolicy.slice(displayEpisodes, ranges.get(episodeRangeIndex)) : displayEpisodes;
         Map<Episode, Integer> numbers = episodeNumbers(pageItems, episodes);
         binding.episodeReverse.setText(episodeReverse ? R.string.detail_episode_forward : R.string.detail_episode_reverse);
@@ -3346,7 +3355,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         episodeReverse = !episodeReverse;
         resetEpisodeRange();
         scrollEpisodeStartOnce = episodeReverse;
-        renderEpisodes();
+        rerenderEpisodeViewportOnly(true, true);
     }
 
     private void toggleEpisodeViewMode() {
@@ -3438,6 +3447,13 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         episodeIndexCache = new IdentityHashMap<>();
         explicitSeasonSource = null;
         explicitSeasonCache = false;
+        clearVisibleEpisodeCache();
+    }
+
+    private void clearVisibleEpisodeCache() {
+        visibleEpisodeSource = null;
+        visibleEpisodeCache = List.of();
+        visibleEpisodeSeason = Integer.MIN_VALUE;
     }
 
     private void renderSeasonSelection() {
@@ -3532,6 +3548,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                     seasonEpisodeCounts.put(seasonNumber, episodes.size());
                     tmdbSeasonCast.put(seasonNumber, cast);
                     tmdbSeasonPhotos.put(seasonNumber, photos);
+                    clearVisibleEpisodeCache();
                     lastEpisodeMediaSeason = Integer.MIN_VALUE;
                     if (seasonNumber == tmdbEpisodeDataSeason(selectedFlag == null ? null : selectedFlag.getEpisodes()) || usesSingleTmdbSeasonEpisodeData(selectedFlag == null ? null : selectedFlag.getEpisodes())) renderEpisodes();
                 });
@@ -3664,6 +3681,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private List<Episode> visibleEpisodes(List<Episode> episodes) {
+        if (episodes == visibleEpisodeSource && selectedSeasonNumber == visibleEpisodeSeason) return visibleEpisodeCache;
+        visibleEpisodeCache = computeVisibleEpisodes(episodes);
+        visibleEpisodeSource = episodes;
+        visibleEpisodeSeason = selectedSeasonNumber;
+        return visibleEpisodeCache;
+    }
+
+    private List<Episode> computeVisibleEpisodes(List<Episode> episodes) {
         if (episodes == null || episodes.isEmpty()) return List.of();
         if (usesSingleTmdbSeasonEpisodeData(episodes)) return episodes;
         if (seasonNumbers.size() <= 1 || selectedSeasonNumber < 0) return episodes;

@@ -267,6 +267,30 @@ public class TmdbDetailActivityLayoutTest {
     }
 
     @Test
+    public void standaloneEpisodeReverseUsesViewportOnlyRefreshForLargeLists() throws Exception {
+        Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        int toggle = source.indexOf("private void toggleEpisodeReverse()");
+        int nextToggle = source.indexOf("private void toggleEpisodeViewMode()", toggle);
+        int rerender = source.indexOf("private void rerenderEpisodeViewportOnly(boolean scrollToSelection, boolean rebuildRanges)");
+        int updateStates = source.indexOf("private void updateEpisodeRangeButtonStates()", rerender);
+
+        assertTrue(sourcePath + " is missing reverse episode viewport helpers", toggle >= 0 && nextToggle > toggle && rerender >= 0 && updateStates > rerender);
+        String toggleBody = source.substring(toggle, nextToggle);
+        String rerenderBody = source.substring(rerender, updateStates);
+
+        assertTrue("episode reverse should keep the long-list render path lightweight instead of rebinding seasons/TMDB metadata",
+                toggleBody.contains("resetEpisodeRange();")
+                        && toggleBody.contains("rerenderEpisodeViewportOnly(true, true);")
+                        && !toggleBody.contains("renderEpisodes();"));
+        assertTrue("episode reverse still needs to rebuild range labels because the visible order changes",
+                rerenderBody.contains("if (rebuildRanges) renderEpisodeRanges(ranges);")
+                        && rerenderBody.contains("else updateEpisodeRangeButtonStates();")
+                        && rerenderBody.contains("List<Episode> pageItems = ranges.size() > 1 ? EpisodeRangePolicy.slice(displayEpisodes, ranges.get(episodeRangeIndex)) : displayEpisodes;")
+                        && rerenderBody.indexOf("List<Episode> pageItems =") > rerenderBody.indexOf("if (rebuildRanges) renderEpisodeRanges(ranges);"));
+    }
+
+    @Test
     public void standaloneMobileEpisodeCardPagesUseLargerButBoundedGroups() throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
@@ -305,10 +329,14 @@ public class TmdbDetailActivityLayoutTest {
         int clear = source.indexOf("private void clearEpisodeRenderCaches()", indices);
         int explicit = source.indexOf("private boolean hasExplicitSeasonNumbers(List<Episode> episodes)");
         int next = source.indexOf("private int sourceEpisodeNumber", explicit);
+        int visible = source.indexOf("private List<Episode> visibleEpisodes(List<Episode> episodes)");
+        int visibleEnd = source.indexOf("private List<Episode> computeVisibleEpisodes", visible);
 
-        assertTrue(sourcePath + " is missing episode render cache methods", indices >= 0 && clear > indices && explicit > clear && next > explicit);
+        assertTrue(sourcePath + " is missing episode render cache methods", indices >= 0 && clear > indices && explicit > clear && next > explicit && visible > next && visibleEnd > visible);
         String indexBody = source.substring(indices, clear);
+        String clearBody = source.substring(clear, explicit);
         String explicitBody = source.substring(explicit, next);
+        String visibleBody = source.substring(visible, visibleEnd);
         assertTrue("long episode flag switches should reuse the identity index for the same episode list",
                 indexBody.contains("if (episodes == episodeIndexSource) return episodeIndexCache;")
                         && indexBody.contains("episodeIndexSource = episodes;")
@@ -317,10 +345,19 @@ public class TmdbDetailActivityLayoutTest {
                 explicitBody.contains("if (episodes == explicitSeasonSource) return explicitSeasonCache;")
                         && explicitBody.contains("explicitSeasonSource = episodes;")
                         && explicitBody.contains("explicitSeasonCache = true;"));
+        assertTrue("long episode order/view toggles should reuse the current season's visible episode list",
+                visibleBody.contains("if (episodes == visibleEpisodeSource && selectedSeasonNumber == visibleEpisodeSeason) return visibleEpisodeCache;")
+                        && visibleBody.contains("visibleEpisodeCache = computeVisibleEpisodes(episodes);")
+                        && clearBody.contains("clearVisibleEpisodeCache();"));
         assertTrue("new detail loads must clear cached episode-list render state",
                 source.contains("clearEpisodeRenderCaches();\n        resetEpisodeRange();")
                         && source.contains("TmdbEpisodeSorter.sort(vod);\n        clearEpisodeRenderCaches();")
                         && source.contains("enrichVod();\n        clearEpisodeRenderCaches();"));
+        int seasonCountUpdate = source.indexOf("seasonEpisodeCounts.put(seasonNumber, episodes.size());");
+        int visibleCacheClear = source.indexOf("clearVisibleEpisodeCache();", seasonCountUpdate);
+        int seasonRender = source.indexOf("if (seasonNumber == tmdbEpisodeDataSeason", visibleCacheClear);
+        assertTrue("season count updates must invalidate cached visible episode slices before rerendering",
+                seasonCountUpdate >= 0 && visibleCacheClear > seasonCountUpdate && seasonRender > visibleCacheClear);
     }
 
     @Test
