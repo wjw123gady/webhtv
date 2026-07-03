@@ -2560,7 +2560,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (Setting.isIncognito() && mHistory.getKey().equals(getHistoryKey())) mHistory.delete();
         mBinding.control.action.opening.setText(mHistory.getOpening() <= 0 ? getString(R.string.play_op) : Util.timeMs(mHistory.getOpening()));
         mBinding.control.action.ending.setText(mHistory.getEnding() <= 0 ? getString(R.string.play_ed) : Util.timeMs(mHistory.getEnding()));
-        mBinding.control.action.speed.setText(player().setSpeed(PlayerSetting.getDefaultSpeed()));
+        // 如果历史记录中已有速度（播放过的剧），使用历史记录中的速度；否则使用默认速度1.0x
+        float speed = (mHistory.getSpeed() > 0 && mHistory.getSpeed() != 1f) ? mHistory.getSpeed() : 1f;
+        mBinding.control.action.speed.setText(player().setSpeed(speed));
         mHistory.setSpeed(player().getSpeed());
         mHistory.setVodName(item.getName());
         PlaybackEventCollector.get().updateHistory(mHistory);
@@ -2877,6 +2879,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setDecode();
         setLut();
         setPosition();
+        setSpeed();
         mClock.setCallback(this);
         requestIntroSkipPlan();
     }
@@ -3092,6 +3095,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }
         long position = Math.max(mHistory.getOpening(), mHistory.getPosition());
         if (position > 0) player().seekTo(position);
+    }
+
+    private void setSpeed() {
+        if (mHistory == null) return;
+        float speed = mHistory.getSpeed();
+        if (speed > 0 && speed != 1f) {
+            mBinding.control.action.speed.setText(player().setSpeed(speed));
+        }
     }
 
     private void checkOrientation() {
