@@ -569,8 +569,8 @@ public class TmdbDetailActivityLayoutTest {
                         && activity.contains("binding.scroll.scrollTo(0, Math.max(0, targetY));")
                         && adapter.contains("private View.OnFocusChangeListener focusChangeListener;")
                         && adapter.contains("public void setOnFocusChangeListener(View.OnFocusChangeListener focusChangeListener)")
-                        && adapter.contains("holder.binding.getRoot().setOnFocusChangeListener(focusChangeListener);")
-                        && adapter.contains("if (focusChangeListener != null) focusChangeListener.onFocusChange(holder.binding.getRoot(), focused);"));
+                        && adapter.contains("holder.binding.getRoot().setOnFocusChangeListener((view, focused) -> {")
+                        && adapter.contains("if (focusChangeListener != null) focusChangeListener.onFocusChange(view, focused);"));
     }
 
     @Test
@@ -739,6 +739,35 @@ public class TmdbDetailActivityLayoutTest {
                 sharedBody.contains("button.setOnKeyListener(flagKeyListener);")
                         && sharedBody.contains("adapter.setOnKeyListener")
                         && sharedBody.contains("focusNativeEnhancedInlineEpisode(scroll, recycler, adapter, layout.spanCount())"));
+    }
+
+    @Test
+    public void leanbackFusionEpisodeFocusTakesPriorityOverInlineSeekKeys() throws Exception {
+        Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String activity = new String(Files.readAllBytes(activityPath), StandardCharsets.UTF_8);
+
+        int dispatch = activity.indexOf("public boolean dispatchKeyEvent(KeyEvent event)");
+        int dispatchEnd = activity.indexOf("private boolean handleDetailEpisodeNavigationKey(KeyEvent event)", dispatch);
+        int seek = activity.indexOf("private boolean canInlineKeySeek(KeyEvent event)");
+        int seekEnd = activity.indexOf("private boolean canInlineSeek()", seek);
+
+        assertTrue(activityPath + " is missing dispatchKeyEvent", dispatch >= 0 && dispatchEnd > dispatch);
+        assertTrue(activityPath + " is missing canInlineKeySeek", seek >= 0 && seekEnd > seek);
+
+        String dispatchBody = activity.substring(dispatch, dispatchEnd);
+        String seekBody = activity.substring(seek, seekEnd);
+        int detailNavigation = dispatchBody.indexOf("if (handleDetailEpisodeNavigationKey(event)) return true;");
+        int inlineKey = dispatchBody.indexOf("if (handleInlineKey(event)) return true;");
+
+        assertTrue("detail episode focus must handle DPAD before inline playback maps LEFT/RIGHT to seek",
+                detailNavigation >= 0 && inlineKey > detailNavigation);
+        assertTrue("DPAD LEFT/RIGHT seek must only run when the player panel owns focus, so episode dialogs can navigate horizontally",
+                seekBody.contains("if (isInlineMediaSeekKey(event)) return true;")
+                        && seekBody.contains("if (isInlineControlsVisible()) return false;")
+                        && seekBody.contains("View focus = getCurrentFocus();")
+                        && seekBody.contains("focus == binding.playerPanel")
+                        && seekBody.contains("inlineFullscreen && (focus == null || isFocusInside(focus, binding.playerPanel))")
+                        && !seekBody.contains("inlineFullscreen || getCurrentFocus() == binding.playerPanel"));
     }
 
     @Test
@@ -912,6 +941,29 @@ public class TmdbDetailActivityLayoutTest {
                         && backBody.indexOf("if (Util.isLeanback() && inlineFullscreen)") >= 0
                         && backBody.indexOf("if (isInlineControlsVisible())") < backBody.indexOf("if (Util.isLeanback() && inlineFullscreen)")
                         && backBody.contains("backFromInlineFullscreen();"));
+    }
+
+    @Test
+    public void nativeEnhancedEpisodeCardsUseUnifiedTvFocusAndPlayingState() throws Exception {
+        Path adapterPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "adapter", "TmdbEpisodeAdapter.java"));
+        String adapter = new String(Files.readAllBytes(adapterPath), StandardCharsets.UTF_8);
+        Path selectorPath = findMainResPath().resolve(Path.of("drawable", "selector_episode_card.xml"));
+        String selector = new String(Files.readAllBytes(selectorPath), StandardCharsets.UTF_8);
+
+        int method = adapter.indexOf("private void applyNativeEnhancedCardFocus");
+        assertTrue(adapterPath + " is missing native enhanced card focus styling", method >= 0);
+        assertTrue("native enhanced episode focus must use the same yellow stroke as TV buttons",
+                adapter.contains("private static final int FOCUS_STROKE = 0xFFFFD166;")
+                        && adapter.indexOf("holder.binding.getRoot().setStrokeColor(focused ? FOCUS_STROKE : activated ? activeStrokeColor : 0x00000000);", method) > method);
+        assertTrue("currently playing episode cards must keep the green active border when not focused",
+                adapter.contains("private int activeStrokeColor = 0xFF2CC56F;")
+                        && adapter.indexOf("activated ? ACTIVE_STROKE_DP : 0", method) > method);
+        assertTrue("focused episode cards must scale up like the recent-watch card focus treatment",
+                adapter.contains("private static final float FOCUS_SCALE = 1.06f;")
+                        && adapter.indexOf("scaleX(scale).scaleY(scale)", method) > method);
+        assertTrue("legacy episode foreground selector must also keep focus yellow and playing green",
+                selector.contains("android:color=\"#FFD166\"")
+                        && selector.contains("android:color=\"#2CC56F\""));
     }
 
     private static Path findMainJavaPath() {

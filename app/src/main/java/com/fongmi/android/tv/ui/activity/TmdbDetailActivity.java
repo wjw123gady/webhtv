@@ -6507,8 +6507,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (handleInlineKey(event)) return true;
         if (handleDetailEpisodeNavigationKey(event)) return true;
+        if (handleInlineKey(event)) return true;
         return super.dispatchKeyEvent(event);
     }
 
@@ -6621,7 +6621,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean canInlineKeySeek(KeyEvent event) {
         if (!canInlineSeek() || !isInlineSeekKey(event)) return false;
         if (isInlineMediaSeekKey(event)) return true;
-        return !isInlineControlsVisible() && (inlineFullscreen || getCurrentFocus() == binding.playerPanel);
+        if (isInlineControlsVisible()) return false;
+        View focus = getCurrentFocus();
+        return focus == binding.playerPanel || (inlineFullscreen && (focus == null || isFocusInside(focus, binding.playerPanel)));
     }
 
     private boolean canInlineSeek() {

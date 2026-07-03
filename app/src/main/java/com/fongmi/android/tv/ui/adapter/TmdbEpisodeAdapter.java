@@ -31,6 +31,12 @@ import java.util.Objects;
 
 public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.ViewHolder> {
 
+    private static final int FOCUS_STROKE = 0xFFFFD166;
+    private static final int FOCUS_STROKE_DP = 3;
+    private static final int ACTIVE_STROKE_DP = 2;
+    private static final int FOCUS_ELEVATION_DP = 8;
+    private static final float FOCUS_SCALE = 1.06f;
+
     public enum Mode {
         LIST,
         GRID
@@ -425,13 +431,11 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
 
     private void applyCardFocus(ViewHolder holder, boolean activated) {
         if (isNativeEnhanced()) {
-            holder.binding.getRoot().setSelected(activated);
-            holder.binding.getRoot().setForeground(ResUtil.getDrawable(R.drawable.selector_episode_card));
-            holder.binding.getRoot().setCardBackgroundColor(0xFF141A20);
-            holder.binding.getRoot().setStrokeWidth(0);
-            holder.binding.getRoot().setCardElevation(0);
-            holder.binding.getRoot().setTranslationZ(0);
-            holder.binding.getRoot().setOnFocusChangeListener(focusChangeListener);
+            applyNativeEnhancedCardFocus(holder, activated, holder.binding.getRoot().hasFocus(), false);
+            holder.binding.getRoot().setOnFocusChangeListener((view, focused) -> {
+                applyNativeEnhancedCardFocus(holder, activated, focused, true);
+                if (focusChangeListener != null) focusChangeListener.onFocusChange(view, focused);
+            });
             return;
         }
         TmdbCardFocusHelper.bind(
@@ -442,6 +446,24 @@ public class TmdbEpisodeAdapter extends RecyclerView.Adapter<TmdbEpisodeAdapter.
                 focused -> {
                     if (focusChangeListener != null) focusChangeListener.onFocusChange(holder.binding.getRoot(), focused);
                 });
+    }
+
+    private void applyNativeEnhancedCardFocus(ViewHolder holder, boolean activated, boolean focused, boolean animate) {
+        holder.binding.getRoot().setSelected(activated);
+        holder.binding.getRoot().setForeground(null);
+        holder.binding.getRoot().setCardBackgroundColor(0xFF141A20);
+        holder.binding.getRoot().setStrokeColor(focused ? FOCUS_STROKE : activated ? activeStrokeColor : 0x00000000);
+        holder.binding.getRoot().setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : activated ? ACTIVE_STROKE_DP : 0));
+        holder.binding.getRoot().setCardElevation(ResUtil.dp2px(focused ? FOCUS_ELEVATION_DP : 0));
+        holder.binding.getRoot().setTranslationZ(ResUtil.dp2px(focused ? FOCUS_ELEVATION_DP : 0));
+        float scale = focused ? FOCUS_SCALE : 1f;
+        if (animate) {
+            holder.binding.getRoot().animate().scaleX(scale).scaleY(scale).setDuration(120).start();
+        } else {
+            holder.binding.getRoot().animate().cancel();
+            holder.binding.getRoot().setScaleX(scale);
+            holder.binding.getRoot().setScaleY(scale);
+        }
     }
 
     private boolean isNativeEnhanced() {
