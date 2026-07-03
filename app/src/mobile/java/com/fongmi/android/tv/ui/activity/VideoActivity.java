@@ -4058,7 +4058,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void finishShortDrama() {
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
-        finish();
+        saveHistory(true);
+        finishPlayback();
     }
 
     private void syncShortDramaControlLayout(boolean shortDrama) {
