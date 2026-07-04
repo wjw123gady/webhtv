@@ -15,6 +15,7 @@ import androidx.media3.ui.DefaultTimeBar;
 import androidx.media3.ui.TimeBar;
 
 import com.fongmi.android.tv.R;
+import com.github.catvod.crawler.SpiderDebug;
 
 import java.util.Formatter;
 import java.util.Locale;
@@ -140,6 +141,11 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     }
 
     private void seekToTimeBarPosition(long positionMs) {
+        boolean wasPlaying = player != null && player.isPlaying();
+        if (SpiderDebug.isEnabled()) {
+            SpiderDebug.log("playback-control", "seekView.scrubStop target=%d current=%d duration=%d wasPlaying=%s state=%d playWhenReady=%s",
+                    positionMs, player == null ? -1 : player.getCurrentPosition(), player == null ? -1 : player.getDuration(), wasPlaying, player == null ? -1 : player.getPlaybackState(), player != null && player.getPlayWhenReady());
+        }
         player.seekTo(positionMs);
         updateProgress();
         player.play();

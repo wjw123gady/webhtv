@@ -24,6 +24,7 @@ import com.fongmi.android.tv.player.karaoke.KaraokeScoreSnapshot;
 import com.fongmi.android.tv.player.karaoke.KaraokeStatus;
 import com.fongmi.android.tv.player.karaoke.KaraokeTrack;
 import com.fongmi.android.tv.setting.PlayerSetting;
+import com.github.catvod.crawler.SpiderDebug;
 import com.google.android.material.textview.MaterialTextView;
 
 import java.util.List;
@@ -254,6 +255,9 @@ public class KaraokeStatusView extends LinearLayout {
             long position = syncedPosition;
             long now = SystemClock.elapsedRealtime();
             boolean resetHistory = false;
+            long previousSynced = lastSyncedPosition;
+            long previousSmooth = smoothBasePosition;
+            long previousRender = renderPosition;
             if (playing && smoothBasePosition >= 0) {
                 long current = drawPosition(now);
                 long delta = syncedPosition - current;
@@ -273,7 +277,19 @@ public class KaraokeStatusView extends LinearLayout {
             smoothBasePosition = position;
             smoothBaseRealtime = now;
             if (resetHistory || (lastHistoryPosition >= 0 && Math.abs(position - lastHistoryPosition) > HISTORY_RESET_MS)) clearHistory();
+            debugSyncPosition(syncedPosition, position, previousSynced, previousSmooth, previousRender, resetHistory);
             invalidate();
+        }
+
+        private void debugSyncPosition(long syncedPosition, long position, long previousSynced, long previousSmooth, long previousRender, boolean resetHistory) {
+            if (!SpiderDebug.isEnabled()) return;
+            boolean nearStart = syncedPosition <= 5000;
+            boolean backwardSynced = previousSynced >= 0 && syncedPosition + POSITION_BACKWARD_SEEK_MS < previousSynced;
+            boolean backwardSmooth = previousSmooth >= 0 && syncedPosition + POSITION_BACKWARD_SEEK_MS < previousSmooth;
+            boolean nearTail = snapshot != null && track != null && track.getDurationMs() > 0 && track.getDurationMs() - syncedPosition <= 5000;
+            if (!nearStart && !backwardSynced && !backwardSmooth && !resetHistory && !nearTail) return;
+            SpiderDebug.log("lyrics-loop", "karaoke.timeline sync input=%d applied=%d prevSynced=%d prevSmooth=%d prevRender=%d resetHistory=%s playing=%s trackDur=%d snapshotPos=%d",
+                    syncedPosition, position, previousSynced, previousSmooth, previousRender, resetHistory, playing, track == null ? -1 : track.getDurationMs(), snapshot == null ? -1 : snapshot.getPositionMs());
         }
 
         @Override

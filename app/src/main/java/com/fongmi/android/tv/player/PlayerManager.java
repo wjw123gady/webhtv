@@ -431,10 +431,12 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void play() {
+        logControl("manager.play");
         player.play();
     }
 
     public void pause() {
+        logControl("manager.pause");
         player.pause();
     }
 
@@ -456,6 +458,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void seekTo(long time) {
+        logControl("manager.seekTo target=" + time);
         player.seekTo(time);
     }
 
@@ -1102,6 +1105,73 @@ public class PlayerManager implements ParseCallback {
                 ", danmakus=" + (spec.getDanmakus() == null ? 0 : spec.getDanmakus().size());
     }
 
+    private void logControl(String event) {
+        if (!SpiderDebug.isEnabled()) return;
+        SpiderDebug.log("playback-control", "%s pos=%d dur=%d state=%s playing=%s playWhenReady=%s loading=%s repeat=%s caller=%s spec=%s",
+                event, safePosition(), safeDuration(), stateName(safeState()), safePlaying(), safePlayWhenReady(), safeLoading(), isRepeatOne(), callSite(), debugSpec());
+    }
+
+    private long safePosition() {
+        try {
+            return player == null ? -1 : player.getCurrentPosition();
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    private long safeDuration() {
+        try {
+            return player == null ? -1 : player.getDuration();
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    private int safeState() {
+        try {
+            return player == null ? Player.STATE_IDLE : player.getPlaybackState();
+        } catch (Throwable e) {
+            return Player.STATE_IDLE;
+        }
+    }
+
+    private boolean safePlaying() {
+        try {
+            return player != null && player.isPlaying();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private boolean safePlayWhenReady() {
+        try {
+            return player != null && player.getPlayWhenReady();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private boolean safeLoading() {
+        try {
+            return player != null && player.isLoading();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private static String callSite() {
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        StringBuilder builder = new StringBuilder();
+        for (StackTraceElement element : stack) {
+            String name = element.getClassName();
+            if (name.equals(Thread.class.getName()) || name.equals(PlayerManager.class.getName())) continue;
+            if (builder.length() > 0) builder.append(" <- ");
+            builder.append(name.substring(name.lastIndexOf('.') + 1)).append('.').append(element.getMethodName()).append(':').append(element.getLineNumber());
+            if (builder.length() > 160) break;
+        }
+        return builder.toString();
+    }
+
     private static String summarizeUrl(String url) {
         if (TextUtils.isEmpty(url)) return "";
         Uri uri = Uri.parse(url);
@@ -1162,10 +1232,23 @@ public class PlayerManager implements ParseCallback {
         public void onPlaybackStateChanged(int state) {
             if (state != Player.STATE_IDLE) App.removeCallbacks(runnable);
             if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "state=%s spec=%s", stateName(state), debugSpec());
+            logControl("manager.listener.state=" + stateName(state));
             if (state == Player.STATE_READY) {
                 clearLutWarmupRecovery();
                 applyLutForCurrentItem();
             }
+        }
+
+        @Override
+        public void onIsPlayingChanged(boolean isPlaying) {
+            logControl("manager.listener.playing=" + isPlaying);
+        }
+
+        @Override
+        public void onPositionDiscontinuity(@NonNull Player.PositionInfo oldPosition, @NonNull Player.PositionInfo newPosition, int reason) {
+            if (!SpiderDebug.isEnabled()) return;
+            SpiderDebug.log("playback-control", "manager.positionDiscontinuity reason=%d old=%d new=%d pos=%d dur=%d state=%s playing=%s repeat=%s caller=%s spec=%s",
+                    reason, oldPosition.positionMs, newPosition.positionMs, safePosition(), safeDuration(), stateName(safeState()), safePlaying(), isRepeatOne(), callSite(), debugSpec());
         }
 
         @Override

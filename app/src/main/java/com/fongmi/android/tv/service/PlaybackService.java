@@ -92,6 +92,62 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
                 " session=" + (session != null);
     }
 
+    private void logPlaybackControl(String event) {
+        if (!SpiderDebug.isEnabled()) return;
+        SpiderDebug.log("playback-control", "%s pos=%d dur=%d state=%s playing=%s playWhenReady=%s repeat=%s %s",
+                event, safePosition(), safeDuration(), stateName(safePlaybackState()), safePlaying(), safePlayWhenReady(), player != null && !player.isReleased() && player.isRepeatOne(), serviceState());
+    }
+
+    private long safePosition() {
+        try {
+            return exoPlayer == null ? -1 : exoPlayer.getCurrentPosition();
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    private long safeDuration() {
+        try {
+            return exoPlayer == null ? -1 : exoPlayer.getDuration();
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    private int safePlaybackState() {
+        try {
+            return exoPlayer == null ? Player.STATE_IDLE : exoPlayer.getPlaybackState();
+        } catch (Throwable e) {
+            return Player.STATE_IDLE;
+        }
+    }
+
+    private boolean safePlaying() {
+        try {
+            return exoPlayer != null && exoPlayer.isPlaying();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private boolean safePlayWhenReady() {
+        try {
+            return exoPlayer != null && exoPlayer.getPlayWhenReady();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private static String stateName(int state) {
+        return switch (state) {
+            case Player.STATE_IDLE -> "IDLE";
+            case Player.STATE_BUFFERING -> "BUFFERING";
+            case Player.STATE_READY -> "READY";
+            case Player.STATE_ENDED -> "ENDED";
+            default -> String.valueOf(state);
+        };
+    }
+
     private boolean hasNavigationCallback() {
         return navigationCallback != null;
     }
@@ -146,8 +202,13 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     }
 
     private void handleAction(String action) {
-        if (ActionEvent.PLAY.equals(action)) player.play();
-        else if (ActionEvent.PAUSE.equals(action)) player.pause();
+        if (ActionEvent.PLAY.equals(action)) {
+            logPlaybackControl("service.action.play");
+            player.play();
+        } else if (ActionEvent.PAUSE.equals(action)) {
+            logPlaybackControl("service.action.pause");
+            player.pause();
+        }
         else if (ActionEvent.PREV.equals(action)) dispatchPrev();
         else if (ActionEvent.NEXT.equals(action)) dispatchNext();
         else if (ActionEvent.STOP.equals(action)) dispatchStop();
@@ -358,6 +419,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     }
 
     public void dispatchReplay() {
+        logPlaybackControl("service.dispatchReplay");
         if (hasNavigationCallback() && isNavigationOwner()) dispatch(NavigationCallback::onReplay);
         else {
             player.seekTo(0);
@@ -459,7 +521,26 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
 
             @Override
             public void stop() {
+                logPlaybackControl("session.stop");
                 dispatchStop();
+            }
+
+            @Override
+            public void play() {
+                logPlaybackControl("session.play");
+                super.play();
+            }
+
+            @Override
+            public void pause() {
+                logPlaybackControl("session.pause");
+                super.pause();
+            }
+
+            @Override
+            public void seekTo(long positionMs) {
+                logPlaybackControl("session.seekTo target=" + positionMs);
+                super.seekTo(positionMs);
             }
 
             @NonNull
@@ -523,6 +604,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         @Override
         public void onPlaybackStateChanged(int state) {
             PlaybackEventCollector.get().onPlaybackStateChanged(player, state);
+            logPlaybackControl("service.listener.state=" + stateName(state));
             if (desktopLyrics != null) desktopLyrics.update(player);
             if (state == Player.STATE_ENDED && !(hasNavigationCallback() && isNavigationOwner())) navigateItem(1);
         }
@@ -530,7 +612,15 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         @Override
         public void onIsPlayingChanged(boolean isPlaying) {
             PlaybackEventCollector.get().onIsPlayingChanged(player, isPlaying);
+            logPlaybackControl("service.listener.playing=" + isPlaying);
             if (desktopLyrics != null) desktopLyrics.update(player);
+        }
+
+        @Override
+        public void onPositionDiscontinuity(@NonNull Player.PositionInfo oldPosition, @NonNull Player.PositionInfo newPosition, int reason) {
+            if (!SpiderDebug.isEnabled()) return;
+            SpiderDebug.log("playback-control", "service.positionDiscontinuity reason=%d old=%d new=%d pos=%d dur=%d state=%s playing=%s playWhenReady=%s repeat=%s %s",
+                    reason, oldPosition.positionMs, newPosition.positionMs, safePosition(), safeDuration(), stateName(safePlaybackState()), safePlaying(), safePlayWhenReady(), player.isRepeatOne(), serviceState());
         }
 
         @Override

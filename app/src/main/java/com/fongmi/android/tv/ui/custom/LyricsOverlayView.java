@@ -28,6 +28,7 @@ import com.fongmi.android.tv.player.lyrics.LyricsParser;
 import com.fongmi.android.tv.player.lyrics.LyricsResult;
 import com.fongmi.android.tv.player.lyrics.LyricsWord;
 import com.fongmi.android.tv.setting.PlayerSetting;
+import com.github.catvod.crawler.SpiderDebug;
 import com.google.android.material.textview.MaterialTextView;
 
 import java.util.Collections;
@@ -150,6 +151,10 @@ public class LyricsOverlayView extends FrameLayout {
             return;
         }
         long position = Math.max(0, positionMs);
+        int debugPreviousIndex = index;
+        long previousBase = basePositionMs;
+        long previousDisplay = displayPositionMs();
+        boolean previousPlaying = this.playing;
         boolean positionReset = isPositionReset(position, playing);
         if (positionReset) {
             stopWordRefresh();
@@ -161,12 +166,14 @@ public class LyricsOverlayView extends FrameLayout {
         if (dragging) return;
         int nextIndex = LyricsParser.findLine(lines, position);
         if (nextIndex == index) {
+            debugUpdate("same", position, previousBase, previousDisplay, previousPlaying, playing, debugPreviousIndex, nextIndex, positionReset);
             renderPrimaryLine(position);
             scheduleWordRefresh(position);
             return;
         }
         int previousIndex = index;
         index = nextIndex;
+        debugUpdate("line", position, previousBase, previousDisplay, previousPlaying, playing, debugPreviousIndex, nextIndex, positionReset);
         render(position, shouldAnimateLineChange(previousIndex, nextIndex), Integer.compare(nextIndex, previousIndex));
         scheduleWordRefresh(position);
         setVisibility(VISIBLE);
@@ -176,6 +183,31 @@ public class LyricsOverlayView extends FrameLayout {
         if (!nextPlaying || !playing || index < 0 || basePositionMs <= 0) return false;
         long current = displayPositionMs();
         return positionMs + POSITION_RESET_THRESHOLD_MS < current;
+    }
+
+    public String debugState() {
+        long display = lines.isEmpty() ? basePositionMs : displayPositionMs();
+        return "lines=" + lines.size()
+                + ",index=" + index
+                + ",base=" + basePositionMs
+                + ",display=" + display
+                + ",playing=" + playing
+                + ",dragging=" + dragging
+                + ",suppressed=" + suppressed
+                + ",visible=" + getVisibility();
+    }
+
+    private void debugUpdate(String event, long position, long previousBase, long previousDisplay, boolean previousPlaying, boolean nextPlaying, int previousIndex, int nextIndex, boolean positionReset) {
+        if (!SpiderDebug.isEnabled()) return;
+        boolean nearStart = position <= 5000;
+        boolean backwardPosition = previousBase > 0 && position + POSITION_RESET_THRESHOLD_MS < previousBase;
+        boolean backwardDisplay = previousDisplay > 0 && position + POSITION_RESET_THRESHOLD_MS < previousDisplay;
+        boolean backwardLine = previousIndex >= 0 && nextIndex >= 0 && nextIndex < previousIndex;
+        boolean playingChanged = previousPlaying != nextPlaying;
+        boolean nearTail = nextIndex >= 0 && lines.size() > 0 && nextIndex >= lines.size() - 2;
+        if (!positionReset && !nearStart && !backwardPosition && !backwardDisplay && !backwardLine && !playingChanged && !nearTail) return;
+        SpiderDebug.log("lyrics-loop", "overlay update event=%s pos=%d prevBase=%d prevDisplay=%d prevPlaying=%s nextPlaying=%s prevIndex=%d nextIndex=%d reset=%s nearStart=%s backwardBase=%s backwardDisplay=%s lines=%d",
+                event, position, previousBase, previousDisplay, previousPlaying, nextPlaying, previousIndex, nextIndex, positionReset, nearStart, backwardPosition, backwardDisplay, lines.size());
     }
 
     private void render(long positionMs) {
@@ -431,6 +463,7 @@ public class LyricsOverlayView extends FrameLayout {
         if (nextIndex != index) {
             int previousIndex = index;
             index = nextIndex;
+            debugRefresh("line", position, previousIndex, nextIndex);
             render(position, shouldAnimateLineChange(previousIndex, nextIndex), Integer.compare(nextIndex, previousIndex));
             scheduleWordRefresh(position);
             return;
@@ -453,8 +486,21 @@ public class LyricsOverlayView extends FrameLayout {
         stopWordRefresh();
         if (!playing || dragging || index < 0 || index >= lines.size()) return;
         long delay = nextRefreshDelay(positionMs);
-        if (delay < 0) return;
+        if (delay < 0) {
+            debugRefresh("stop", positionMs, index, index);
+            return;
+        }
         App.post(wordRefresh, delay);
+    }
+
+    private void debugRefresh(String event, long position, int previousIndex, int nextIndex) {
+        if (!SpiderDebug.isEnabled()) return;
+        boolean nearStart = position <= 5000;
+        boolean backwardLine = previousIndex >= 0 && nextIndex >= 0 && nextIndex < previousIndex;
+        boolean nearTail = nextIndex >= 0 && lines.size() > 0 && nextIndex >= lines.size() - 2;
+        if (!nearStart && !backwardLine && !nearTail && !"stop".equals(event)) return;
+        SpiderDebug.log("lyrics-loop", "overlay refresh event=%s pos=%d prevIndex=%d nextIndex=%d base=%d display=%d playing=%s dragging=%s lines=%d",
+                event, position, previousIndex, nextIndex, basePositionMs, displayPositionMs(), playing, dragging, lines.size());
     }
 
     private long nextRefreshDelay(long positionMs) {

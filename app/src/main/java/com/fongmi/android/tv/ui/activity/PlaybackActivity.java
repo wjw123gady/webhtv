@@ -411,6 +411,34 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
                 " keepScreen=" + ((getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0);
     }
 
+    private void logPlaybackControl(String event) {
+        if (!SpiderDebug.isEnabled()) return;
+        long controllerPosition = -1;
+        long controllerDuration = -1;
+        int controllerState = -1;
+        boolean controllerPlaying = false;
+        boolean controllerPlayWhenReady = false;
+        if (mController != null) {
+            controllerPosition = mController.getCurrentPosition();
+            controllerDuration = mController.getDuration();
+            controllerState = mController.getPlaybackState();
+            controllerPlaying = mController.isPlaying();
+            controllerPlayWhenReady = mController.getPlayWhenReady();
+        }
+        long playerPosition = -1;
+        long playerDuration = -1;
+        int playerState = -1;
+        boolean playerPlaying = false;
+        if (mService != null && mService.player() != null && !mService.player().isReleased()) {
+            playerPosition = player().getPosition();
+            playerDuration = player().getDuration();
+            playerState = player().getPlaybackState();
+            playerPlaying = player().isPlaying();
+        }
+        SpiderDebug.log("playback-control", "activity.%s controllerPos=%d controllerDur=%d controllerState=%d controllerPlaying=%s controllerPwr=%s playerPos=%d playerDur=%d playerState=%d playerPlaying=%s %s",
+                event, controllerPosition, controllerDuration, controllerState, controllerPlaying, controllerPlayWhenReady, playerPosition, playerDuration, playerState, playerPlaying, lifecycleState());
+    }
+
     private final PlaybackService.PlayerCallback mPlayerCallback = new PlaybackService.PlayerCallback() {
 
         @Override
@@ -463,12 +491,14 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         if (isPlaying) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else if (!isBuffering()) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "playing changed isPlaying=%s state=%d %s", isPlaying, mController == null ? -1 : mController.getPlaybackState(), lifecycleState());
+        logPlaybackControl("controller.playing=" + isPlaying);
         onPlayingChanged(isPlaying);
     }
 
     @Override
     public void onPlaybackStateChanged(int state) {
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "state changed state=%d %s", state, lifecycleState());
+        logPlaybackControl("controller.state=" + state);
         if (isOwner()) onStateChanged(state);
     }
 

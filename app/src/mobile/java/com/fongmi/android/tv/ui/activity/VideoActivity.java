@@ -232,6 +232,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private String mLyricsSelectedResultKey;
     private String mDetailLyrics;
     private String mInlineLyrics;
+    private long mLyricsLoopLastPlayerPosition = C.TIME_UNSET;
+    private boolean mLyricsLoopLastPlaying;
     private String mPlaybackEpisodeKey;
     private String mArtworkRequestUrl;
     private String mArtworkRequestOwner;
@@ -1482,6 +1484,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void checkPlay() {
         setR1Callback();
+        debugPlaybackControl("checkPlay");
         if (player().isPlaying()) onPaused();
         else if (player().isEmpty()) onRefresh();
         else onPlay();
@@ -4163,6 +4166,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void refreshLyrics() {
         if (mLyrics == null || service() == null) return;
+        debugLyricsLoop("refreshLyrics", true);
         updateAudioOnlyState();
         boolean audioContent = isAudioOnly() || isMusicLike();
         if (!mLyrics.hasChoice(player()) && showInlineLyrics()) {
@@ -4175,6 +4179,41 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void refreshKaraoke(boolean audioContent) {
         if (mKaraoke != null && service() != null) mKaraoke.refresh(this, player(), audioContent);
+    }
+
+    private void debugPlaybackControl(String event) {
+        if (!SpiderDebug.isEnabled()) return;
+        if (service() == null || player().isEmpty()) {
+            SpiderDebug.log("playback-control", "video.%s noPlayer owner=%s service=%s", event, isOwner(), service() != null);
+            return;
+        }
+        SpiderDebug.log("playback-control", "video.%s pos=%d dur=%d state=%d playing=%s playWhenReady=%s repeat=%s owner=%s audioStage=%s controller=%s",
+                event, player().getPosition(), player().getDuration(), player().getPlaybackState(), player().isPlaying(), player().getPlayer().getPlayWhenReady(), player().isRepeatOne(), isOwner(), mAudioStageVisible, controller() != null);
+    }
+
+    private void debugLyricsLoop(String event, boolean force) {
+        if (!SpiderDebug.isEnabled()) return;
+        if (service() == null || player().isEmpty()) {
+            if (force) SpiderDebug.log("lyrics-loop", "video.%s noPlayer owner=%s service=%s", event, isOwner(), service() != null);
+            return;
+        }
+        long position = Math.max(0, player().getPosition());
+        long duration = player().getDuration();
+        boolean playing = player().isPlaying();
+        boolean nearStart = position <= 5000;
+        boolean nearEnd = duration > 0 && duration - position <= 5000;
+        boolean backward = mLyricsLoopLastPlayerPosition != C.TIME_UNSET && position + 1200 < mLyricsLoopLastPlayerPosition;
+        boolean playingChanged = playing != mLyricsLoopLastPlaying;
+        if (force || nearStart || nearEnd || backward || playingChanged) {
+            SpiderDebug.log("lyrics-loop", "video.%s pos=%d last=%d dur=%d state=%d playing=%s playWhenReady=%s repeat=%s nearStart=%s nearEnd=%s backward=%s lyricsLines=%d main={%s} audio={%s} karaokePos=%d",
+                    event, position, mLyricsLoopLastPlayerPosition, duration, player().getPlaybackState(), playing, player().getPlayer().getPlayWhenReady(), player().isRepeatOne(), nearStart, nearEnd, backward,
+                    mLyrics == null ? -1 : mLyrics.getLines().size(),
+                    mBinding == null || mBinding.lyrics == null ? "null" : mBinding.lyrics.debugState(),
+                    mBinding == null || mBinding.audioLyrics == null ? "null" : mBinding.audioLyrics.debugState(),
+                    mKaraoke == null || mKaraoke.getSnapshot() == null ? -1 : mKaraoke.getSnapshot().getPositionMs());
+        }
+        mLyricsLoopLastPlayerPosition = position;
+        mLyricsLoopLastPlaying = playing;
     }
 
     private boolean isLyricsSearchAvailable() {
@@ -4819,6 +4858,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     protected void onStateChanged(int state) {
+        debugPlaybackControl("stateChanged=" + state);
+        debugLyricsLoop("stateChanged=" + state, true);
         switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
@@ -4839,6 +4880,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     protected void onPlayingChanged(boolean isPlaying) {
+        debugPlaybackControl("playingChanged=" + isPlaying);
+        debugLyricsLoop("playingChanged=" + isPlaying, true);
         syncLyricsPlaybackState(isPlaying);
         syncKaraokePosition();
         if (isPlaying) {
@@ -4854,11 +4897,13 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void syncLyricsPlaybackState() {
         if (mLyrics == null || service() == null || player().isEmpty()) return;
+        debugLyricsLoop("syncLyricsPlaybackState", false);
         mLyrics.update(player());
     }
 
     private void syncLyricsPlaybackState(boolean isPlaying) {
         if (mLyrics == null || service() == null || player().isEmpty()) return;
+        debugLyricsLoop("syncLyricsPlaybackState=" + isPlaying, false);
         mLyrics.update(player(), isPlaying);
     }
 
@@ -4880,6 +4925,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (service() == null || player().isEmpty()) return;
         long position = Math.max(0, player().getPosition() + PlayerSetting.getLyricsTimeOffsetMs());
         boolean playing = player().isPlaying();
+        debugLyricsLoop("syncKaraokePosition", false);
         if (mBinding.karaoke != null) mBinding.karaoke.syncPosition(position, playing);
         mBinding.audioKaraoke.syncPosition(position, playing);
     }
@@ -4910,6 +4956,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         long position, duration;
         mHistory.setCreateTime(time);
         updatePlaybackHistoryPosition();
+        debugLyricsLoop("clock", false);
         syncKaraokePosition();
         if (mLyrics != null) mLyrics.update(player());
         if (mKaraoke != null) mKaraoke.update(player(), mLyrics == null ? null : mLyrics.getLines());
@@ -5127,13 +5174,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void onPaused() {
+        debugPlaybackControl("onPaused");
         controller().pause();
     }
 
     private void onPlay() {
+        debugPlaybackControl("onPlay.before");
         if (mHistory != null && isEnded()) controller().seekTo(mHistory.getOpening());
         if (!player().isEmpty() && isIdle()) controller().prepare();
         controller().play();
+        debugPlaybackControl("onPlay.after");
     }
 
     private boolean isFullscreen() {
