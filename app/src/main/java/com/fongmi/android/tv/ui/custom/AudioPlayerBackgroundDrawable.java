@@ -399,8 +399,9 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     }
 
     private void drawRecordHalo(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
-        float cx = w * 0.5f;
-        float cy = h * 0.17f;
+        boolean landscape = w > h * 1.18f;
+        float cx = landscape ? w * 0.18f : w * 0.5f;
+        float cy = landscape ? h * 0.3f : h * 0.17f;
         float r = Math.min(w, h) * (0.17f + phase * 0.018f);
         paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);

@@ -13,6 +13,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.player.karaoke.KaraokeResult;
@@ -33,7 +34,7 @@ public class KaraokeResultView extends LinearLayout {
     public KaraokeResultView(Context context) {
         super(context);
         setOrientation(VERTICAL);
-        setPadding(dp(20), dp(18), dp(20), dp(18));
+        setPadding(dp(isLandscapeLayout() ? 18 : 20), dp(isLandscapeLayout() ? 16 : 18), dp(isLandscapeLayout() ? 18 : 20), dp(isLandscapeLayout() ? 16 : 18));
         setMinimumWidth(dialogWidth());
         setBackground(panelBackground());
         setClipToOutline(false);
@@ -43,6 +44,10 @@ public class KaraokeResultView extends LinearLayout {
         removeAllViews();
         action = null;
         if (result == null) return this;
+        if (isLandscapeLayout()) {
+            addLandscapeResult(result);
+            return this;
+        }
         addHeader(result);
         addHero(result);
         addMetrics(result);
@@ -61,6 +66,77 @@ public class KaraokeResultView extends LinearLayout {
 
     public void requestActionFocus() {
         if (action != null) action.post(() -> action.requestFocus());
+    }
+
+    private void addLandscapeResult(KaraokeResult result) {
+        setOrientation(VERTICAL);
+        addHeader(result);
+
+        LinearLayout body = new LinearLayout(getContext());
+        body.setOrientation(HORIZONTAL);
+        body.setGravity(Gravity.CENTER_VERTICAL);
+        LayoutParams bodyParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, landscapeBodyHeight());
+        bodyParams.topMargin = dp(12);
+        addView(body, bodyParams);
+
+        LinearLayout summary = new LinearLayout(getContext());
+        summary.setOrientation(VERTICAL);
+        summary.setGravity(Gravity.CENTER_HORIZONTAL);
+        summary.setPadding(dp(14), dp(12), dp(14), dp(12));
+        summary.setBackground(cardBackground(SURFACE, PANEL_STROKE));
+        body.addView(summary, new LinearLayout.LayoutParams(landscapeSummaryWidth(), ViewGroup.LayoutParams.MATCH_PARENT));
+        addLandscapeSummary(summary, result);
+
+        ScrollView scroll = new ScrollView(getContext());
+        scroll.setFillViewport(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        scrollParams.leftMargin = dp(12);
+        body.addView(scroll, scrollParams);
+
+        LinearLayout detail = new LinearLayout(getContext());
+        detail.setOrientation(VERTICAL);
+        scroll.addView(detail, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addMetrics(detail, result, true);
+        addStats(detail, result, true);
+        addFootnote(detail, result, true);
+    }
+
+    private void addLandscapeSummary(LinearLayout parent, KaraokeResult result) {
+        ScoreGaugeView gauge = new ScoreGaugeView(getContext());
+        gauge.setResult(result.getScorePercent(), result.getGrade(), scoreColor(result.getScorePercent()));
+        LinearLayout.LayoutParams gaugeParams = new LinearLayout.LayoutParams(dp(96), dp(96));
+        gaugeParams.gravity = Gravity.CENTER_HORIZONTAL;
+        parent.addView(gauge, gaugeParams);
+
+        MaterialTextView score = textView(getResources().getString(R.string.player_karaoke_result_score_value, result.getScorePercent(), result.getGrade()), 29, true, TEXT_PRIMARY, Gravity.CENTER);
+        score.setIncludeFontPadding(false);
+        score.setSingleLine(true);
+        LinearLayout.LayoutParams scoreParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        scoreParams.topMargin = dp(8);
+        parent.addView(score, scoreParams);
+
+        MaterialTextView headline = textView(resultHeadline(result), 12, false, TEXT_SECONDARY, Gravity.CENTER);
+        headline.setSingleLine(false);
+        headline.setMaxLines(3);
+        LinearLayout.LayoutParams headlineParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        headlineParams.topMargin = dp(7);
+        parent.addView(headline, headlineParams);
+
+        if (result.getScoredLineCount() > 0) {
+            MaterialTextView lines = textView(getResources().getString(R.string.player_karaoke_result_line_summary, result.getScoredLineCount(), result.getBestLineScorePercent()), 11, true, TEXT_PRIMARY, Gravity.CENTER);
+            lines.setSingleLine(true);
+            lines.setEllipsize(TextUtils.TruncateAt.END);
+            lines.setPadding(dp(8), dp(5), dp(8), dp(5));
+            lines.setBackground(chipBackground(SURFACE_STRONG, 0x30FFFFFF, dp(7)));
+            LinearLayout.LayoutParams linesParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            linesParams.topMargin = dp(8);
+            parent.addView(lines, linesParams);
+        }
+
+        View spacer = new View(getContext());
+        parent.addView(spacer, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        addAction(parent);
     }
 
     private void addHeader(KaraokeResult result) {
@@ -135,38 +211,46 @@ public class KaraokeResultView extends LinearLayout {
     }
 
     private void addMetrics(KaraokeResult result) {
-        addMetric(metricLabel(result), result.getHitPercent(), scoreColor(result.getHitPercent()), 12);
-        addMetric(getResources().getString(R.string.player_karaoke_result_voice_coverage), result.getVoicedPercent(), 0xFF38BDF8, 9);
-        if (result.isPitchScoring() && result.getBonusPercent() > 0) addMetric(getResources().getString(R.string.player_karaoke_result_bonus), result.getBonusPercent(), 0xFFA78BFA, 9);
-        if (result.isPitchScoring()) addMetric(getResources().getString(R.string.player_karaoke_result_perfect), result.getPerfectPercent(), 0xFFFBBF24, 9);
-        if (result.isPitchScoring() && result.getVibratoPercent() > 0) addMetric(getResources().getString(R.string.player_karaoke_result_vibrato), result.getVibratoPercent(), 0xFF2DD4BF, 9);
-        if (result.getScoredLineCount() > 0) addMetric(getResources().getString(R.string.player_karaoke_result_line_average), result.getAverageLineScorePercent(), scoreColor(result.getAverageLineScorePercent()), 9);
+        addMetrics(this, result, false);
     }
 
-    private void addMetric(String label, int progress, int color, int topMargin) {
+    private void addMetrics(LinearLayout parent, KaraokeResult result, boolean compact) {
+        addMetric(parent, metricLabel(result), result.getHitPercent(), scoreColor(result.getHitPercent()), compact ? 0 : 12, compact);
+        addMetric(parent, getResources().getString(R.string.player_karaoke_result_voice_coverage), result.getVoicedPercent(), 0xFF38BDF8, compact ? 8 : 9, compact);
+        if (result.isPitchScoring() && result.getBonusPercent() > 0) addMetric(parent, getResources().getString(R.string.player_karaoke_result_bonus), result.getBonusPercent(), 0xFFA78BFA, compact ? 8 : 9, compact);
+        if (result.isPitchScoring()) addMetric(parent, getResources().getString(R.string.player_karaoke_result_perfect), result.getPerfectPercent(), 0xFFFBBF24, compact ? 8 : 9, compact);
+        if (result.isPitchScoring() && result.getVibratoPercent() > 0) addMetric(parent, getResources().getString(R.string.player_karaoke_result_vibrato), result.getVibratoPercent(), 0xFF2DD4BF, compact ? 8 : 9, compact);
+        if (result.getScoredLineCount() > 0) addMetric(parent, getResources().getString(R.string.player_karaoke_result_line_average), result.getAverageLineScorePercent(), scoreColor(result.getAverageLineScorePercent()), compact ? 8 : 9, compact);
+    }
+
+    private void addMetric(LinearLayout parent, String label, int progress, int color, int topMargin, boolean compact) {
         MetricBarView bar = new MetricBarView(getContext());
         bar.setState(label, progress, color);
-        LayoutParams params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        LayoutParams params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(compact ? 46 : 52));
         params.topMargin = dp(topMargin);
-        addView(bar, params);
+        parent.addView(bar, params);
     }
 
     private void addStats(KaraokeResult result) {
+        addStats(this, result, false);
+    }
+
+    private void addStats(LinearLayout parent, KaraokeResult result, boolean compact) {
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         LayoutParams rowParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rowParams.topMargin = dp(12);
-        addView(row, rowParams);
-        addStat(row, getResources().getString(R.string.player_karaoke_result_active_time, result.getTotalSeconds()), 0);
-        addStat(row, getResources().getString(R.string.player_karaoke_result_best_combo, result.getBestComboSeconds()), dp(9));
+        rowParams.topMargin = dp(compact ? 8 : 12);
+        parent.addView(row, rowParams);
+        addStat(row, getResources().getString(R.string.player_karaoke_result_active_time, result.getTotalSeconds()), 0, compact);
+        addStat(row, getResources().getString(R.string.player_karaoke_result_best_combo, result.getBestComboSeconds()), dp(compact ? 8 : 9), compact);
     }
 
-    private void addStat(LinearLayout row, String text, int leftMargin) {
-        MaterialTextView view = textView(text, 13, true, TEXT_SECONDARY, Gravity.CENTER);
+    private void addStat(LinearLayout row, String text, int leftMargin, boolean compact) {
+        MaterialTextView view = textView(text, compact ? 12 : 13, true, TEXT_SECONDARY, Gravity.CENTER);
         view.setSingleLine(true);
         view.setEllipsize(TextUtils.TruncateAt.END);
-        view.setPadding(dp(10), dp(9), dp(10), dp(9));
+        view.setPadding(dp(10), dp(compact ? 7 : 9), dp(10), dp(compact ? 7 : 9));
         view.setBackground(cardBackground(SURFACE_DARK, 0x1EFFFFFF));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         params.leftMargin = leftMargin;
@@ -174,6 +258,10 @@ public class KaraokeResultView extends LinearLayout {
     }
 
     private void addFootnote(KaraokeResult result) {
+        addFootnote(this, result, false);
+    }
+
+    private void addFootnote(LinearLayout parent, KaraokeResult result, boolean compact) {
         boolean showTrack = !result.getTrackLabel().isEmpty();
         boolean showRhythm = result.isScoring() && !result.isPitchScoring();
         boolean showFree = !result.isScoring();
@@ -182,11 +270,11 @@ public class KaraokeResultView extends LinearLayout {
 
         LinearLayout note = new LinearLayout(getContext());
         note.setOrientation(VERTICAL);
-        note.setPadding(dp(12), dp(10), dp(12), dp(10));
+        note.setPadding(dp(12), dp(compact ? 8 : 10), dp(12), dp(compact ? 8 : 10));
         note.setBackground(cardBackground(0x1014B8A6, 0x2138BDF8));
         LayoutParams noteParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        noteParams.topMargin = dp(13);
-        addView(note, noteParams);
+        noteParams.topMargin = dp(compact ? 8 : 13);
+        parent.addView(note, noteParams);
 
         if (showTrack) addNoteLine(note, getResources().getString(R.string.player_karaoke_result_track, result.getTrackLabel()), TEXT_SECONDARY);
         if (showFun) addNoteLine(note, getResources().getString(R.string.player_karaoke_result_fun_note), TEXT_MUTED);
@@ -201,6 +289,10 @@ public class KaraokeResultView extends LinearLayout {
     }
 
     private void addAction() {
+        addAction(this);
+    }
+
+    private void addAction(LinearLayout parent) {
         action = textView(getResources().getString(R.string.dialog_positive), 15, true, 0xFF06151D, Gravity.CENTER);
         action.setSingleLine(true);
         action.setFocusable(true);
@@ -209,8 +301,8 @@ public class KaraokeResultView extends LinearLayout {
         updateActionBackground(false);
         action.setOnFocusChangeListener((v, hasFocus) -> updateActionBackground(hasFocus));
         LayoutParams params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.topMargin = dp(16);
-        addView(action, params);
+        params.topMargin = dp(isLandscapeLayout() ? 10 : 16);
+        parent.addView(action, params);
     }
 
     private void updateActionBackground(boolean focus) {
@@ -308,8 +400,19 @@ public class KaraokeResultView extends LinearLayout {
     private int dialogWidth() {
         int screenDp = getResources().getConfiguration().screenWidthDp;
         if (screenDp <= 0) return dp(320);
+        if (isLandscapeLayout()) return dp(Math.min(560, Math.max(420, screenDp - 64)));
         int widthDp = Math.min(isWideLayout() ? 480 : 360, Math.max(306, screenDp - 48));
         return dp(widthDp);
+    }
+
+    private int landscapeBodyHeight() {
+        int screenDp = getResources().getConfiguration().screenHeightDp;
+        if (screenDp <= 0) return dp(280);
+        return dp(Math.min(320, Math.max(238, screenDp - 118)));
+    }
+
+    private int landscapeSummaryWidth() {
+        return dp(getResources().getConfiguration().screenWidthDp >= 700 ? 216 : 196);
     }
 
     private int gaugeSize() {
@@ -323,6 +426,10 @@ public class KaraokeResultView extends LinearLayout {
     private boolean isWideLayout() {
         Configuration configuration = getResources().getConfiguration();
         return configuration.screenWidthDp >= 540 || configuration.orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    private boolean isLandscapeLayout() {
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
     }
 
     private int dp(float value) {
