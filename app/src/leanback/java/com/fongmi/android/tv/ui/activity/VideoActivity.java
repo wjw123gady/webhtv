@@ -666,6 +666,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.audioTrackAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_AUDIO));
         mBinding.audioSubtitleAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_TEXT));
         mBinding.audioInfoAction.setOnClickListener(view -> onInfo());
+        mBinding.audioStage.setOnClickListener(view -> focusAudioStageDefault());
         mBinding.shortDisplay.setOnClickListener(view -> onShortDisplay());
         mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
         mBinding.control.action.reset.setOnLongClickListener(view -> onResetToggle());
@@ -3487,8 +3488,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         ViewGroup.LayoutParams raw = mBinding.audioBackgroundAction.getLayoutParams();
         if (!(raw instanceof FrameLayout.LayoutParams params)) return;
         int top = -mBinding.audioStage.getPaddingTop();
-        if (params.topMargin == top) return;
+        int end = -mBinding.audioStage.getPaddingEnd();
+        if (params.topMargin == top && params.getMarginEnd() == end) return;
         params.topMargin = top;
+        params.setMarginEnd(end);
         mBinding.audioBackgroundAction.setLayoutParams(params);
     }
 
