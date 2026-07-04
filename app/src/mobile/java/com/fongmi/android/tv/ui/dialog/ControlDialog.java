@@ -129,6 +129,7 @@ public class ControlDialog extends BaseBottomSheetDialog implements ParseAdapter
         binding.opening.setText(parent.control.action.opening.getText());
         binding.repeat.setSelected(parent.control.action.repeat.isSelected());
         binding.karaoke.setSelected(PlayerSetting.isKaraokeMode());
+        setKaraokeVisible();
         binding.timer.setSelected(Timer.get().isRunning());
         setTrackVisible();
         setTitleVisible();
@@ -293,6 +294,7 @@ public class ControlDialog extends BaseBottomSheetDialog implements ParseAdapter
         setEpisodeColumn();
         binding.decode.setVisibility(parent.control.action.decode.getVisibility());
         binding.danmaku.setVisibility(parent.control.action.danmaku.getVisibility());
+        setKaraokeVisible();
         setTrackVisible();
     }
 
@@ -313,6 +315,10 @@ public class ControlDialog extends BaseBottomSheetDialog implements ParseAdapter
         boolean visible = binding.text.getVisibility() != View.GONE || binding.audio.getVisibility() != View.GONE || binding.video.getVisibility() != View.GONE || binding.title.getVisibility() != View.GONE || binding.danmaku.getVisibility() != View.GONE;
         binding.trackText.setVisibility(visible ? View.VISIBLE : View.GONE);
         binding.trackRow.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    private void setKaraokeVisible() {
+        binding.karaoke.setVisibility(parent.control.action.karaoke.getVisibility());
     }
 
     @Override
