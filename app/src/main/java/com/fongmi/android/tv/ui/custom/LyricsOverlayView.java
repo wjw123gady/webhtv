@@ -5,6 +5,7 @@ import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.SystemClock;
@@ -283,6 +284,7 @@ public class LyricsOverlayView extends FrameLayout {
         if (!audioStageMode || suppressed || lines.isEmpty() || seekListener == null) return super.onTouchEvent(event);
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                if (!isAudioStageTouchArea(event.getX(), event.getY())) return false;
                 beginLyricsDrag(event.getY());
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -297,6 +299,28 @@ public class LyricsOverlayView extends FrameLayout {
             default:
                 return true;
         }
+    }
+
+    public boolean isAudioStageTouchPoint(float rawX, float rawY) {
+        if (!audioStageMode || getVisibility() != VISIBLE) return false;
+        Rect rect = new Rect();
+        if (!getGlobalVisibleRect(rect) || !rect.contains((int) rawX, (int) rawY)) return false;
+        return isAudioStageTouchArea(rawX - rect.left, rawY - rect.top);
+    }
+
+    private boolean isAudioStageTouchArea(float x, float y) {
+        if (!audioStageMode) return true;
+        if (getWidth() <= 0 || getHeight() <= 0) return false;
+        int width = Math.min(getWidth(), audioStageTouchWidth());
+        int left = (getWidth() - width) / 2;
+        return x >= left && x <= left + width && y >= 0 && y <= getHeight();
+    }
+
+    private int audioStageTouchWidth() {
+        int widthDp = getResources().getConfiguration().screenWidthDp;
+        if (widthDp >= 720) return dp(340);
+        if (widthDp >= 540 || getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) return dp(280);
+        return dp(300);
     }
 
     private void beginLyricsDrag(float y) {

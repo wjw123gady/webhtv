@@ -5114,7 +5114,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private boolean isAudioStageInteractiveTouch(MotionEvent event) {
-        return isPointInside(mBinding.audioLyrics, event)
+        return mBinding.audioLyrics.isAudioStageTouchPoint(event.getRawX(), event.getRawY())
                 || isPointInside(mBinding.audioSeek, event)
                 || isPointInside(mBinding.audioRepeatAction, event)
                 || isPointInside(mBinding.audioPrev, event)
