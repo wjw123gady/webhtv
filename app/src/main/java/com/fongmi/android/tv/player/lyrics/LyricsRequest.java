@@ -228,6 +228,10 @@ public class LyricsRequest {
     }
 
     private static void addParenthesizedSuggestions(List<String> suggestions, String raw) {
+        addBracketContents(suggestions, raw, '(', ')');
+        addBracketContents(suggestions, raw, '（', '）');
+        addBracketContents(suggestions, raw, '[', ']');
+        addBracketContents(suggestions, raw, '【', '】');
         String removed = raw.replaceAll("\\([^)]*\\)|\\[[^]]*]|（[^）]*）|【[^】]*】", " ");
         addSuggestion(suggestions, cleanSuggestion(removed));
     }
