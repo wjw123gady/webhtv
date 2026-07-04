@@ -4290,7 +4290,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(ResUtil.dp2px(24), ResUtil.dp2px(10), ResUtil.dp2px(24), ResUtil.dp2px(18) + mEpisodeBottomInset);
-        root.setBackgroundResource(R.drawable.shape_audio_more_sheet);
+        root.setBackground(audioSheetGlassBackground());
         View handle = new View(this);
         handle.setBackground(roundRect(0x55FFFFFF, 2, 0, 0));
         LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(ResUtil.dp2px(38), ResUtil.dp2px(4));
@@ -4442,10 +4442,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private GradientDrawable audioDrawerBackground() {
-        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xB22F315E, 0x96282955, 0x82303463});
+        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, audioGlassColors());
         drawable.setCornerRadius(ResUtil.dp2px(18));
         drawable.setStroke(ResUtil.dp2px(1), 0x66FFFFFF);
         return drawable;
+    }
+
+    private GradientDrawable audioSheetGlassBackground() {
+        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, audioGlassColors());
+        float radius = ResUtil.dp2px(22);
+        drawable.setCornerRadii(new float[]{radius, radius, radius, radius, 0, 0, 0, 0});
+        drawable.setStroke(ResUtil.dp2px(1), 0x66FFFFFF);
+        return drawable;
+    }
+
+    private int[] audioGlassColors() {
+        return new int[]{0xB22F315E, 0x96282955, 0x82303463};
     }
 
     private LinearLayout.LayoutParams audioSheetTopParams(int topDp, int heightDp) {
@@ -4510,6 +4522,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             behavior.setDraggable(draggable);
         });
         dialog.show();
+        applyAudioSheetWindowGlass(dialog);
     }
 
     private void showCompactPlaybackSheet(BottomSheetDialog dialog) {
@@ -4552,6 +4565,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             behavior.setDraggable(false);
         });
         dialog.show();
+        applyAudioSheetWindowGlass(dialog);
+    }
+
+    private void applyAudioSheetWindowGlass(BottomSheetDialog dialog) {
         Window window = dialog.getWindow();
         if (window == null) return;
         window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
