@@ -3427,7 +3427,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.audioStage.setVisibility(View.VISIBLE);
         mBinding.audioStage.bringToFront();
         hideProgress();
-        hideControl();
+        mBinding.control.getRoot().setVisibility(View.GONE);
+        if (mOsd != null) mOsd.setControlsVisible(false);
+        App.removeCallbacks(mR1);
         hideInfo();
         setVideoDetailsVisible(false);
         applyAudioBackgroundActionInsets();
