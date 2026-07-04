@@ -301,9 +301,9 @@ public class LyricsOverlayView extends FrameLayout {
         compact = nextCompact;
         applyStyle();
         if (!lines.isEmpty() && index >= 0) {
-            int current = index;
+            long positionMs = displayPositionMs();
             index = -1;
-            update(lines.get(current).getTimeMs(), playing);
+            update(positionMs, playing);
         }
     }
 
@@ -354,7 +354,7 @@ public class LyricsOverlayView extends FrameLayout {
         view.setTextColor(color);
         view.setAlpha(alphaForDistance(distance));
         view.setTypeface(Typeface.DEFAULT, primary ? Typeface.BOLD : Typeface.NORMAL);
-        view.setMaxLines(desktopMode || tightAudioRows() ? 1 : primary ? 2 : 1);
+        view.setMaxLines(desktopMode || tightAudioRows() || denseLandscapeRows() ? 1 : primary ? 2 : 1);
         view.setMinHeight(rowMinHeight(distance, scale));
     }
 
@@ -410,8 +410,7 @@ public class LyricsOverlayView extends FrameLayout {
 
     private void refreshWordProgress() {
         if (!playing || lines.isEmpty() || index < 0 || index >= lines.size()) return;
-        long elapsed = Math.max(0, SystemClock.elapsedRealtime() - baseRealtimeMs);
-        long position = basePositionMs + elapsed;
+        long position = displayPositionMs();
         int nextIndex = LyricsParser.findLine(lines, position);
         if (nextIndex != index) {
             int previousIndex = index;
@@ -422,6 +421,12 @@ public class LyricsOverlayView extends FrameLayout {
         }
         if (lines.get(index).hasWords()) renderPrimaryLine(position);
         scheduleWordRefresh(position);
+    }
+
+    private long displayPositionMs() {
+        if (!playing) return basePositionMs;
+        long elapsed = Math.max(0, SystemClock.elapsedRealtime() - baseRealtimeMs);
+        return basePositionMs + elapsed;
     }
 
     private void scheduleWordRefresh() {
@@ -472,6 +477,7 @@ public class LyricsOverlayView extends FrameLayout {
     private int lyricTextSize(boolean primary, int distance) {
         if (desktopMode) return primary ? 20 : 14;
         if (landscapeAudioStage()) {
+            if (denseLandscapeRows()) return primary ? 24 : distance == 1 ? 16 : 14;
             if (tightAudioRows()) return primary ? 22 : 15;
             if (compact) return primary ? 28 : distance == 1 ? 20 : 18;
             return primary ? 34 : distance == 1 ? 24 : 21;
@@ -489,7 +495,7 @@ public class LyricsOverlayView extends FrameLayout {
             case 2 -> 1.0f;
             case 3 -> 1.15f;
             default -> 0.85f;
-        };
+        } * (denseLandscapeRows() ? 0.94f : 1f);
     }
 
     private int rowVerticalPadding() {
@@ -505,10 +511,10 @@ public class LyricsOverlayView extends FrameLayout {
         int count = visibleRows();
         int available = getHeight() - box.getPaddingTop() - box.getPaddingBottom();
         if (available <= 0) return base;
-        float primaryWeight = count == 1 ? 1f : tightAudioRows() ? 1.25f : compact ? 1.45f : 1.6f;
+        float primaryWeight = count == 1 ? 1f : tightAudioRows() || denseLandscapeRows() ? 1.25f : compact ? 1.45f : 1.6f;
         float totalWeight = primaryWeight + Math.max(0, count - 1);
         float weight = primary ? primaryWeight : 1f;
-        int min = dp(tightAudioRows() ? primary ? 22 : 12 : compact ? primary ? 30 : 18 : primary ? 42 : 24);
+        int min = dp(tightAudioRows() ? primary ? 22 : 12 : denseLandscapeRows() ? primary ? 24 : 14 : compact ? primary ? 30 : 18 : primary ? 42 : 24);
         int budget = Math.max(min, Math.round(available * weight / totalWeight));
         return Math.min(base, budget);
     }
@@ -521,6 +527,10 @@ public class LyricsOverlayView extends FrameLayout {
 
     private boolean landscapeAudioStage() {
         return audioStageMode && !desktopMode && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    private boolean denseLandscapeRows() {
+        return landscapeAudioStage() && compact && visibleRows() >= 4;
     }
 
     private float alphaForDistance(int distance) {

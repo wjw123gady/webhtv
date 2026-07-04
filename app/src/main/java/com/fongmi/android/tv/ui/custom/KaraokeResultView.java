@@ -401,7 +401,11 @@ public class KaraokeResultView extends LinearLayout {
     private int dialogWidth() {
         int screenDp = getResources().getConfiguration().screenWidthDp;
         if (screenDp <= 0) return dp(320);
-        if (isLandscapeLayout()) return dp(Math.min(560, Math.max(420, screenDp - 64)));
+        if (isLandscapeLayout()) {
+            int maxWidthDp = Math.max(360, screenDp - 48);
+            int targetDp = Math.min(720, Math.max(480, screenDp - 96));
+            return dp(Math.min(maxWidthDp, targetDp));
+        }
         int widthDp = Math.min(isWideLayout() ? 480 : 360, Math.max(306, screenDp - 48));
         return dp(widthDp);
     }
@@ -413,7 +417,7 @@ public class KaraokeResultView extends LinearLayout {
     }
 
     private int landscapeSummaryWidth() {
-        return dp(getResources().getConfiguration().screenWidthDp >= 700 ? 216 : 196);
+        return dp(getResources().getConfiguration().screenWidthDp >= 700 ? 236 : 206);
     }
 
     private int gaugeSize() {

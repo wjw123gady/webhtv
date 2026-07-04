@@ -3167,12 +3167,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 WindowManager.LayoutParams params = window.getAttributes();
                 if (isLandscapeAudioSheet()) {
                     params.dimAmount = 0f;
-                    params.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
-                    params.x = ResUtil.dp2px(16);
+                    params.gravity = Gravity.CENTER;
+                    params.x = 0;
                     params.y = 0;
                     window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
                     window.setAttributes(params);
-                    window.setLayout(audioDrawerWidth(), WindowManager.LayoutParams.WRAP_CONTENT);
+                    window.setLayout(view.getPreferredDialogWidth(), WindowManager.LayoutParams.WRAP_CONTENT);
                 } else {
                     params.dimAmount = 0.62f;
                     params.gravity = Gravity.CENTER;
