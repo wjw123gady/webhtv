@@ -3434,7 +3434,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         setVideoDetailsVisible(false);
         applyAudioBackgroundActionInsets();
         applyAudioStageLayout(true);
-        updateAudioStageText();
+        mBinding.audioTitle.setText(TextUtils.isEmpty(getName()) ? getString(R.string.player_audio_badge_audio) : getName());
+        mBinding.audioSubtitle.setVisibility(View.GONE);
         Util.hideSystemUI(this);
     }
 
