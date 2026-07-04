@@ -1962,7 +1962,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private boolean onEpisodeKey(KeyEvent event) {
-        if (!KeyUtil.isActionDown(event) || !KeyUtil.isUpKey(event)) return false;
+        if (!KeyUtil.isActionDown(event)) return false;
         RecyclerView episodeView = episodeGridMode ? mBinding.episodeGrid : mBinding.episode;
         RecyclerView.ViewHolder holder = episodeView.findContainingViewHolder(getCurrentFocus());
         if (holder == null) return false;
@@ -1971,8 +1971,19 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (episodeGridMode) {
             RecyclerView.LayoutManager layoutManager = mBinding.episodeGrid.getLayoutManager();
             int spanCount = layoutManager instanceof GridLayoutManager gridLayoutManager ? gridLayoutManager.getSpanCount() : getEpisodeGridSpanCount();
-            if (position >= spanCount) return false;
+            if (KeyUtil.isDownKey(event)) {
+                int target = TmdbEpisodeGridPolicy.verticalFocusTarget(position, spanCount, mEpisodeGridAdapter.getItemCount(), true);
+                return target != TmdbEpisodeGridPolicy.NO_FOCUS_TARGET && focusEpisodeGridPosition(target);
+            }
+            if (KeyUtil.isUpKey(event)) {
+                int target = TmdbEpisodeGridPolicy.verticalFocusTarget(position, spanCount, mEpisodeGridAdapter.getItemCount(), false);
+                if (target != TmdbEpisodeGridPolicy.NO_FOCUS_TARGET) return focusEpisodeGridPosition(target);
+            } else {
+                return false;
+            }
         } else if (position != 0) {
+            return false;
+        } else if (!KeyUtil.isUpKey(event)) {
             return false;
         }
         int target = findFocusUp(episodeFocusIndex(episodeGridMode ? R.id.episodeGrid : R.id.episode));
@@ -1980,6 +1991,17 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         View view = findViewById(target);
         if (view == null || view.getVisibility() != View.VISIBLE) return false;
         view.requestFocus();
+        return true;
+    }
+
+    private boolean focusEpisodeGridPosition(int position) {
+        RecyclerView.ViewHolder holder = mBinding.episodeGrid.findViewHolderForAdapterPosition(position);
+        if (holder != null && holder.itemView.requestFocus()) return true;
+        mBinding.episodeGrid.scrollToPosition(position);
+        mBinding.episodeGrid.post(() -> {
+            RecyclerView.ViewHolder next = mBinding.episodeGrid.findViewHolderForAdapterPosition(position);
+            if (next != null) next.itemView.requestFocus();
+        });
         return true;
     }
 
