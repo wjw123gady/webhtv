@@ -63,20 +63,28 @@ public class KaraokeTrackRepository {
     public void load(PlayerManager player, Consumer<KaraokeTrack> callback) {
         String url = player == null ? null : player.getUrl();
         String title = getTitle(player);
+        String artist = getArtist(player);
         String signature = signatureOf(player);
+        String legacySignature = legacySignatureOf(player);
         Task.execute(() -> {
-            KaraokeTrack track = load(url, title, signature);
+            KaraokeTrack track = load(url, title, artist, signature, legacySignature);
             if (callback != null) App.post(() -> callback.accept(track));
         });
     }
 
     public KaraokeTrack load(String url, String title) {
-        return load(url, title, null);
+        return load(url, title, null, null, null);
     }
 
     public KaraokeTrack load(String url, String title, String signature) {
-        KaraokeTrack bound = readTrack(boundFile(signature));
-        if (bound != null && bound.hasScoredNotes()) return bound;
+        return load(url, title, null, signature, null);
+    }
+
+    private KaraokeTrack load(String url, String title, String artist, String signature, String legacySignature) {
+        for (String candidate : signatureCandidates(signature, legacySignature)) {
+            KaraokeTrack bound = readTrack(boundFile(candidate));
+            if (bound != null && bound.hasScoredNotes()) return bound;
+        }
         File audio = resolveLocalFile(url);
         if (audio != null && audio.isFile()) {
             for (File candidate : candidates(audio, title)) {
@@ -84,10 +92,16 @@ public class KaraokeTrackRepository {
                 if (track != null && track.hasScoredNotes()) return track;
             }
         }
-        KaraokeTrack generatedPitch = readTrack(generatedPitchFile(signature));
-        if (generatedPitch != null && generatedPitch.hasScoredNotes()) return generatedPitch;
-        KaraokeTrack generated = readTrack(generatedFile(signature));
-        if (generated != null && generated.hasScoredNotes()) return generated;
+        for (String candidate : signatureCandidates(signature, legacySignature)) {
+            KaraokeTrack generatedPitch = readTrack(generatedPitchFile(candidate));
+            if (generatedPitch != null && generatedPitch.hasScoredNotes()) return generatedPitch;
+        }
+        for (String candidate : signatureCandidates(signature, legacySignature)) {
+            KaraokeTrack generated = readTrack(generatedFile(candidate));
+            if (generated != null && generated.hasScoredNotes()) return generated;
+        }
+        KaraokeTrack migrated = readMatchingTrack(title, artist, signature);
+        if (migrated != null && migrated.hasScoredNotes()) return migrated;
         return null;
     }
 
@@ -112,7 +126,7 @@ public class KaraokeTrackRepository {
         try {
             String signature = signatureOf(player);
             String text = KaraokeGeneratedTrackBuilder.build(defaultKeyword(player), getArtist(player), lines, player.getDuration());
-            deleteGeneratedBoundIfAny(signature);
+            deleteGeneratedBoundIfAny(signature, legacySignatureOf(player));
             return importText(generatedFile(signature), "Generated rhythm scoring track", text);
         } catch (Exception e) {
             return ImportResult.fail(e.getMessage());
@@ -134,8 +148,9 @@ public class KaraokeTrackRepository {
             String text = PlayerSetting.isKaraokeBasicPitchTflite()
                     ? BasicPitchTfliteGenerator.build(input, lines, progress)
                     : KaraokePitchTrackGenerator.build(input, lines, progress);
-            deleteGeneratedBoundIfAny(signature);
+            deleteGeneratedBoundIfAny(signature, input.getLegacySignature());
             delete(generatedFile(signature));
+            delete(generatedFile(input.getLegacySignature()));
             return importText(generatedPitchFile(signature), "Generated pitch scoring track", text);
         } catch (Exception e) {
             return ImportResult.fail(e.getMessage());
@@ -250,14 +265,29 @@ public class KaraokeTrackRepository {
         return stripExtension(player.getKey());
     }
 
+    public static String identityOf(PlayerManager player) {
+        return signatureOf(player);
+    }
+
     public static boolean hasBinding(PlayerManager player) {
         String signature = signatureOf(player);
-        return hasFile(boundFile(signature)) || hasFile(generatedPitchFile(signature)) || hasFile(generatedFile(signature));
+        String legacySignature = legacySignatureOf(player);
+        for (String candidate : signatureCandidates(signature, legacySignature)) {
+            if (hasFile(boundFile(candidate)) || hasFile(generatedPitchFile(candidate)) || hasFile(generatedFile(candidate))) return true;
+        }
+        return findMatchingTrackFile(getTitle(player), getArtist(player)) != null;
     }
 
     public static boolean clearBinding(PlayerManager player) {
         String signature = signatureOf(player);
-        return delete(boundFile(signature)) | delete(generatedPitchFile(signature)) | delete(generatedFile(signature));
+        String legacySignature = legacySignatureOf(player);
+        boolean deleted = false;
+        for (String candidate : signatureCandidates(signature, legacySignature)) {
+            deleted |= delete(boundFile(candidate)) | delete(generatedPitchFile(candidate)) | delete(generatedFile(candidate));
+        }
+        File file = findMatchingTrackFile(getTitle(player), getArtist(player));
+        if (file != null) deleted |= delete(file);
+        return deleted;
     }
 
     private static KaraokeTrack readTrack(File file) {
@@ -270,6 +300,70 @@ public class KaraokeTrackRepository {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static KaraokeTrack readMatchingTrack(String title, String artist, String signature) {
+        Match match = findMatchingTrack(title, artist);
+        if (match == null || TextUtils.isEmpty(signature)) return match == null ? null : match.track;
+        File target = migratedFile(signature, match.file.getName());
+        if (target != null && !sameFile(match.file, target)) {
+            try {
+                Path.write(target, normalizeText(match.text).getBytes(StandardCharsets.UTF_8));
+            } catch (Exception ignored) {
+            }
+        }
+        return match.track;
+    }
+
+    private static File findMatchingTrackFile(String title, String artist) {
+        Match match = findMatchingTrack(title, artist);
+        return match == null ? null : match.file;
+    }
+
+    private static Match findMatchingTrack(String title, String artist) {
+        File[] files = trackDir().listFiles((dir, name) -> name.endsWith(".txt"));
+        if (files == null || files.length == 0) return null;
+        Match best = null;
+        for (File file : files) {
+            try {
+                if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_SIDECAR_BYTES) continue;
+                String text = readText(file);
+                if (!UltraStarParser.looksLikeUltraStar(text)) continue;
+                KaraokeTrack track = UltraStarParser.parse(text);
+                if (track == null || !track.hasScoredNotes()) continue;
+                int score = trackMatchScore(title, artist, track);
+                if (score < 80) continue;
+                if (best == null || score > best.score || score == best.score && file.lastModified() > best.file.lastModified()) best = new Match(file, text, track, score);
+            } catch (Exception ignored) {
+            }
+        }
+        return best;
+    }
+
+    private static int trackMatchScore(String title, String artist, KaraokeTrack track) {
+        String wantedTitle = normalizeSearch(stripExtension(title));
+        String wantedArtist = normalizeSearch(artist);
+        String trackTitle = normalizeSearch(stripExtension(track.getTitle()));
+        String trackArtist = normalizeSearch(track.getArtist());
+        int score = 0;
+        if (relatedText(wantedTitle, trackTitle)) score += 60;
+        if (relatedText(wantedArtist, trackArtist)) score += 45;
+        if (relatedText(wantedTitle, trackArtist)) score += 40;
+        if (relatedText(wantedArtist, trackTitle)) score += 25;
+        if (relatedText(wantedArtist + wantedTitle, trackArtist + trackTitle)) score += 30;
+        return score;
+    }
+
+    private static boolean relatedText(String first, String second) {
+        if (TextUtils.isEmpty(first) || TextUtils.isEmpty(second)) return false;
+        return first.equals(second) || first.contains(second) || second.contains(first);
+    }
+
+    private static File migratedFile(String signature, String name) {
+        if (TextUtils.isEmpty(signature)) return null;
+        if (name != null && name.endsWith(".generated-pitch.txt")) return generatedPitchFile(signature);
+        if (name != null && name.endsWith(".generated.txt")) return generatedFile(signature);
+        return boundFile(signature);
     }
 
     private static String getTrackText(String url) throws Exception {
@@ -433,41 +527,71 @@ public class KaraokeTrackRepository {
 
     private static String signatureOf(PlayerManager player) {
         if (player == null) return "";
-        return signatureOf(player.getKey(), player.getUrl(), player.getDuration());
+        String signature = stableSignatureOf(player.getKey(), getTitle(player), getArtist(player));
+        return !TextUtils.isEmpty(signature) ? signature : legacySignatureOf(player);
     }
 
-    private static String signatureOf(String key, String url, long duration) {
+    private static String legacySignatureOf(PlayerManager player) {
+        if (player == null) return "";
+        return legacySignatureOf(player.getKey(), player.getUrl(), player.getDuration());
+    }
+
+    private static String legacySignatureOf(String key, String url, long duration) {
         return Util.md5(safe(key) + "|" + safe(url) + "|" + duration);
+    }
+
+    private static String stableSignatureOf(String key, String title, String artist) {
+        String mediaKey = safe(key).trim();
+        if (!TextUtils.isEmpty(mediaKey)) return Util.md5("karaoke-v2|key|" + mediaKey);
+        String name = normalizeSearch(stripExtension(title));
+        String singer = normalizeSearch(artist);
+        if (TextUtils.isEmpty(name) && TextUtils.isEmpty(singer)) return "";
+        return Util.md5("karaoke-v2|meta|" + name + "|" + singer);
+    }
+
+    private static List<String> signatureCandidates(String signature, String legacySignature) {
+        ArrayList<String> values = new ArrayList<>();
+        addSignature(values, signature);
+        addSignature(values, legacySignature);
+        return values;
+    }
+
+    private static void addSignature(List<String> values, String signature) {
+        if (TextUtils.isEmpty(signature) || values.contains(signature)) return;
+        values.add(signature);
     }
 
     private static File boundFile(String signature) {
         if (TextUtils.isEmpty(signature)) return null;
-        File dir = Path.cache("karaoke_tracks");
-        if (!dir.exists()) dir.mkdirs();
-        return new File(dir, signature + ".txt");
+        return new File(trackDir(), signature + ".txt");
     }
 
     private static File generatedFile(String signature) {
         if (TextUtils.isEmpty(signature)) return null;
-        File dir = Path.cache("karaoke_tracks");
-        if (!dir.exists()) dir.mkdirs();
-        return new File(dir, signature + ".generated.txt");
+        return new File(trackDir(), signature + ".generated.txt");
     }
 
     private static File generatedPitchFile(String signature) {
         if (TextUtils.isEmpty(signature)) return null;
-        File dir = Path.cache("karaoke_tracks");
-        if (!dir.exists()) dir.mkdirs();
-        return new File(dir, signature + ".generated-pitch.txt");
+        return new File(trackDir(), signature + ".generated-pitch.txt");
     }
 
-    private static void deleteGeneratedBoundIfAny(String signature) {
-        File file = boundFile(signature);
-        try {
-            if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_SIDECAR_BYTES) return;
-            String text = readText(file);
-            if (text.contains("Generated rhythm scoring track") || text.contains("Generated pitch scoring track") || text.contains("Generated experimental pitch scoring track")) delete(file);
-        } catch (Exception ignored) {
+    private static File trackDir() {
+        File dir = Path.cache("karaoke_tracks");
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    private static void deleteGeneratedBoundIfAny(String... signatures) {
+        if (signatures == null) return;
+        for (String signature : signatures) {
+            File file = boundFile(signature);
+            try {
+                if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_SIDECAR_BYTES) continue;
+                String text = readText(file);
+                if (text.contains("Generated rhythm scoring track") || text.contains("Generated pitch scoring track") || text.contains("Generated experimental pitch scoring track")) delete(file);
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -477,6 +601,11 @@ public class KaraokeTrackRepository {
 
     private static boolean delete(File file) {
         return file != null && file.exists() && file.delete();
+    }
+
+    private static boolean sameFile(File first, File second) {
+        if (first == null || second == null) return false;
+        return first.getAbsolutePath().equals(second.getAbsolutePath());
     }
 
     private static boolean isHttpUrl(String value) {
@@ -607,6 +736,21 @@ public class KaraokeTrackRepository {
         }
     }
 
+    private static class Match {
+
+        private final File file;
+        private final String text;
+        private final KaraokeTrack track;
+        private final int score;
+
+        private Match(File file, String text, KaraokeTrack track, int score) {
+            this.file = file;
+            this.text = text;
+            this.track = track;
+            this.score = score;
+        }
+    }
+
     private static class SearchCache {
 
         private final long timestampMs;
@@ -655,6 +799,7 @@ public class KaraokeTrackRepository {
         private final long duration;
         private final Map<String, String> headers;
         private final String signature;
+        private final String legacySignature;
 
         private MediaInput(String key, String url, String title, String artist, long duration, Map<String, String> headers) {
             this.key = safe(key);
@@ -663,7 +808,9 @@ public class KaraokeTrackRepository {
             this.artist = safe(artist);
             this.duration = Math.max(0, duration);
             this.headers = headers == null ? new HashMap<>() : new HashMap<>(headers);
-            this.signature = signatureOf(this.key, this.url, this.duration);
+            this.legacySignature = legacySignatureOf(this.key, this.url, this.duration);
+            String stableSignature = stableSignatureOf(this.key, this.title, this.artist);
+            this.signature = !TextUtils.isEmpty(stableSignature) ? stableSignature : this.legacySignature;
         }
 
         private static MediaInput empty() {
@@ -704,6 +851,10 @@ public class KaraokeTrackRepository {
 
         public String getSignature() {
             return signature;
+        }
+
+        public String getLegacySignature() {
+            return legacySignature;
         }
     }
 

@@ -138,8 +138,18 @@ public class LyricsRequest {
         return Util.md5(String.join("|", key, url, title, artist, album, String.valueOf(getDurationSec())));
     }
 
+    public String stableSignature() {
+        String mediaKey = clean(key);
+        if (!TextUtils.isEmpty(mediaKey)) return Util.md5("lyrics-v2|key|" + mediaKey);
+        return Util.md5("lyrics-v2|meta|" + identityText(title) + "|" + identityText(artist) + "|" + identityText(album));
+    }
+
+    public String searchSignature() {
+        return Util.md5("lyrics-search-v2|" + stableSignature() + "|" + identityText(title) + "|" + identityText(artist) + "|" + identityText(album));
+    }
+
     public String contentSignature() {
-        return Util.md5(String.join("|", key, url, title, artist, album));
+        return stableSignature();
     }
 
     private static String clean(String text) {
@@ -341,7 +351,7 @@ public class LyricsRequest {
         if (titleContainer || artistEpisode || titleVideo) {
             addMediaPrefixArtistTitleCandidate(candidates, artist, "metadataArtist", artistEpisode ? 98 : titleContainer ? 92 : titleVideo ? 88 : 84);
             addFieldCandidates(candidates, artist, "metadataArtist", artistEpisode ? 90 : titleContainer ? 86 : titleVideo ? 82 : 74, Bias.TITLE_ARTIST);
-            addContextArtistTitleCandidate(candidates, key, title, artist, titleContainer ? 98 : titleVideo ? 94 : 96);
+            addContextArtistTitleCandidate(candidates, key, title, artist, artistEpisode ? 108 : titleContainer ? 98 : titleVideo ? 94 : 96);
         }
         addLeadingBracketCandidate(candidates, artist, "metadataArtist", titleVideo || titleContainer ? 88 : 68);
         addLeadingBracketCandidate(candidates, title, "metadataTitle", titleVideo ? 70 : 56);
@@ -529,7 +539,7 @@ public class LyricsRequest {
     private static boolean isContainerTitle(String text) {
         String value = Normalizer.normalize(clean(text), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
         if (TextUtils.isEmpty(value)) return false;
-        if (containsAny(value, "合集", "歌单", "盘点", "精选", "排行榜", "热歌榜", "主题曲", "片尾曲", "开车听", "单曲循环", "珍藏", "收藏")) return true;
+        if (containsAny(value, "合集", "歌单", "盘点", "精选", "排行榜", "热歌榜", "主题曲", "片尾曲", "开车听", "单曲循环", "珍藏", "收藏", "好听的")) return true;
         if (value.matches(".*\\d+\\s*(首|曲).*") && containsAny(value, "歌曲", "经典", "流行", "热歌", "老歌", "粤语", "英文")) return true;
         if (value.matches(".*\\d+\\s*(小时|分钟).*")) return true;
         return value.length() >= 28 && containsAny(value, "最好听", "喜欢", "全网", "宝藏", "值得", "前奏");
@@ -619,6 +629,10 @@ public class LyricsRequest {
     private static boolean containsAny(String text, String... values) {
         for (String value : values) if (!TextUtils.isEmpty(value) && text.contains(value)) return true;
         return false;
+    }
+
+    private static String identityText(String text) {
+        return normalizeSearchText(text).toLowerCase(Locale.ROOT);
     }
 
     private static String normalizeArtistFromEpisode(String title, String artist) {

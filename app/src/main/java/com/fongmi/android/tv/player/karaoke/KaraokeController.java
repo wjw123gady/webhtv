@@ -215,14 +215,11 @@ public class KaraokeController implements KaraokeMicRecorder.Listener {
     }
 
     private static String signatureOf(PlayerManager player) {
-        return safe(player.getKey()) + "|" + safe(player.getUrl()) + "|" + player.getDuration();
+        return KaraokeTrackRepository.identityOf(player);
     }
 
     private static long adjustLyricsPosition(PlayerManager player) {
         return Math.max(0, player.getPosition() + PlayerSetting.getLyricsTimeOffsetMs());
     }
 
-    private static String safe(String value) {
-        return value == null ? "" : value;
-    }
 }

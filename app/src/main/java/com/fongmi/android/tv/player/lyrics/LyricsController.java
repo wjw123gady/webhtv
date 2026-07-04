@@ -71,7 +71,7 @@ public class LyricsController {
             clear();
             return;
         }
-        String signature = request.signature();
+        String signature = request.stableSignature();
         if (signature.equals(activeSignature) || signature.equals(loadingSignature) || signature.equals(emptySignature)) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh skip title=%s artist=%s parse=%s active=%s loading=%s empty=%s", request.getTitle(), request.getArtist(), request.getParseInfo(), signature.equals(activeSignature), signature.equals(loadingSignature), signature.equals(emptySignature));
             return;
@@ -129,7 +129,7 @@ public class LyricsController {
             if (callback != null) callback.onResult(null);
             return;
         }
-        String signature = request.signature();
+        String signature = request.stableSignature();
         loadingSignature = signature;
         activeSignature = null;
         emptySignature = null;
@@ -189,7 +189,7 @@ public class LyricsController {
         int current = ++sequence;
         loadingSignature = null;
         emptySignature = null;
-        activeSignature = request.signature();
+        activeSignature = request.stableSignature();
         lines = parsed;
         setLyrics(result, parsed);
         update(player);
@@ -224,7 +224,7 @@ public class LyricsController {
     private void upgradeInlineLyrics(int current, String inlineKey, String signature, String title, String artist, long durationMs, long positionMs) {
         LyricsRequest request = new LyricsRequest(signature, "", title, artist, "", durationMs);
         if (!request.isValid()) return;
-        String requestSignature = request.signature();
+        String requestSignature = request.stableSignature();
         if (requestSignature.equals(loadingSignature) || requestSignature.equals(emptySignature)) return;
         loadingSignature = requestSignature;
         repository.loadPreferWord(request, result -> {

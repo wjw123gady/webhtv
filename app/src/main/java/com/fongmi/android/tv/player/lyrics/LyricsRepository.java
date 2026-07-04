@@ -567,26 +567,29 @@ public class LyricsRepository {
     }
 
     private LyricsResult readCache(LyricsRequest request, int sourceMode) {
-        File file = cacheFile(request, sourceMode);
-        if (!Path.exists(file)) return null;
-        try {
-            return App.gson().fromJson(Path.read(file), LyricsResult.class);
-        } catch (Exception e) {
-            return null;
+        for (File file : cacheFiles(request, sourceMode)) {
+            LyricsResult result = readResultFile(file);
+            if (result == null) continue;
+            if (!sameFile(file, cacheFile(request, sourceMode))) writeCache(request, sourceMode, result);
+            return result;
         }
+        return null;
     }
 
     private List<LyricsResult> readSearchCache(LyricsRequest request, int sourceMode) {
-        File file = searchCacheFile(request, sourceMode);
-        if (!Path.exists(file)) return List.of();
-        ArrayList<LyricsResult> results = new ArrayList<>();
-        try {
-            LyricsResult[] items = App.gson().fromJson(Path.read(file), LyricsResult[].class);
-            if (items != null) for (LyricsResult item : items) if (item != null && item.isValid() && item.isCacheCurrent()) results.add(item);
-        } catch (Exception e) {
-            return List.of();
+        for (File file : searchCacheFiles(request, sourceMode)) {
+            if (!Path.exists(file)) continue;
+            ArrayList<LyricsResult> results = new ArrayList<>();
+            try {
+                LyricsResult[] items = App.gson().fromJson(Path.read(file), LyricsResult[].class);
+                if (items != null) for (LyricsResult item : items) if (item != null && item.isValid() && item.isCacheCurrent()) results.add(item);
+            } catch (Exception e) {
+                continue;
+            }
+            if (!sameFile(file, searchCacheFile(request, sourceMode))) writeSearchCache(request, sourceMode, results);
+            return sorted(request, results, 24);
         }
-        return sorted(request, results, 24);
+        return List.of();
     }
 
     private void writeSearchCache(LyricsRequest request, int sourceMode, List<LyricsResult> results) {
@@ -604,7 +607,26 @@ public class LyricsRepository {
     }
 
     private LyricsResult readChoice(LyricsRequest request) {
-        File file = choiceFile(request);
+        LyricsResult result = readResultFile(choiceFile(request));
+        if (result != null) return result;
+        result = readResultFile(legacyChoiceFile(request));
+        if (result != null) {
+            writeChoice(request, result);
+            return result;
+        }
+        result = readMatchingChoice(request);
+        if (result != null) writeChoice(request, result);
+        return result;
+    }
+
+    private void writeChoice(LyricsRequest request, LyricsResult result) {
+        try {
+            Path.write(choiceFile(request), App.gson().toJson(result).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private LyricsResult readResultFile(File file) {
         if (!Path.exists(file)) return null;
         try {
             return App.gson().fromJson(Path.read(file), LyricsResult.class);
@@ -613,11 +635,37 @@ public class LyricsRepository {
         }
     }
 
-    private void writeChoice(LyricsRequest request, LyricsResult result) {
-        try {
-            Path.write(choiceFile(request), App.gson().toJson(result).getBytes(StandardCharsets.UTF_8));
-        } catch (Exception ignored) {
+    private LyricsResult readMatchingChoice(LyricsRequest request) {
+        File[] files = choiceDir().listFiles((dir, name) -> name.endsWith(".json"));
+        if (files == null || files.length == 0) return null;
+        LyricsResult best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (File file : files) {
+            LyricsResult result = readResultFile(file);
+            if (result == null || !result.isValid() || !result.isCacheCurrent() || !choiceMatches(request, result)) continue;
+            int score = weightedScore(request, result);
+            if (best == null || score > bestScore) {
+                best = result;
+                bestScore = score;
+            }
         }
+        return best;
+    }
+
+    private boolean choiceMatches(LyricsRequest request, LyricsResult result) {
+        String requestTitle = LyricsMatcher.normalize(request.getTitle());
+        String requestArtist = LyricsMatcher.normalize(request.getArtist());
+        String resultTitle = LyricsMatcher.normalize(result.getTrackName());
+        String resultArtist = LyricsMatcher.normalize(result.getArtistName());
+        boolean directTitle = relatedText(requestTitle, resultTitle);
+        boolean directArtist = TextUtils.isEmpty(requestArtist) || TextUtils.isEmpty(resultArtist) || relatedText(requestArtist, resultArtist);
+        if (directTitle && directArtist) return true;
+        return !TextUtils.isEmpty(requestArtist) && !TextUtils.isEmpty(resultArtist) && relatedText(requestTitle, resultArtist) && relatedText(requestArtist, resultTitle);
+    }
+
+    private boolean relatedText(String first, String second) {
+        if (TextUtils.isEmpty(first) || TextUtils.isEmpty(second)) return false;
+        return first.equals(second) || first.contains(second) || second.contains(first);
     }
 
     private LyricsResult readLocal(LyricsRequest request) {
@@ -717,20 +765,67 @@ public class LyricsRepository {
         File dir = Path.cache("lyrics");
         if (!dir.exists()) dir.mkdirs();
         String suffix = LyricsSetting.cacheSuffix(sourceMode);
+        return new File(dir, request.stableSignature() + (suffix.isEmpty() ? "" : "-" + suffix) + ".json");
+    }
+
+    private File legacyCacheFile(LyricsRequest request, int sourceMode) {
+        File dir = Path.cache("lyrics");
+        if (!dir.exists()) dir.mkdirs();
+        String suffix = LyricsSetting.cacheSuffix(sourceMode);
         return new File(dir, request.signature() + (suffix.isEmpty() ? "" : "-" + suffix) + ".json");
+    }
+
+    private List<File> cacheFiles(LyricsRequest request, int sourceMode) {
+        ArrayList<File> files = new ArrayList<>();
+        addFile(files, cacheFile(request, sourceMode));
+        addFile(files, legacyCacheFile(request, sourceMode));
+        return files;
     }
 
     private File searchCacheFile(LyricsRequest request, int sourceMode) {
         File dir = Path.cache("lyrics");
         if (!dir.exists()) dir.mkdirs();
         String suffix = LyricsSetting.cacheSuffix(sourceMode);
+        return new File(dir, request.searchSignature() + (suffix.isEmpty() ? "" : "-" + suffix) + "-search.json");
+    }
+
+    private File legacySearchCacheFile(LyricsRequest request, int sourceMode) {
+        File dir = Path.cache("lyrics");
+        if (!dir.exists()) dir.mkdirs();
+        String suffix = LyricsSetting.cacheSuffix(sourceMode);
         return new File(dir, request.signature() + (suffix.isEmpty() ? "" : "-" + suffix) + "-search.json");
     }
 
+    private List<File> searchCacheFiles(LyricsRequest request, int sourceMode) {
+        ArrayList<File> files = new ArrayList<>();
+        addFile(files, searchCacheFile(request, sourceMode));
+        addFile(files, legacySearchCacheFile(request, sourceMode));
+        return files;
+    }
+
     private File choiceFile(LyricsRequest request) {
+        return new File(choiceDir(), request.stableSignature() + ".json");
+    }
+
+    private File legacyChoiceFile(LyricsRequest request) {
+        return new File(choiceDir(), request.signature() + ".json");
+    }
+
+    private static File choiceDir() {
         File dir = new File(cacheDir(), "choices");
         if (!dir.exists()) dir.mkdirs();
-        return new File(dir, request.signature() + ".json");
+        return dir;
+    }
+
+    private void addFile(List<File> files, File file) {
+        if (file == null) return;
+        for (File item : files) if (sameFile(item, file)) return;
+        files.add(file);
+    }
+
+    private boolean sameFile(File first, File second) {
+        if (first == null || second == null) return first == second;
+        return TextUtils.equals(first.getAbsolutePath(), second.getAbsolutePath());
     }
 
     public static int cacheCount() {
