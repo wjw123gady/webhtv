@@ -114,12 +114,14 @@ public class LyricsOverlayView extends FrameLayout {
 
     public void setSuppressed(boolean suppressed) {
         this.suppressed = suppressed;
+        if (suppressed) stopWordRefresh();
         if (suppressed) setVisibility(hiddenVisibility());
         else if (!lines.isEmpty()) setVisibility(VISIBLE);
         else setVisibility(hiddenVisibility());
     }
 
     public void setLyrics(LyricsResult result, List<LyricsLine> lines) {
+        stopWordRefresh();
         this.lines = lines == null ? Collections.emptyList() : lines;
         this.index = -1;
         setVisibility(this.lines.isEmpty() || suppressed ? hiddenVisibility() : VISIBLE);
@@ -143,6 +145,7 @@ public class LyricsOverlayView extends FrameLayout {
             return;
         }
         if (suppressed) {
+            stopWordRefresh();
             setVisibility(hiddenVisibility());
             return;
         }

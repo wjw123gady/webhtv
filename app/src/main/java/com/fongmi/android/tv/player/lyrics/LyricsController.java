@@ -253,9 +253,15 @@ public class LyricsController {
     }
 
     public void update(PlayerManager player) {
+        if (player == null) return;
+        update(player, player.isPlaying());
+    }
+
+    public void update(PlayerManager player, boolean playing) {
         if (player == null || lines.isEmpty()) return;
-        view.update(adjust(player.getPosition()), player.isPlaying());
-        if (secondaryView != null) secondaryView.update(adjust(player.getPosition()), player.isPlaying());
+        long position = adjust(player.getPosition());
+        view.update(position, playing);
+        if (secondaryView != null) secondaryView.update(position, playing);
     }
 
     public void refreshStyle() {

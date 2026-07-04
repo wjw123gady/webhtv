@@ -95,12 +95,6 @@
                                     app:strokeColor="@color/white_20"
                                     app:strokeWidth="1dp" />
 
-                                <View
-                                    android:layout_width="32dp"
-                                    android:layout_height="32dp"
-                                    android:layout_gravity="center"
-                                    android:background="@drawable/shape_audio_disc_center" />
-
                             </FrameLayout>
 
                             <com.google.android.material.textview.MaterialTextView
