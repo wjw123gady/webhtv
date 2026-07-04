@@ -354,7 +354,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void releasePlaybackService() {
-        if (mService != null) releaseService(isOwner());
+        if (mService != null && !isChangingConfigurations()) releaseService(isOwner());
         detach();
     }
 
@@ -489,6 +489,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         mService.setPlaybackForeground(true);
         mService.addPlayerCallback(mPlayerCallback);
         player().setLutAllowed(isLutAllowed());
+        if (isOwner() && !player().isEmpty()) attachSurface();
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-flow", "service connected cost=%dms key=%s", System.currentTimeMillis() - start, getPlaybackKey());
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "service connected %s", lifecycleState());
         onServiceConnected();

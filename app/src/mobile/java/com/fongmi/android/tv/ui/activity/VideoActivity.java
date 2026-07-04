@@ -234,6 +234,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private String mPlaybackEpisodeKey;
     private String mArtworkRequestUrl;
     private String mArtworkRequestOwner;
+    private Vod mPendingDetailVod;
+    private Result mPendingPlayerResult;
     private int mAudioArtworkColor = Color.rgb(55, 45, 68);
     private final Map<String, String> mAudioQueueFlags = new HashMap<>();
     private final Map<String, String> mAudioQueueTitles = new HashMap<>();
@@ -524,6 +526,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setDecode();
         setLut();
         checkLand();
+        if (consumePendingPlaybackResult()) return;
         checkId();
     }
 
@@ -939,6 +942,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void setDetail(Vod item) {
+        if (service() == null) {
+            mPendingDetailVod = item;
+            return;
+        }
         item.checkPic(getPic());
         item.checkName(getName());
         item.checkContent(getContent());
@@ -1018,6 +1025,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void setPlayer(Result result) {
         if (isFinishing() || isDestroyed()) return;
+        if (service() == null) {
+            mPendingPlayerResult = result;
+            return;
+        }
         SpiderDebug.log("video-flow", "player finish cost=%dms useParse=%s multi=%s msg=%s", System.currentTimeMillis() - playerStartTime, result.shouldUseParse(), result.getUrl().isMulti(), result.getMsg());
         mQualityAdapter.addAll(result);
         setUseParse(result.shouldUseParse());
@@ -1036,6 +1047,27 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         List<Danmaku> siteDanmakus = result.getDanmaku();
         startPlayer(getHistoryKey(), result, isUseParse(), getSite().getTimeout(), buildMetadata());
         if (DanmakuApi.canAutoSearch(siteDanmakus)) DanmakuApi.search(mHistory.getVodName(), getEpisode().getName(), player()::setDanmaku);
+    }
+
+    private boolean consumePendingPlaybackResult() {
+        boolean consumed = false;
+        Vod detail = mPendingDetailVod;
+        if (detail != null) {
+            mPendingDetailVod = null;
+            setDetail(detail);
+            consumed = true;
+        }
+        Result result = mPendingPlayerResult;
+        if (result != null) {
+            mPendingPlayerResult = null;
+            if (player().isEmpty()) setPlayer(result);
+            consumed = true;
+        }
+        if (consumed && !player().isEmpty()) {
+            refreshLyrics();
+            syncKaraokePosition();
+        }
+        return consumed;
     }
 
     private void recordDetailHealth(Result result, long cost) {
