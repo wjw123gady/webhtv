@@ -2961,6 +2961,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void showInfo() {
+        if (mAudioStageVisible) {
+            hideInfo();
+            return;
+        }
         showTopInfo();
         mBinding.widget.center.setVisibility(View.VISIBLE);
         mBinding.widget.duration.setText(player().getDurationTime());
@@ -2968,6 +2972,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void showTopInfo() {
+        if (mAudioStageVisible) {
+            mBinding.widget.top.setVisibility(View.GONE);
+            return;
+        }
         mBinding.widget.top.setVisibility(View.VISIBLE);
         mBinding.widget.size.setText(player().getSizeText());
     }
@@ -2978,6 +2986,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void showControl(View view) {
+        if (mAudioStageVisible) {
+            hideControl();
+            hideInfo();
+            focusAudioStageDefault();
+            return;
+        }
         showTopInfo();
         setPlayParamsState();
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
@@ -3358,7 +3372,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mAudioStageVisible = visible;
         if (!visible) mAudioLightEffectAnimated = false;
         mBinding.audioStage.setVisibility(visible ? View.VISIBLE : View.GONE);
-        if (!visible) setAudioToolRowVisible(false, false);
+        if (visible) {
+            hideControl();
+            hideInfo();
+        } else {
+            setAudioToolRowVisible(false, false);
+        }
         if (visible) applyAudioBackground();
         mBinding.lyrics.setAudioStageMode(visible);
         mBinding.lyrics.setSuppressed(visible);
