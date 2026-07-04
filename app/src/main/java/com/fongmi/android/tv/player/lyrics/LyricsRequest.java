@@ -25,12 +25,17 @@ public class LyricsRequest {
     private final String album;
     private final long durationMs;
     private final String parseInfo;
+    private final String sourceText;
 
     public LyricsRequest(String key, String url, String title, String artist, String album, long durationMs) {
-        this(key, url, title, artist, album, durationMs, "direct");
+        this(key, url, title, artist, album, durationMs, "direct", joinSourceText(title, artist));
     }
 
     private LyricsRequest(String key, String url, String title, String artist, String album, long durationMs, String parseInfo) {
+        this(key, url, title, artist, album, durationMs, parseInfo, joinSourceText(title, artist));
+    }
+
+    private LyricsRequest(String key, String url, String title, String artist, String album, long durationMs, String parseInfo, String sourceText) {
         this.key = clean(key);
         this.url = clean(url);
         this.title = cleanTitle(title, url);
@@ -38,6 +43,7 @@ public class LyricsRequest {
         this.album = clean(album);
         this.durationMs = durationMs > 0 && durationMs != C.TIME_UNSET ? durationMs : 0;
         this.parseInfo = clean(parseInfo);
+        this.sourceText = clean(sourceText);
     }
 
     public static LyricsRequest from(PlayerManager player) {
@@ -46,14 +52,14 @@ public class LyricsRequest {
         String title = metadata == null || metadata.title == null ? "" : metadata.title.toString();
         String artist = metadata == null || metadata.artist == null ? "" : metadata.artist.toString();
         Candidate candidate = selectBestCandidate(player.getKey(), title, artist, url);
-        return new LyricsRequest(player.getKey(), url, candidate.title, candidate.artist, "", player.getDuration(), candidate.info());
+        return new LyricsRequest(player.getKey(), url, candidate.title, candidate.artist, "", player.getDuration(), candidate.info(), joinSourceText(title, artist));
     }
 
     public LyricsRequest withKeyword(String keyword) {
         String value = cleanTitle(keyword, "");
         if (TextUtils.isEmpty(value)) return this;
         Candidate candidate = selectKeywordCandidate(value);
-        return new LyricsRequest(key, url, candidate.title, candidate.artist, album, durationMs, candidate.info());
+        return new LyricsRequest(key, url, candidate.title, candidate.artist, album, durationMs, candidate.info(), joinSourceText(keyword, sourceText));
     }
 
     public String displayKeyword() {
@@ -84,6 +90,7 @@ public class LyricsRequest {
     public List<String> searchSuggestions() {
         List<String> suggestions = new ArrayList<>();
         addTitleFirstSuggestions(suggestions, title, artist);
+        addSourceTextSuggestions(suggestions, sourceText);
         addRawTextSuggestions(suggestions, title);
         for (String keyword : searchKeywords()) addSuggestion(suggestions, keyword);
         return limitSuggestions(suggestions);
@@ -167,6 +174,17 @@ public class LyricsRequest {
         if (!TextUtils.isEmpty(keyword) && !containsKeyword(keywords, keyword)) keywords.add(keyword);
     }
 
+    private static String joinSourceText(String... values) {
+        List<String> lines = new ArrayList<>();
+        for (String value : values) {
+            for (String line : clean(value).split("\\n")) {
+                String item = line.trim();
+                if (!TextUtils.isEmpty(item) && !containsKeyword(lines, item)) lines.add(item);
+            }
+        }
+        return String.join("\n", lines);
+    }
+
     private static void addSuggestion(List<String> suggestions, String... parts) {
         StringBuilder builder = new StringBuilder();
         for (String part : parts) {
@@ -182,20 +200,24 @@ public class LyricsRequest {
 
     private static void addTitleFirstSuggestions(List<String> suggestions, String rawTitle, String rawArtist) {
         String name = cleanSuggestion(rawTitle);
-        String singer = cleanSuggestion(rawArtist);
         if (TextUtils.isEmpty(name)) return;
         addSuggestion(suggestions, name);
-        if (!isLikelyNonTitleToken(singer)) addSuggestion(suggestions, singer);
+        addArtistSuggestions(suggestions, rawArtist);
     }
 
     private static void addRawTextSuggestions(List<String> suggestions, String raw) {
         String value = stripKnownPrefixes(clean(raw)).text;
         if (TextUtils.isEmpty(value)) return;
         addBookTitleSuggestions(suggestions, value);
+        addEmbeddedBookArtistSuggestions(suggestions, value);
         addDelimitedSuggestions(suggestions, value);
         addSpaceSplitSuggestions(suggestions, value);
         addParenthesizedSuggestions(suggestions, value);
         addSuggestion(suggestions, cleanSuggestion(value));
+    }
+
+    private static void addSourceTextSuggestions(List<String> suggestions, String raw) {
+        for (String item : clean(raw).split("\\n")) addRawTextSuggestions(suggestions, item);
     }
 
     private static void addBookTitleSuggestions(List<String> suggestions, String raw) {
@@ -227,7 +249,7 @@ public class LyricsRequest {
         String left = cleanSuggestion(split.left);
         String right = cleanSuggestion(split.right);
         addSuggestion(suggestions, right);
-        if (!isLikelyNonTitleToken(left)) addSuggestion(suggestions, left);
+        if (!hasBookBracket(split.left) && !isLikelyNonTitleToken(left)) addSuggestion(suggestions, left);
     }
 
     private static void addSpaceSplitSuggestions(List<String> suggestions, String raw) {
@@ -237,6 +259,16 @@ public class LyricsRequest {
         if (parts.length != 2) return;
         addSuggestion(suggestions, parts[1]);
         addSuggestion(suggestions, parts[0]);
+    }
+
+    private static void addEmbeddedBookArtistSuggestions(List<String> suggestions, String raw) {
+        BookText book = firstBookText(raw);
+        if (book == null || book.start <= 0) return;
+        addArtistSuggestions(suggestions, raw.substring(0, book.start));
+    }
+
+    private static void addArtistSuggestions(List<String> suggestions, String rawArtist) {
+        for (String artist : splitArtists(rawArtist)) addSuggestion(suggestions, artist);
     }
 
     private static List<String> limitSuggestions(List<String> suggestions) {
@@ -251,7 +283,7 @@ public class LyricsRequest {
 
     private static boolean hasAnyBracket(String text) {
         String value = clean(text);
-        return containsAny(value, "(", ")", "（", "）", "[", "]", "【", "】");
+        return containsAny(value, "(", ")", "（", "）", "[", "]", "【", "】", "《", "》", "「", "」", "『", "』", "<", ">");
     }
 
     private static boolean isLikelyNonTitleToken(String text) {
@@ -277,11 +309,36 @@ public class LyricsRequest {
 
     private static List<String> splitArtists(String artist) {
         List<String> values = new ArrayList<>();
-        for (String item : clean(artist).split("(?i)\\s*(?:/|,|、|&|feat\\.?|featuring|with|;|；)\\s*")) {
-            String value = normalizeSearchText(item);
-            if (!TextUtils.isEmpty(value) && !containsKeyword(values, value)) values.add(value);
-        }
+        addBracketArtistParts(values, artist);
+        String withoutBrackets = clean(artist).replaceAll("\\([^)]*\\)|\\[[^]]*]|（[^）]*）|【[^】]*】", " ");
+        addDelimitedArtistParts(values, withoutBrackets);
         return values;
+    }
+
+    private static void addBracketArtistParts(List<String> values, String raw) {
+        addBracketArtistParts(values, raw, '(', ')');
+        addBracketArtistParts(values, raw, '（', '）');
+        addBracketArtistParts(values, raw, '[', ']');
+        addBracketArtistParts(values, raw, '【', '】');
+    }
+
+    private static void addBracketArtistParts(List<String> values, String raw, char open, char close) {
+        String value = clean(raw);
+        int start = value.indexOf(open);
+        while (start >= 0) {
+            int end = value.indexOf(close, start + 1);
+            if (end <= start) break;
+            addDelimitedArtistParts(values, value.substring(start + 1, end));
+            start = value.indexOf(open, end + 1);
+        }
+    }
+
+    private static void addDelimitedArtistParts(List<String> values, String raw) {
+        for (String item : clean(raw).split("(?i)\\s*(?:/|／|,|、|&|feat\\.?|featuring|with|;|；|\\|)\\s*")) {
+            String value = normalizeSearchText(item);
+            if (TextUtils.isEmpty(value) || isLikelyNonTitleToken(value) || containsKeyword(values, value)) continue;
+            values.add(value);
+        }
     }
 
     private static List<String> splitTitleAliases(String title) {
@@ -344,6 +401,8 @@ public class LyricsRequest {
         boolean artistEpisode = isLikelyEpisode(artist);
         boolean titleDelimited = splitDelimited(stripKnownPrefixes(title).text) != null;
         int metadataConfidence = titleContainer ? 32 : titleVideo ? 46 : artistEpisode ? 52 : TextUtils.isEmpty(artist) && titleDelimited ? 50 : 82;
+        addBookTitleCandidate(candidates, title, "metadataTitle", TextUtils.isEmpty(artist) ? 118 : 92);
+        addBookTitleCandidate(candidates, artist, "metadataArtist", 118);
         addCandidate(candidates, new Candidate(title, normalizeArtistFromEpisode(title, artist), metadataConfidence, "metadata", "pair", title));
         addMediaPrefixArtistTitleCandidate(candidates, title, "metadataTitle", TextUtils.isEmpty(artist) ? 94 : 64);
         addFieldCandidates(candidates, title, "metadataTitle", titleContainer ? 24 : titleVideo ? 38 : 70, TextUtils.isEmpty(artist) ? Bias.ARTIST_TITLE : Bias.NEUTRAL);
@@ -363,6 +422,7 @@ public class LyricsRequest {
 
     private static Candidate selectKeywordCandidate(String keyword) {
         ArrayList<Candidate> candidates = new ArrayList<>();
+        addBookTitleCandidate(candidates, keyword, "keyword", 96);
         addCandidate(candidates, new Candidate(keyword, "", 62, "keyword", "raw", keyword));
         addFieldCandidates(candidates, keyword, "keyword", hasSequencePrefix(keyword) ? 80 : 48, hasSequencePrefix(keyword) ? Bias.TITLE_ARTIST : Bias.NEUTRAL);
         addLeadingBracketCandidate(candidates, keyword, "keyword", 58);
@@ -399,6 +459,27 @@ public class LyricsRequest {
         SplitText split = splitDelimited(stripSequence(prefixed.text).text);
         if (split == null || isNoiseToken(split.left) || isNoiseToken(split.right)) return;
         addCandidate(candidates, new Candidate(split.right, split.left, confidence, source, "media-prefix-artist-title", raw));
+    }
+
+    private static void addBookTitleCandidate(List<Candidate> candidates, String raw, String source, int confidence) {
+        String value = stripKnownPrefixes(clean(raw)).text;
+        if (TextUtils.isEmpty(value) || confidence <= 0) return;
+        BookText book = firstBookText(value);
+        if (book == null) return;
+        String prefix = cleanNamePart(value.substring(0, book.start));
+        String suffix = cleanNamePart(value.substring(book.end + 1));
+        String artist = !isLikelyNonTitleToken(prefix) ? prefix : "";
+        if (TextUtils.isEmpty(artist)) artist = artistFromBookSuffix(suffix);
+        addCandidate(candidates, new Candidate(book.text, artist, confidence, source, "book-title", raw));
+    }
+
+    private static String artistFromBookSuffix(String suffix) {
+        String value = clean(suffix);
+        int index = firstDashIndex(value);
+        if (index == 0 && value.length() > 1) value = value.substring(1).trim();
+        else if (index > 0) value = value.substring(index + 1).trim();
+        value = cleanNamePart(value);
+        return isLikelyNonTitleToken(value) ? "" : value;
     }
 
     private static void addThemedPlaylistEpisodeCandidate(List<Candidate> candidates, String containerTitle, String rawEpisode) {
@@ -631,6 +712,32 @@ public class LyricsRequest {
         return false;
     }
 
+    private static boolean hasBookBracket(String text) {
+        return containsAny(clean(text), "《", "》", "「", "」", "『", "』", "<", ">");
+    }
+
+    private static BookText firstBookText(String raw) {
+        BookText best = null;
+        best = firstBookText(raw, '《', '》', best);
+        best = firstBookText(raw, '「', '」', best);
+        best = firstBookText(raw, '『', '』', best);
+        best = firstBookText(raw, '<', '>', best);
+        return best;
+    }
+
+    private static BookText firstBookText(String raw, char open, char close, BookText best) {
+        String value = clean(raw);
+        int start = value.indexOf(open);
+        while (start >= 0) {
+            int end = value.indexOf(close, start + 1);
+            if (end <= start) break;
+            String text = cleanSuggestion(value.substring(start + 1, end));
+            if (!TextUtils.isEmpty(text) && (best == null || start < best.start)) best = new BookText(text, start, end);
+            start = value.indexOf(open, end + 1);
+        }
+        return best;
+    }
+
     private static String identityText(String text) {
         return normalizeSearchText(text).toLowerCase(Locale.ROOT);
     }
@@ -701,6 +808,18 @@ public class LyricsRequest {
         private SplitText(String left, String right) {
             this.left = left;
             this.right = right;
+        }
+    }
+
+    private static class BookText {
+        private final String text;
+        private final int start;
+        private final int end;
+
+        private BookText(String text, int start, int end) {
+            this.text = text;
+            this.start = start;
+            this.end = end;
         }
     }
 }
