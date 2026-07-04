@@ -4895,6 +4895,15 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }
     }
 
+    @Override
+    protected void onPlayerPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+        debugPlaybackControl("positionDiscontinuity=" + reason + " old=" + oldPosition.positionMs + " new=" + newPosition.positionMs);
+        debugLyricsLoop("positionDiscontinuity=" + reason, true);
+        syncLyricsPlaybackState(player().isPlaying());
+        syncKaraokePosition();
+        if (mKaraoke != null) mKaraoke.update(player(), mLyrics == null ? null : mLyrics.getLines());
+    }
+
     private void syncLyricsPlaybackState() {
         if (mLyrics == null || service() == null || player().isEmpty()) return;
         debugLyricsLoop("syncLyricsPlaybackState", false);

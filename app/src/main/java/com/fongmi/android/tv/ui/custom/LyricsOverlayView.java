@@ -180,8 +180,8 @@ public class LyricsOverlayView extends FrameLayout {
     }
 
     private boolean isPositionReset(long positionMs, boolean nextPlaying) {
-        if (!nextPlaying || !playing || index < 0 || basePositionMs <= 0) return false;
-        long current = displayPositionMs();
+        if (index < 0 || basePositionMs <= 0) return false;
+        long current = playing ? displayPositionMs() : basePositionMs;
         return positionMs + POSITION_RESET_THRESHOLD_MS < current;
     }
 

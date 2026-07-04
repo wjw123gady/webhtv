@@ -618,9 +618,11 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
 
         @Override
         public void onPositionDiscontinuity(@NonNull Player.PositionInfo oldPosition, @NonNull Player.PositionInfo newPosition, int reason) {
-            if (!SpiderDebug.isEnabled()) return;
-            SpiderDebug.log("playback-control", "service.positionDiscontinuity reason=%d old=%d new=%d pos=%d dur=%d state=%s playing=%s playWhenReady=%s repeat=%s %s",
-                    reason, oldPosition.positionMs, newPosition.positionMs, safePosition(), safeDuration(), stateName(safePlaybackState()), safePlaying(), safePlayWhenReady(), player.isRepeatOne(), serviceState());
+            if (SpiderDebug.isEnabled()) {
+                SpiderDebug.log("playback-control", "service.positionDiscontinuity reason=%d old=%d new=%d pos=%d dur=%d state=%s playing=%s playWhenReady=%s repeat=%s %s",
+                        reason, oldPosition.positionMs, newPosition.positionMs, safePosition(), safeDuration(), stateName(safePlaybackState()), safePlaying(), safePlayWhenReady(), player.isRepeatOne(), serviceState());
+            }
+            playerCallbacks.forEach(callback -> callback.onPositionDiscontinuity(oldPosition, newPosition, reason));
         }
 
         @Override
@@ -694,6 +696,9 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         }
 
         default void onPlayerRebuild(Player player) {
+        }
+
+        default void onPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
         }
     }
 

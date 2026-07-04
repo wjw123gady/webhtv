@@ -187,6 +187,9 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void onStateChanged(int state) {
     }
 
+    protected void onPlayerPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+    }
+
     protected void onSizeChanged(VideoSize size) {
     }
 
@@ -472,6 +475,11 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
                 setRender();
                 PlaybackActivity.this.onPlayerRebuilt();
             }
+        }
+
+        @Override
+        public void onPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+            if (isOwner()) PlaybackActivity.this.onPlayerPositionDiscontinuity(oldPosition, newPosition, reason);
         }
     };
 
