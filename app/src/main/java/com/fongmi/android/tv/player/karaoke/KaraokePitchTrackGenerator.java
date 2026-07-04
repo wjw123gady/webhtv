@@ -4,10 +4,8 @@ import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.net.Uri;
 import android.text.TextUtils;
 
-import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.player.lyrics.LyricsLine;
 import com.fongmi.android.tv.player.lyrics.LyricsWord;
 import com.github.catvod.crawler.SpiderDebug;
@@ -19,7 +17,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -559,13 +556,13 @@ public class KaraokePitchTrackGenerator {
     }
 
     private static List<PitchFrame> decode(KaraokeTrackRepository.MediaInput input, List<Segment> segments, ProgressReporter reporter) throws Exception {
-        MediaExtractor extractor = new MediaExtractor();
+        KaraokeAudioExtractor.Opened source = null;
         MediaCodec decoder = null;
         try {
             reporter.update(5, STAGE_DECODE);
-            setDataSource(extractor, input.getUrl(), input.getHeaders());
-            int track = selectAudioTrack(extractor);
-            if (track < 0) throw new IllegalStateException("no audio track");
+            source = KaraokeAudioExtractor.open(input);
+            MediaExtractor extractor = source.extractor;
+            int track = source.track;
             extractor.selectTrack(track);
             MediaFormat format = extractor.getTrackFormat(track);
             String mime = format.getString(MediaFormat.KEY_MIME);
@@ -575,10 +572,7 @@ public class KaraokePitchTrackGenerator {
             decoder.start();
             return decodeLoop(extractor, decoder, format, analysisWindows(segments), precisionWindows(segments), reporter, durationMs(input, format));
         } finally {
-            try {
-                extractor.release();
-            } catch (Exception ignored) {
-            }
+            if (source != null) source.close();
             if (decoder != null) {
                 try {
                     decoder.stop();
@@ -692,30 +686,6 @@ public class KaraokePitchTrackGenerator {
             for (int c = 0; c < channels; c++) mono += data.getFloat();
             collector.add(mono / channels, sourceIndex + i);
         }
-    }
-
-    private static void setDataSource(MediaExtractor extractor, String url, Map<String, String> headers) throws Exception {
-        if (TextUtils.isEmpty(url)) throw new IllegalStateException("empty url");
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme();
-        if ("content".equalsIgnoreCase(scheme) || "android.resource".equalsIgnoreCase(scheme)) {
-            extractor.setDataSource(App.get(), uri, headers);
-        } else if ("file".equalsIgnoreCase(scheme)) {
-            extractor.setDataSource(Uri.decode(uri.getPath()));
-        } else if (TextUtils.isEmpty(scheme)) {
-            extractor.setDataSource(url);
-        } else {
-            extractor.setDataSource(url, headers);
-        }
-    }
-
-    private static int selectAudioTrack(MediaExtractor extractor) {
-        for (int i = 0; i < extractor.getTrackCount(); i++) {
-            MediaFormat format = extractor.getTrackFormat(i);
-            String mime = format.getString(MediaFormat.KEY_MIME);
-            if (!TextUtils.isEmpty(mime) && mime.toLowerCase(Locale.ROOT).startsWith("audio/")) return i;
-        }
-        return -1;
     }
 
     private static int sampleRate(MediaFormat format) {

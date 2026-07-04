@@ -37,6 +37,7 @@ public class LyricsOverlayView extends FrameLayout {
     private static final int ROWS = 5;
     private static final long WORD_REFRESH_MS = 50;
     private static final long AUDIO_STAGE_WORD_REFRESH_MS = 16;
+    private static final long ROW_FADE_DURATION_MS = 160;
     private static final int PRIMARY_COLOR = 0xFFFFC766;
 
     private final LinearLayout box;
@@ -122,6 +123,14 @@ public class LyricsOverlayView extends FrameLayout {
         setVisibility(this.lines.isEmpty() || suppressed ? hiddenVisibility() : VISIBLE);
     }
 
+    public void refreshStyle() {
+        compact = isCompactHeight(getHeight());
+        applyStyle();
+        index = -1;
+        requestLayout();
+        invalidate();
+    }
+
     public void update(long positionMs) {
         update(positionMs, false);
     }
@@ -145,15 +154,20 @@ public class LyricsOverlayView extends FrameLayout {
             scheduleWordRefresh(positionMs);
             return;
         }
+        int previousIndex = index;
         index = nextIndex;
-        render(positionMs);
+        render(positionMs, shouldAnimateLineChange(previousIndex, nextIndex), Integer.compare(nextIndex, previousIndex));
         scheduleWordRefresh(positionMs);
         setVisibility(VISIBLE);
     }
 
     private void render(long positionMs) {
+        render(positionMs, false, 0);
+    }
+
+    private void render(long positionMs, boolean animate, int direction) {
         if (desktopMode) {
-            renderDesktop(positionMs);
+            renderDesktop(positionMs, animate, direction);
             return;
         }
         int count = visibleRows();
@@ -162,40 +176,41 @@ public class LyricsOverlayView extends FrameLayout {
         for (int i = 0; i < ROWS; i++) {
             MaterialTextView row = rows[i];
             if (i < offset || i >= offset + count) {
-                row.setText("");
-                row.setVisibility(GONE);
+                hideRow(row, GONE);
                 continue;
             }
             int lineIndex = index + i - offset - center;
             if (lineIndex < 0 || lineIndex >= lines.size()) {
                 row.setText("");
-                row.setVisibility(INVISIBLE);
+                hideRow(row, INVISIBLE);
                 continue;
             }
             row.setVisibility(VISIBLE);
-            style(row, Math.abs(i - offset - center));
+            int distance = Math.abs(i - offset - center);
+            style(row, distance);
             setRowText(row, lines.get(lineIndex), lineIndex == index, positionMs);
+            if (animate) animateRow(row, distance, direction);
         }
     }
 
-    private void renderDesktop(long positionMs) {
+    private void renderDesktop(long positionMs, boolean animate, int direction) {
         int count = visibleRows();
         for (int i = 0; i < ROWS; i++) {
             MaterialTextView row = rows[i];
             if (i >= count) {
-                row.setText("");
-                row.setVisibility(GONE);
+                hideRow(row, GONE);
                 continue;
             }
             int lineIndex = index + i;
             if (lineIndex < 0 || lineIndex >= lines.size()) {
                 row.setText("");
-                row.setVisibility(i == 0 ? INVISIBLE : GONE);
+                hideRow(row, i == 0 ? INVISIBLE : GONE);
                 continue;
             }
             row.setVisibility(VISIBLE);
             style(row, i);
             setRowText(row, lines.get(lineIndex), i == 0, positionMs);
+            if (animate) animateRow(row, i, direction);
         }
     }
 
@@ -280,7 +295,7 @@ public class LyricsOverlayView extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        boolean nextCompact = h > 0 && h < dp(300);
+        boolean nextCompact = isCompactHeight(h);
         if (compact == nextCompact && w == oldw && h == oldh) return;
         compact = nextCompact;
         applyStyle();
@@ -309,6 +324,7 @@ public class LyricsOverlayView extends FrameLayout {
     }
 
     private void applyStyle() {
+        applyBoxPadding();
         if (desktopMode) {
             for (int i = 0; i < ROWS; i++) {
                 MaterialTextView row = rows[i];
@@ -329,15 +345,16 @@ public class LyricsOverlayView extends FrameLayout {
 
     private void style(MaterialTextView view, int distance) {
         boolean primary = distance == 0;
-        int size = desktopMode ? primary ? 20 : 14 : compact ? primary ? 18 : 13 : primary ? 28 : distance == 1 ? 19 : 16;
+        int size = lyricTextSize(primary, distance);
         float scale = PlayerSetting.getLyricsTextSizeScale();
         int color = primary ? PRIMARY_COLOR : distance == 1 ? Color.WHITE : 0xB8FFFFFF;
+        view.setPadding(0, rowVerticalPadding(), 0, rowVerticalPadding());
         view.setTextSize(size * scale);
         view.setTextColor(color);
-        view.setAlpha(primary ? 1f : desktopMode ? 0.72f : distance == 1 ? 0.82f : 0.58f);
+        view.setAlpha(alphaForDistance(distance));
         view.setTypeface(Typeface.DEFAULT, primary ? Typeface.BOLD : Typeface.NORMAL);
-        view.setMaxLines(desktopMode ? 1 : primary ? 2 : 1);
-        view.setMinHeight(dp((desktopMode ? primary ? 32 : 24 : compact ? primary ? 44 : 24 : primary ? 62 : 34) * scale));
+        view.setMaxLines(desktopMode || tightAudioRows() ? 1 : primary ? 2 : 1);
+        view.setMinHeight(rowMinHeight(distance, scale));
     }
 
     private void setRowText(MaterialTextView row, LyricsLine line, boolean primary, long positionMs) {
@@ -396,8 +413,9 @@ public class LyricsOverlayView extends FrameLayout {
         long position = basePositionMs + elapsed;
         int nextIndex = LyricsParser.findLine(lines, position);
         if (nextIndex != index) {
+            int previousIndex = index;
             index = nextIndex;
-            render(position);
+            render(position, shouldAnimateLineChange(previousIndex, nextIndex), Integer.compare(nextIndex, previousIndex));
             scheduleWordRefresh(position);
             return;
         }
@@ -439,7 +457,79 @@ public class LyricsOverlayView extends FrameLayout {
     private int visibleRows() {
         if (desktopMode) return 2;
         int rows = Math.min(PlayerSetting.getLyricsRows(), ROWS);
-        return compact ? Math.min(rows, 3) : rows;
+        return rows;
+    }
+
+    private boolean isCompactHeight(int height) {
+        return height > 0 && height < dp(300);
+    }
+
+    private boolean tightAudioRows() {
+        return audioStageMode && !desktopMode && compact && getHeight() > 0 && getHeight() < dp(130) && visibleRows() >= 4;
+    }
+
+    private int lyricTextSize(boolean primary, int distance) {
+        if (desktopMode) return primary ? 20 : 14;
+        if (tightAudioRows()) return primary ? 15 : 10;
+        if (compact) return primary ? 18 : 13;
+        return primary ? 28 : distance == 1 ? 19 : 16;
+    }
+
+    private int rowVerticalPadding() {
+        if (tightAudioRows()) return 0;
+        return dp(compact && visibleRows() >= 4 ? 1 : 3);
+    }
+
+    private int rowMinHeight(int distance, float scale) {
+        boolean primary = distance == 0;
+        int baseDp = desktopMode ? primary ? 32 : 24 : tightAudioRows() ? primary ? 24 : 14 : compact ? primary ? 44 : 24 : primary ? 62 : 34;
+        int base = dp(baseDp * scale);
+        if (!audioStageMode || getHeight() <= 0) return base;
+        int count = visibleRows();
+        int available = getHeight() - box.getPaddingTop() - box.getPaddingBottom();
+        if (available <= 0) return base;
+        float primaryWeight = count == 1 ? 1f : tightAudioRows() ? 1.25f : compact ? 1.45f : 1.6f;
+        float totalWeight = primaryWeight + Math.max(0, count - 1);
+        float weight = primary ? primaryWeight : 1f;
+        int min = dp(tightAudioRows() ? primary ? 22 : 12 : compact ? primary ? 30 : 18 : primary ? 42 : 24);
+        int budget = Math.max(min, Math.round(available * weight / totalWeight));
+        return Math.min(base, budget);
+    }
+
+    private float alphaForDistance(int distance) {
+        return distance == 0 ? 1f : desktopMode ? 0.72f : distance == 1 ? 0.82f : 0.58f;
+    }
+
+    private void applyBoxPadding() {
+        if (desktopMode) {
+            box.setPadding(dp(16), dp(8), dp(16), dp(8));
+        } else if (audioStageMode && tightAudioRows()) {
+            box.setPadding(dp(18), dp(2), dp(18), dp(2));
+        } else {
+            box.setPadding(dp(18), dp(audioStageMode && compact && visibleRows() >= 4 ? 6 : 10), dp(18), dp(audioStageMode && compact && visibleRows() >= 4 ? 6 : 10));
+        }
+    }
+
+    private boolean shouldAnimateLineChange(int previousIndex, int nextIndex) {
+        return !dragging && previousIndex >= 0 && nextIndex >= 0 && previousIndex != nextIndex;
+    }
+
+    private void animateRow(MaterialTextView row, int distance, int direction) {
+        row.animate().cancel();
+        row.setAlpha(0f);
+        row.setTranslationY(dp(direction >= 0 ? 6 : -6));
+        row.animate()
+                .alpha(alphaForDistance(distance))
+                .translationY(0f)
+                .setDuration(ROW_FADE_DURATION_MS)
+                .start();
+    }
+
+    private void hideRow(MaterialTextView row, int visibility) {
+        row.animate().cancel();
+        row.setTranslationY(0f);
+        row.setText("");
+        row.setVisibility(visibility);
     }
 
     private GradientDrawable desktopBackground() {

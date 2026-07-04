@@ -28,6 +28,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
 import okhttp3.MediaType;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -38,6 +39,7 @@ public class QqMusicClient {
     private static final String TAG = "lyrics";
     private static final String API = "https://u.y.qq.com/cgi-bin/musicu.fcg";
     private static final String USER_AGENT = "okhttp/3.14.9";
+    private static final String WEB_USER_AGENT = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36";
     private static final String QRC_KEY = "!@#)(*$%123ZXC!@!@#)(NHL";
     private static final int MIN_SCORE = 62;
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
@@ -73,15 +75,26 @@ public class QqMusicClient {
     private LyricsResult toResult(Entry entry) {
         Lyric lyric = lyric(entry);
         String text = !TextUtils.isEmpty(lyric.qrc) ? qrcToEnhancedLrc(lyric.qrc) : "";
-        if (!LyricsParser.hasTimedLine(text)) text = lyric.lrc;
-        if (!LyricsParser.hasTimedLine(text)) return null;
+        boolean qrcTimed = LyricsParser.hasTimedLine(text);
+        if (!qrcTimed) text = lyric.lrc;
+        if (!LyricsParser.hasTimedLine(text)) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic lyric empty id=%s mid=%s name=%s artist=%s qrc=%d qrcTimed=%s lrc=%d", entry.id, entry.mid, entry.name, entry.artist, safeLength(lyric.qrc), qrcTimed, safeLength(lyric.lrc));
+            return null;
+        }
         text = LyricsParser.mergeTimedText(text, qrcTextToLrc(lyric.trans), qrcTextToLrc(lyric.roma));
         return new LyricsResult("QQMusic", entry.name, entry.artist, entry.album, text, entry.durationSec * 1000L, true, entry.score);
     }
 
     private List<Entry> ranked(LyricsRequest request) {
+        ArrayList<Entry> ranked = rank(request, search(request, true));
+        if (ranked.isEmpty()) ranked = rank(request, search(request, false));
+        if (SpiderDebug.isEnabled()) logRanked(request, ranked);
+        return ranked;
+    }
+
+    private ArrayList<Entry> rank(LyricsRequest request, List<Entry> entries) {
         ArrayList<Entry> ranked = new ArrayList<>();
-        for (Entry entry : search(request)) {
+        for (Entry entry : entries) {
             entry.score = score(request, entry);
             if (entry.score >= MIN_SCORE) ranked.add(entry);
         }
@@ -89,14 +102,19 @@ public class QqMusicClient {
         return ranked;
     }
 
-    private List<Entry> search(LyricsRequest request) {
+    private List<Entry> search(LyricsRequest request, boolean legacy) {
         List<Entry> entries = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (String keyword : keywords(request)) search(entries, seen, request, keyword);
+        for (String keyword : keywords(request)) {
+            if (legacy) searchLegacy(entries, seen, request, keyword);
+            else searchLite(entries, seen, request, keyword);
+        }
+        if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic search mode=%s title=%s artist=%s raw=%d", legacy ? "legacy" : "lite", request.getTitle(), request.getArtist(), entries.size());
         return entries;
     }
 
-    private void search(List<Entry> entries, Set<String> seen, LyricsRequest request, String keyword) {
+    private void searchLite(List<Entry> entries, Set<String> seen, LyricsRequest request, String keyword) {
+        int before = entries.size();
         try {
             JSONObject data = qqRequest(
                     "DoSearchForQQMusicLite",
@@ -113,7 +131,10 @@ public class QqMusicClient {
                             .put("page_id", 1)
                             .put("grp", 1));
             JSONArray array = data.optJSONObject("body") == null ? null : data.optJSONObject("body").optJSONArray("item_song");
-            if (array == null) return;
+            if (array == null) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic lite keyword=%s raw=0 added=0 no-array", keyword);
+                return;
+            }
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.optJSONObject(i);
                 if (item == null) continue;
@@ -125,24 +146,54 @@ public class QqMusicClient {
                 entry.album = item.optJSONObject("album") == null ? "" : clean(item.optJSONObject("album").optString("name"));
                 entry.durationSec = item.optInt("interval", 0);
                 String key = entry.id > 0 ? String.valueOf(entry.id) : entry.mid;
-                if (entry.id > 0 && !TextUtils.isEmpty(entry.name) && seen.add(key)) entries.add(entry);
+                if (!TextUtils.isEmpty(key) && !TextUtils.isEmpty(entry.name) && seen.add("lite:" + key)) entries.add(entry);
             }
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic lite keyword=%s raw=%d added=%d", keyword, array.length(), entries.size() - before);
         } catch (Exception e) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic search failed title=%s error=%s", request.getTitle(), e.getMessage());
         }
     }
 
-    private Entry best(LyricsRequest request, List<Entry> entries) {
-        Entry best = null;
-        int bestScore = Integer.MIN_VALUE;
-        for (Entry entry : entries) {
-            int score = score(request, entry);
-            if (score <= bestScore) continue;
-            entry.score = score;
-            best = entry;
-            bestScore = score;
+    private void searchLegacy(List<Entry> entries, Set<String> seen, LyricsRequest request, String keyword) {
+        int before = entries.size();
+        HttpUrl url = HttpUrl.parse("https://c.y.qq.com/soso/fcgi-bin/client_search_cp").newBuilder()
+                .addQueryParameter("format", "json")
+                .addQueryParameter("inCharset", "utf8")
+                .addQueryParameter("outCharset", "utf-8")
+                .addQueryParameter("notice", "0")
+                .addQueryParameter("platform", "yqq")
+                .addQueryParameter("needNewCode", "0")
+                .addQueryParameter("w", keyword)
+                .addQueryParameter("p", "1")
+                .addQueryParameter("n", "8")
+                .addQueryParameter("cr", "1")
+                .build();
+        try {
+            JSONObject object = new JSONObject(get(url.toString(), "https://y.qq.com/"));
+            JSONObject data = object.optJSONObject("data");
+            JSONObject song = data == null ? null : data.optJSONObject("song");
+            JSONArray array = song == null ? null : song.optJSONArray("list");
+            if (array == null) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic legacy keyword=%s raw=0 added=0 no-array", keyword);
+                return;
+            }
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject item = array.optJSONObject(i);
+                if (item == null) continue;
+                Entry entry = new Entry();
+                entry.id = parseInt(first(item, "songid", "id"));
+                entry.mid = first(item, "songmid", "mid");
+                entry.name = clean(first(item, "songname", "name", "title"));
+                entry.artist = artists(item.optJSONArray("singer"));
+                entry.album = clean(first(item, "albumname", "albumName"));
+                entry.durationSec = item.optInt("interval", 0);
+                String key = entry.id > 0 ? String.valueOf(entry.id) : entry.mid;
+                if (!TextUtils.isEmpty(key) && !TextUtils.isEmpty(entry.name) && seen.add("legacy:" + key)) entries.add(entry);
+            }
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic legacy keyword=%s raw=%d added=%d", keyword, array.length(), entries.size() - before);
+        } catch (Exception e) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic legacy search failed title=%s error=%s", request.getTitle(), e.getMessage());
         }
-        return best != null && bestScore >= MIN_SCORE ? best : null;
     }
 
     private int score(LyricsRequest request, Entry entry) {
@@ -204,8 +255,11 @@ public class QqMusicClient {
             lyric.roma = decrypt(data.optString("roma"));
             if (data.optInt("qrc_t", 1) == 0) lyric.lrc = lyric.qrc;
             if (TextUtils.isEmpty(lyric.lrc)) lyric.lrc = fallbackLrc(param);
+            if (!LyricsParser.hasTimedLine(lyric.lrc)) lyric.lrc = fallbackWebLrc(entry);
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic lyric id=%s mid=%s qrc=%d lrc=%d trans=%d roma=%d", entry.id, entry.mid, safeLength(lyric.qrc), safeLength(lyric.lrc), safeLength(lyric.trans), safeLength(lyric.roma));
         } catch (Exception e) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic lyric failed id=%s error=%s", entry.id, e.getMessage());
+            lyric.lrc = fallbackWebLrc(entry);
         }
         return lyric;
     }
@@ -215,6 +269,37 @@ public class QqMusicClient {
             JSONObject data = qqRequest("GetPlayLyricInfo", "music.musichallSong.PlayLyricInfo", new JSONObject(param.toString()).put("qrc", 0).put("qrc_t", 0));
             return decrypt(data.optString("lyric"));
         } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String fallbackWebLrc(Entry entry) {
+        if (TextUtils.isEmpty(entry.mid)) return "";
+        HttpUrl url = HttpUrl.parse("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg").newBuilder()
+                .addQueryParameter("format", "json")
+                .addQueryParameter("inCharset", "utf8")
+                .addQueryParameter("outCharset", "utf-8")
+                .addQueryParameter("notice", "0")
+                .addQueryParameter("platform", "yqq")
+                .addQueryParameter("needNewCode", "0")
+                .addQueryParameter("nobase64", "1")
+                .addQueryParameter("songmid", entry.mid)
+                .addQueryParameter("songtype", "0")
+                .addQueryParameter("loginUin", "0")
+                .addQueryParameter("hostUin", "0")
+                .addQueryParameter("g_tk", "5381")
+                .build();
+        try {
+            JSONObject object = new JSONObject(get(url.toString(), "https://y.qq.com/portal/player.html"));
+            if (object.optInt("code", -1) != 0) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic web lyric failed mid=%s code=%d", entry.mid, object.optInt("code", -1));
+                return "";
+            }
+            String lyric = decodeLegacyLyric(object.optString("lyric"));
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic web lyric mid=%s len=%d timed=%s", entry.mid, safeLength(lyric), LyricsParser.hasTimedLine(lyric));
+            return lyric;
+        } catch (Exception e) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "qqmusic web lyric failed mid=%s error=%s", entry.mid, e.getMessage());
             return "";
         }
     }
@@ -237,10 +322,13 @@ public class QqMusicClient {
         JSONObject response = post(new JSONObject()
                 .put("comm", comm)
                 .put("request", new JSONObject().put("method", method).put("module", module).put("param", param)));
-        if (response.optInt("code", -1) != 0 || response.optJSONObject("request") == null || response.optJSONObject("request").optInt("code", -1) != 0) {
-            throw new IllegalStateException("QQMusic API error");
+        JSONObject request = response.optJSONObject("request");
+        int code = response.optInt("code", -1);
+        int requestCode = request == null ? -1 : request.optInt("code", -1);
+        if (code != 0 || request == null || requestCode != 0) {
+            throw new IllegalStateException("QQMusic API error code=" + code + " requestCode=" + requestCode + " message=" + (request == null ? "" : request.optString("message")));
         }
-        JSONObject data = response.optJSONObject("request").optJSONObject("data");
+        JSONObject data = request.optJSONObject("data");
         return data == null ? new JSONObject() : data;
     }
 
@@ -284,6 +372,20 @@ public class QqMusicClient {
         try (Response response = CLIENT.newCall(request).execute()) {
             if (!response.isSuccessful() || response.body() == null) throw new IllegalStateException("HTTP " + response.code());
             return new JSONObject(response.body().string());
+        }
+    }
+
+    private String get(String url, String referer) throws Exception {
+        Request request = new Request.Builder()
+                .url(url)
+                .header("User-Agent", WEB_USER_AGENT)
+                .header("Referer", referer)
+                .header("Origin", "https://y.qq.com")
+                .header("Accept", "application/json, text/plain, */*")
+                .build();
+        try (Response response = CLIENT.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) throw new IllegalStateException("HTTP " + response.code());
+            return response.body().string();
         }
     }
 
@@ -388,6 +490,16 @@ public class QqMusicClient {
         return builder.toString();
     }
 
+    private String decodeLegacyLyric(String text) {
+        String value = decodeXml(text).replace("\\n", "\n");
+        if (LyricsParser.hasTimedLine(value)) return value;
+        try {
+            value = decodeXml(new String(Base64.decode(text, Base64.DEFAULT), StandardCharsets.UTF_8)).replace("\\n", "\n");
+        } catch (Exception ignored) {
+        }
+        return value;
+    }
+
     private String cleanQrcLine(String text) {
         StringBuilder builder = new StringBuilder();
         Matcher matcher = QRC_WORD.matcher(text == null ? "" : text);
@@ -430,8 +542,31 @@ public class QqMusicClient {
         return TextUtils.join(" / ", names);
     }
 
+    private String first(JSONObject object, String... keys) {
+        for (String key : keys) {
+            String value = object.optString(key);
+            if (!TextUtils.isEmpty(value)) return value;
+        }
+        return "";
+    }
+
     private String clean(String text) {
         return text == null ? "" : text.replaceAll("<[^>]+>", "").trim();
+    }
+
+    private int safeLength(String text) {
+        return text == null ? 0 : text.length();
+    }
+
+    private void logRanked(LyricsRequest request, List<Entry> ranked) {
+        StringBuilder builder = new StringBuilder();
+        int count = Math.min(ranked == null ? 0 : ranked.size(), 5);
+        for (int i = 0; i < count; i++) {
+            Entry item = ranked.get(i);
+            if (i > 0) builder.append(", ");
+            builder.append(item.score).append(':').append(item.name).append('/').append(item.artist).append('/').append(item.durationSec);
+        }
+        SpiderDebug.log(TAG, "qqmusic ranked title=%s artist=%s count=%d top=[%s]", request.getTitle(), request.getArtist(), ranked == null ? 0 : ranked.size(), builder);
     }
 
     private String encodeBase64(String value) {

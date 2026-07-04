@@ -165,6 +165,10 @@ public class KaraokeTrackRepository {
         return KaraokePitchTrackGenerator.canGenerate(input, lines);
     }
 
+    public static boolean isUnsupportedPitchSourceError(String error) {
+        return KaraokeAudioExtractor.isUnsupportedError(error);
+    }
+
     public static ImportResult importFile(PlayerManager player, File file) {
         if (player == null || player.isEmpty()) return ImportResult.fail("empty player");
         if (file == null || !file.isFile()) return ImportResult.fail("empty file");

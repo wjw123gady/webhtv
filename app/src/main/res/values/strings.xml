@@ -878,6 +878,8 @@
     <string name="player_karaoke_track_generating_pitch">Generating pitch scoring track...</string>
     <string name="player_karaoke_track_generating_pitch_message">Analyzing the current audio locally and generating a pitch scoring track. Keep the player open until it finishes.</string>
     <string name="player_karaoke_track_generating_pitch_progress">%1$d%% · %2$s · %3$s</string>
+    <string name="player_karaoke_track_generation_stop">Stop</string>
+    <string name="player_karaoke_track_generation_stopped">Scoring track generation stopped</string>
     <string name="player_karaoke_track_pitch_stage_prepare">Preparing</string>
     <string name="player_karaoke_track_pitch_stage_decode">Decoding audio</string>
     <string name="player_karaoke_track_pitch_stage_analyze">Analyzing pitch</string>
@@ -890,6 +892,7 @@
     <string name="player_karaoke_track_generated_pitch_message">Applied to the current song and karaoke mode is enabled.</string>
     <string name="player_karaoke_track_generate_pitch_failed">Failed to generate pitch scoring track</string>
     <string name="player_karaoke_track_generate_pitch_failed_message">No scoring track was generated: %1$s</string>
+    <string name="player_karaoke_track_generate_pitch_unsupported_source">The current media source cannot be analyzed directly. Try another line or quality, or use online search/import.</string>
     <string name="player_karaoke_track_generate_failed">Failed to generate rhythm track</string>
     <string name="player_karaoke_track_generate_no_lyrics">No timed lyrics available</string>
     <string name="player_karaoke_track_cleared">Scoring track binding cleared</string>

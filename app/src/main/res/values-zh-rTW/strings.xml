@@ -860,6 +860,8 @@
     <string name="player_karaoke_track_generating_pitch">正在生成音高評分譜...</string>
     <string name="player_karaoke_track_generating_pitch_message">正在本地分析目前音訊並生成帶音高的評分譜，完成前請勿關閉播放器。</string>
     <string name="player_karaoke_track_generating_pitch_progress">%1$d%% · %2$s · %3$s</string>
+    <string name="player_karaoke_track_generation_stop">停止</string>
+    <string name="player_karaoke_track_generation_stopped">已停止生成評分譜</string>
     <string name="player_karaoke_track_pitch_stage_prepare">準備中</string>
     <string name="player_karaoke_track_pitch_stage_decode">解碼音訊</string>
     <string name="player_karaoke_track_pitch_stage_analyze">分析音高</string>
@@ -872,6 +874,7 @@
     <string name="player_karaoke_track_generated_pitch_message">已套用到目前歌曲，K歌模式已開啟。</string>
     <string name="player_karaoke_track_generate_pitch_failed">音高評分譜生成失敗</string>
     <string name="player_karaoke_track_generate_pitch_failed_message">未生成評分譜：%1$s</string>
+    <string name="player_karaoke_track_generate_pitch_unsupported_source">目前媒體源無法直接分析音訊，可嘗試切換線路/清晰度，或使用線上搜尋、本機導入評分譜。</string>
     <string name="player_karaoke_track_generate_failed">輕量節奏評分譜生成失敗</string>
     <string name="player_karaoke_track_generate_no_lyrics">目前沒有可用的歌詞時間軸</string>
     <string name="player_karaoke_track_cleared">評分譜綁定已清除</string>

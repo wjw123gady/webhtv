@@ -28,6 +28,7 @@ import android.view.WindowManager;
 import android.view.animation.LinearInterpolator;
 import android.view.inputmethod.EditorInfo;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -53,6 +54,7 @@ import androidx.media3.common.VideoSize;
 import androidx.media3.ui.PlayerView;
 import androidx.palette.graphics.Palette;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.transition.ChangeBounds;
 import androidx.transition.TransitionManager;
@@ -165,6 +167,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class VideoActivity extends PlaybackActivity implements Clock.Callback, CustomKeyDown.Listener, TrackDialog.Listener, ControlDialog.Listener, DanmakuDialog.Host, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, EpisodeGroupAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener {
 
@@ -213,9 +218,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private BottomSheetDialog mKaraokePitchDialog;
     private ProgressBar mKaraokePitchProgress;
     private TextView mKaraokePitchMessage;
+    private Future<?> mKaraokePitchFuture;
+    private AtomicBoolean mKaraokePitchCancel;
     private ObjectAnimator mAudioCoverAnimator;
     private LinearLayout mLyricsResultList;
-    private LinearLayout mAudioQueueList;
+    private RecyclerView mAudioQueueList;
+    private AudioQueueAdapter mAudioQueueAdapter;
     private LinearLayout mAudioQueueSearchList;
     private TextView mAudioQueueStatus;
     private List<LyricsResult> mLyricsSearchResults;
@@ -428,12 +436,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private Flag getFlag() {
+        if (mFlagAdapter == null || mFlagAdapter.isEmpty()) return null;
         return mFlagAdapter.getActivated();
     }
 
     private Episode getEpisode() {
-        if (mFlagAdapter != null && !mFlagAdapter.isEmpty()) {
-            List<Episode> items = getFlag().getEpisodes();
+        Flag flag = getFlag();
+        if (flag != null) {
+            List<Episode> items = flag.getEpisodes();
             for (Episode item : items) if (item.isSelected()) return item;
             if (!items.isEmpty()) return items.get(0);
         }
@@ -442,7 +452,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private String getEpisodePlayFlag(Flag flag, Episode episode) {
         String value = mAudioQueueFlags.get(audioQueueEpisodeKey(episode));
-        return TextUtils.isEmpty(value) ? flag.getFlag() : value;
+        return TextUtils.isEmpty(value) ? flag == null ? "" : flag.getFlag() : value;
     }
 
     private boolean isAudioQueueEpisode(Episode episode) {
@@ -1061,8 +1071,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     public void onItemClick(Episode item) {
         if (shouldEnterFullscreen(item)) return;
-        mFlagAdapter.toggle(item);
-        setEpisodeAdapter(getFlag().getEpisodes());
+        Flag flag = getFlag();
+        if (mFlagAdapter != null) mFlagAdapter.toggle(item);
+        if (flag != null) setEpisodeAdapter(flag.getEpisodes());
         applyAudioQueueMetadata(item);
         if (isFullscreen()) Notify.show(getString(R.string.play_ready, item.getName()));
         onRefresh();
@@ -1206,7 +1217,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private int getEpisodeCount() {
-        return mFlagAdapter == null || mFlagAdapter.isEmpty() ? mEpisodeAdapter.getItemCount() : getFlag().getEpisodes().size();
+        Flag flag = getFlag();
+        return flag == null ? mEpisodeAdapter.getItemCount() : flag.getEpisodes().size();
     }
 
     private void seamless(Flag flag) {
@@ -1224,8 +1236,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void reverseEpisode(boolean scroll) {
+        Flag flag = getFlag();
+        if (flag == null) return;
         mFlagAdapter.reverse();
-        setEpisodeAdapter(getFlag().getEpisodes());
+        setEpisodeAdapter(flag.getEpisodes());
         if (scroll) scrollEpisodeToSelected();
     }
 
@@ -1243,11 +1257,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private boolean onLyricsSearch() {
         if (!isLyricsSearchAvailable()) return false;
-        showLyricsSearchSheet(getLyricsSearchKeyword());
+        showLyricsSearchSheet(getLyricsSearchKeyword(), getLyricsSearchSuggestions());
         return true;
     }
 
-    private void showLyricsSearchSheet(String keyword) {
+    private void showLyricsSearchSheet(String keyword, List<String> suggestions) {
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
         root.addView(createAudioSheetTitle(getString(R.string.player_lyrics_reload)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(34)));
@@ -1274,6 +1288,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         inputParams.topMargin = ResUtil.dp2px(12);
         root.addView(row, inputParams);
+        addLyricsSearchSuggestions(root, input, suggestions);
 
         dialog.setContentView(root);
         input.setOnEditorActionListener((v, actionId, event) -> {
@@ -1283,6 +1298,46 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         });
         showCompactPlaybackSheet(dialog);
         input.post(() -> Util.showKeyboard(input));
+    }
+
+    private void addLyricsSearchSuggestions(LinearLayout root, TextInputEditText input, List<String> suggestions) {
+        if (suggestions == null || suggestions.isEmpty()) return;
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(HorizontalScrollView.OVER_SCROLL_NEVER);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        int count = Math.min(8, suggestions.size());
+        for (int i = 0; i < count; i++) {
+            String text = suggestions.get(i);
+            if (TextUtils.isEmpty(text)) continue;
+            TextView chip = createLyricsSearchSuggestionChip(input, text);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(32));
+            if (row.getChildCount() > 0) params.leftMargin = ResUtil.dp2px(6);
+            row.addView(chip, params);
+        }
+        if (row.getChildCount() == 0) return;
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(32)));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32));
+        params.topMargin = ResUtil.dp2px(8);
+        root.addView(scroll, params);
+    }
+
+    private TextView createLyricsSearchSuggestionChip(TextInputEditText input, String text) {
+        TextView chip = createAudioSheetText(text, 13, false);
+        chip.setGravity(Gravity.CENTER);
+        chip.setSingleLine(true);
+        chip.setEllipsize(TextUtils.TruncateAt.END);
+        chip.setPadding(ResUtil.dp2px(10), 0, ResUtil.dp2px(10), 0);
+        chip.setTextColor(SHEET_TEXT_SECONDARY);
+        chip.setBackground(roundRect(SHEET_CONTROL_BG_SUBTLE, SHEET_BUTTON_RADIUS_DP, 1, SHEET_CONTROL_STROKE));
+        chip.setOnClickListener(v -> {
+            input.setText(text);
+            if (input.getText() != null) input.setSelection(input.getText().length());
+        });
+        return chip;
     }
 
     private void submitLyricsSearchSheet(BottomSheetDialog dialog, TextInputEditText input) {
@@ -1316,8 +1371,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void onMore() {
-        syncSelectedEpisode(getFlag());
-        EpisodeGridDialog.create().reverse(mHistory.isRevSort()).episodes(getFlag().getEpisodes()).show(this);
+        Flag flag = getFlag();
+        if (flag == null) return;
+        syncSelectedEpisode(flag);
+        EpisodeGridDialog.create().reverse(mHistory.isRevSort()).episodes(flag.getEpisodes()).show(this);
     }
 
     private void onActor() {
@@ -1414,7 +1471,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private Episode getAdjacentEpisode(int offset) {
-        List<Episode> items = mFlagAdapter == null || mFlagAdapter.isEmpty() ? mEpisodeAdapter.getItems() : getFlag().getEpisodes();
+        Flag flag = getFlag();
+        List<Episode> items = flag == null ? mEpisodeAdapter.getItems() : flag.getEpisodes();
         if (items.isEmpty()) return new Episode();
         int position = getSelectedEpisodePosition(items) + offset;
         position = Math.max(0, Math.min(position, items.size() - 1));
@@ -1422,7 +1480,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private boolean hasAdjacentEpisode(int offset) {
-        List<Episode> items = mFlagAdapter == null || mFlagAdapter.isEmpty() ? mEpisodeAdapter.getItems() : getFlag().getEpisodes();
+        Flag flag = getFlag();
+        List<Episode> items = flag == null ? mEpisodeAdapter.getItems() : flag.getEpisodes();
         if (items.isEmpty()) return false;
         int position = getSelectedEpisodePosition(items) + offset;
         return position >= 0 && position < items.size();
@@ -1488,18 +1547,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             mAudioQueueSearchList = new LinearLayout(this);
             mAudioQueueSearchList.setOrientation(LinearLayout.VERTICAL);
             content.addView(mAudioQueueSearchList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, audioQueueContentHeight(tab)));
         } else {
-            mAudioQueueList = new LinearLayout(this);
-            mAudioQueueList.setOrientation(LinearLayout.VERTICAL);
-            content.addView(mAudioQueueList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            mAudioQueueList = new RecyclerView(this);
+            mAudioQueueList.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            mAudioQueueList.setItemAnimator(null);
+            mAudioQueueList.setLayoutManager(new LinearLayoutManager(this));
+            mAudioQueueList.setAdapter(mAudioQueueAdapter = new AudioQueueAdapter());
+            root.addView(mAudioQueueList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, audioQueueContentHeight(tab)));
         }
-        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, audioQueueContentHeight(tab)));
 
         dialog.setContentView(root);
         dialog.setOnDismissListener(d -> {
             if (mAudioQueueDialog == dialog) {
                 mAudioQueueDialog = null;
                 mAudioQueueList = null;
+                mAudioQueueAdapter = null;
                 mAudioQueueSearchList = null;
                 mAudioQueueStatus = null;
                 mAudioQueueSearchSeq++;
@@ -1772,38 +1835,92 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void renderAudioQueueList() {
-        if (mAudioQueueList == null) return;
-        mAudioQueueList.removeAllViews();
-        List<Episode> items = getFlag() == null ? new ArrayList<>() : getFlag().getEpisodes();
-        if (items.isEmpty()) {
-            TextView empty = createAudioSheetText(getString(R.string.player_audio_playlist_empty), 14, false);
-            empty.setTextColor(0x99FFFFFF);
-            mAudioQueueList.addView(empty, audioSheetTopParams(4, 44));
-            return;
-        }
+        if (mAudioQueueAdapter == null) return;
+        Flag flag = getFlag();
+        List<Episode> items = flag == null ? new ArrayList<>() : flag.getEpisodes();
         int selected = getSelectedEpisodePosition(items);
-        for (int i = 0; i < items.size(); i++) {
-            int index = i;
-            Episode item = items.get(i);
-            LinearLayout row = new LinearLayout(this);
+        mAudioQueueAdapter.setItems(items, selected);
+        if (mAudioQueueList != null && selected >= 0) {
+            mAudioQueueList.post(() -> mAudioQueueList.scrollToPosition(selected));
+        }
+    }
+
+    private class AudioQueueAdapter extends RecyclerView.Adapter<AudioQueueAdapter.Holder> {
+
+        private final List<Episode> items = new ArrayList<>();
+        private int selected = -1;
+
+        private void setItems(List<Episode> next, int selected) {
+            items.clear();
+            if (next != null) items.addAll(next);
+            this.selected = selected;
+            notifyDataSetChanged();
+        }
+
+        @Override
+        public int getItemCount() {
+            return Math.max(1, items.size());
+        }
+
+        @NonNull
+        @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            LinearLayout row = new LinearLayout(parent.getContext());
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setBackground(audioSheetItemBackground(i == selected));
-            TextView view = createAudioSheetItem((i + 1) + ". " + item.getDisplayName(), () -> playAudioQueueEpisode(item));
-            view.setBackground(null);
-            view.setSingleLine(true);
-            view.setMaxLines(1);
-            view.setEllipsize(TextUtils.TruncateAt.END);
-            ImageView remove = createAudioSheetInlineIconButton(R.drawable.ic_action_delete, () -> removeAudioQueueEpisode(item));
-            row.setOnClickListener(v -> playAudioQueueEpisode(item));
-            row.setOnLongClickListener(v -> {
+            row.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(44)));
+
+            TextView title = createAudioSheetText("", 14, false);
+            title.setGravity(Gravity.CENTER_VERTICAL);
+            title.setSingleLine(true);
+            title.setMaxLines(1);
+            title.setEllipsize(TextUtils.TruncateAt.END);
+            title.setBackground(null);
+            row.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
+
+            ImageView remove = createAudioSheetInlineIconButton(R.drawable.ic_action_delete, () -> {
+            });
+            row.addView(remove, new LinearLayout.LayoutParams(ResUtil.dp2px(36), ResUtil.dp2px(36)));
+            return new Holder(row, title, remove);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull Holder holder, int position) {
+            if (items.isEmpty()) {
+                holder.title.setText(getString(R.string.player_audio_playlist_empty));
+                holder.title.setTextColor(0x99FFFFFF);
+                holder.remove.setVisibility(View.GONE);
+                holder.row.setBackground(null);
+                holder.row.setOnClickListener(null);
+                holder.row.setOnLongClickListener(null);
+                return;
+            }
+            Episode item = items.get(position);
+            boolean active = position == selected;
+            holder.title.setText((position + 1) + ". " + item.getDisplayName());
+            holder.title.setTextColor(active ? SHEET_TEXT_PRIMARY : SHEET_TEXT_SECONDARY);
+            holder.remove.setVisibility(View.VISIBLE);
+            holder.remove.setOnClickListener(v -> removeAudioQueueEpisode(item));
+            holder.row.setBackground(audioSheetItemBackground(active));
+            holder.row.setOnClickListener(v -> playAudioQueueEpisode(item));
+            holder.row.setOnLongClickListener(v -> {
                 removeAudioQueueEpisode(item);
                 return true;
             });
-            view.setTextColor(i == selected ? SHEET_TEXT_PRIMARY : SHEET_TEXT_SECONDARY);
-            row.addView(view, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
-            row.addView(remove, new LinearLayout.LayoutParams(ResUtil.dp2px(36), ResUtil.dp2px(36)));
-            mAudioQueueList.addView(row, audioSheetTopParams(i == 0 ? 4 : 0, 44));
+        }
+
+        private class Holder extends RecyclerView.ViewHolder {
+
+            private final LinearLayout row;
+            private final TextView title;
+            private final ImageView remove;
+
+            private Holder(@NonNull LinearLayout row, TextView title, ImageView remove) {
+                super(row);
+                this.row = row;
+                this.title = title;
+                this.remove = remove;
+            }
         }
     }
 
@@ -1865,7 +1982,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void putAudioQueueMetadata(Episode episode, AudioPlaylistStore.Entry entry) {
         String key = audioQueueEpisodeKey(episode);
-        String playFlag = TextUtils.isEmpty(entry.playFlag) && getFlag() != null ? getFlag().getFlag() : entry.playFlag;
+        Flag flag = getFlag();
+        String playFlag = TextUtils.isEmpty(entry.playFlag) && flag != null ? flag.getFlag() : entry.playFlag;
         mAudioQueueFlags.put(key, playFlag);
         mAudioQueueTitles.put(key, entry.title);
         mAudioQueuePics.put(key, entry.pic);
@@ -2184,6 +2302,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                             this::showKaraokeTrackSourcesDialog,
                             this::toggleKaraokeBasicPitchTfliteFromSettings
                     },
+                    new boolean[]{true, false, true, true, true, true, true},
                     3), karaokeActionGridParams(8));
         } else {
             root.addView(createLyricsOffsetControl(), lyricsSettingRowParams(8, 42));
@@ -2354,7 +2473,15 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return createKaraokeActionGrid(dialog, compact, labels, actions, columns, true);
     }
 
+    private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, boolean[] dismissOnClicks, int columns) {
+        return createKaraokeActionGrid(dialog, compact, labels, actions, dismissOnClicks, columns, true);
+    }
+
     private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, int columns, boolean dismissOnClick) {
+        return createKaraokeActionGrid(dialog, compact, labels, actions, null, columns, dismissOnClick);
+    }
+
+    private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, @Nullable boolean[] dismissOnClicks, int columns, boolean dismissOnClick) {
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
         int safeColumns = Math.max(1, columns);
@@ -2365,7 +2492,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             for (int j = 0; j < safeColumns; j++) {
                 int index = i + j;
                 if (index >= labels.length) break;
-                row.addView(createKaraokeActionButton(dialog, labels[index], actions[index], compact, dismissOnClick), fullRow ? karaokeActionButtonFullParams() : karaokeActionButtonParams(j > 0));
+                boolean dismiss = dismissOnClicks != null && index < dismissOnClicks.length ? dismissOnClicks[index] : dismissOnClick;
+                row.addView(createKaraokeActionButton(dialog, labels[index], actions[index], compact, dismiss), fullRow ? karaokeActionButtonFullParams() : karaokeActionButtonParams(j > 0));
                 if (fullRow) break;
             }
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(compact ? 46 : 48));
@@ -2566,7 +2694,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void applyLyricsRuntimeSettings() {
         if (service() == null || player().isEmpty()) return;
-        if (mLyrics != null) mLyrics.update(player());
+        if (mLyrics != null) {
+            mLyrics.refreshStyle();
+            mLyrics.update(player());
+        }
         syncKaraokePosition();
         if (mKaraoke != null) mKaraoke.update(player(), mLyrics == null ? null : mLyrics.getLines());
     }
@@ -2742,6 +2873,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (result != null && result.isSuccess()) {
             Notify.show(R.string.player_karaoke_track_generated);
             applyKaraokeTrackChange(true);
+            restartKaraokePlaybackAfterGeneration();
         } else {
             String error = result == null ? "" : result.getError();
             Notify.show(getString(R.string.player_karaoke_track_generate_failed) + (TextUtils.isEmpty(error) ? "" : "\n" + error));
@@ -2755,22 +2887,52 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             Notify.show(R.string.player_karaoke_track_generate_no_lyrics);
             return;
         }
+        cancelKaraokePitchGeneration(false);
+        AtomicBoolean cancel = new AtomicBoolean(false);
+        mKaraokePitchCancel = cancel;
         showKaraokePitchProgress();
-        Task.execute(() -> {
-            KaraokeTrackRepository.ImportResult result = KaraokeTrackRepository.importGeneratedPitch(input, lines, (percent, stage, elapsedMs, remainingMs) -> App.post(() -> updateKaraokePitchProgress(percent, stage, remainingMs)));
-            App.post(() -> onKaraokePitchTrackGenerated(result));
+        mKaraokePitchFuture = Task.submit(() -> {
+            KaraokeTrackRepository.ImportResult result = KaraokeTrackRepository.importGeneratedPitch(input, lines, (percent, stage, elapsedMs, remainingMs) -> {
+                if (cancel.get() || Thread.currentThread().isInterrupted()) throw new CancellationException("cancelled");
+                App.post(() -> updateKaraokePitchProgress(percent, stage, remainingMs));
+            });
+            App.post(() -> onKaraokePitchTrackGenerated(result, cancel));
         });
     }
 
-    private void onKaraokePitchTrackGenerated(KaraokeTrackRepository.ImportResult result) {
+    private void onKaraokePitchTrackGenerated(KaraokeTrackRepository.ImportResult result, AtomicBoolean cancel) {
+        if (cancel != null && cancel.get()) {
+            if (mKaraokePitchCancel == cancel) {
+                mKaraokePitchFuture = null;
+                mKaraokePitchCancel = null;
+                dismissKaraokePitchProgress();
+            }
+            return;
+        }
+        mKaraokePitchFuture = null;
+        if (mKaraokePitchCancel == cancel) mKaraokePitchCancel = null;
         dismissKaraokePitchProgress();
         if (result != null && result.isSuccess()) {
             applyKaraokeTrackChange(true);
+            restartKaraokePlaybackAfterGeneration();
             showKaraokePitchResult(R.string.player_karaoke_track_generated_pitch, getString(R.string.player_karaoke_track_generated_pitch_message));
         } else {
             String error = result == null ? "" : result.getError();
-            showKaraokePitchResult(R.string.player_karaoke_track_generate_pitch_failed, getString(R.string.player_karaoke_track_generate_pitch_failed_message, TextUtils.isEmpty(error) ? getString(R.string.player_karaoke_track_generate_pitch_failed) : error));
+            showKaraokePitchResult(R.string.player_karaoke_track_generate_pitch_failed, getString(R.string.player_karaoke_track_generate_pitch_failed_message, getKaraokePitchFailureMessage(error)));
         }
+    }
+
+    private String getKaraokePitchFailureMessage(String error) {
+        if (KaraokeTrackRepository.isUnsupportedPitchSourceError(error)) return getString(R.string.player_karaoke_track_generate_pitch_unsupported_source);
+        return TextUtils.isEmpty(error) ? getString(R.string.player_karaoke_track_generate_pitch_failed) : error;
+    }
+
+    private void restartKaraokePlaybackAfterGeneration() {
+        if (service() == null || player().isEmpty()) return;
+        player().seekTo(0);
+        if (mHistory != null) mHistory.setPosition(0);
+        if (mLyrics != null) mLyrics.update(0);
+        syncKaraokePosition();
     }
 
     private void showKaraokePitchProgress() {
@@ -2798,9 +2960,15 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(6));
         params.topMargin = ResUtil.dp2px(8);
         root.addView(mKaraokePitchProgress, params);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.addView(createAudioSheetButton(getString(R.string.player_karaoke_track_generation_stop), false, () -> cancelKaraokePitchGeneration(true)), audioSheetButtonParams(false));
+        root.addView(actions, audioSheetTopParams(12, 40));
         dialog.setContentView(root);
-        dialog.setCancelable(false);
+        dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnCancelListener(d -> cancelKaraokePitchGeneration(true));
         mKaraokePitchDialog = dialog;
         showAudioSheet(dialog, false);
         updateKaraokePitchProgress(1, KaraokePitchTrackGenerator.STAGE_PREPARE, -1);
@@ -2838,6 +3006,17 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mKaraokePitchDialog = null;
         mKaraokePitchProgress = null;
         mKaraokePitchMessage = null;
+    }
+
+    private void cancelKaraokePitchGeneration(boolean notify) {
+        AtomicBoolean cancel = mKaraokePitchCancel;
+        if (cancel != null) cancel.set(true);
+        Future<?> future = mKaraokePitchFuture;
+        if (future != null) future.cancel(true);
+        mKaraokePitchFuture = null;
+        mKaraokePitchCancel = null;
+        dismissKaraokePitchProgress();
+        if (notify) Notify.show(R.string.player_karaoke_track_generation_stopped);
     }
 
     private void showKaraokePitchResult(int title, String message) {
@@ -3099,7 +3278,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         clearLyrics();
         if (mFlagAdapter.isEmpty()) return;
         if (mEpisodeAdapter.isEmpty()) return;
-        getPlayer(getFlag(), getEpisode());
+        Flag flag = getFlag();
+        if (flag != null) getPlayer(flag, getEpisode());
     }
 
     private boolean onResetToggle() {
@@ -3564,15 +3744,17 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void updateHistory(Episode item) {
+        Flag flag = getFlag();
+        String vodFlag = flag == null ? "" : flag.getFlag();
         boolean sameEpisode = item.matchesName(mHistory.getEpisode());
-        boolean sameFlag = TextUtils.equals(mHistory.getVodFlag(), getFlag().getFlag());
+        boolean sameFlag = TextUtils.equals(mHistory.getVodFlag(), vodFlag);
         if ((!sameEpisode || !sameFlag) && service() != null) {
             updatePlaybackHistoryPosition();
             PlaybackEventCollector.get().onStop(player());
         }
         mHistory.setPosition(sameEpisode ? mHistory.getPosition() : C.TIME_UNSET);
         if (!sameEpisode) mHistory.setDuration(C.TIME_UNSET);
-        mHistory.setVodFlag(getFlag().getFlag());
+        mHistory.setVodFlag(vodFlag);
         mHistory.setVodRemarks(item.getName());
         mHistory.setEpisodeUrl(item.getUrl());
         PlaybackEventCollector.get().updateHistory(mHistory);
@@ -3890,8 +4072,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private Episode getPlaybackEpisode() {
         String key = Objects.toString(mPlaybackEpisodeKey, "");
-        if (TextUtils.isEmpty(key) || getFlag() == null) return getEpisode();
-        for (Episode episode : getFlag().getEpisodes()) {
+        Flag flag = getFlag();
+        if (TextUtils.isEmpty(key) || flag == null) return getEpisode();
+        for (Episode episode : flag.getEpisodes()) {
             if (TextUtils.equals(audioQueueEpisodeKey(episode), key)) return episode;
         }
         return getEpisode();
@@ -3939,6 +4122,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (service() == null) return getName();
         LyricsRequest request = LyricsRequest.from(player());
         return request.displayKeyword();
+    }
+
+    private List<String> getLyricsSearchSuggestions() {
+        if (service() == null) return LyricsRequest.searchSuggestions(getName());
+        return LyricsRequest.from(player()).searchSuggestions();
     }
 
     private String getLyricsSearchCacheKey(String keyword) {
@@ -4014,6 +4202,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         scroll.addView(mLyricsResultList, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, lyricsResultSheetHeight(labels.length)));
         dialog.setContentView(root);
+        dialog.setOnCancelListener(d -> {
+            if (seq == mLyricsSearchSeq) mLyricsSearchSeq++;
+        });
         dialog.setOnDismissListener(d -> {
             if (mLyricsResultDialog == dialog) {
                 mLyricsResultDialog = null;
@@ -4192,7 +4383,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             return Math.max(ResUtil.dp2px(126), Math.min(ResUtil.dp2px(desired), max));
         }
         int max = ResUtil.getScreenHeight(this) * (ResUtil.isLand(this) ? 46 : 56) / 100;
-        int count = getFlag() == null ? 1 : Math.max(1, Math.min(8, getFlag().getEpisodes().size()));
+        Flag flag = getFlag();
+        int count = flag == null ? 1 : Math.max(1, Math.min(8, flag.getEpisodes().size()));
         int desired = 8 + count * 46;
         return Math.max(ResUtil.dp2px(102), Math.min(ResUtil.dp2px(desired), max));
     }
@@ -4303,6 +4495,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void applyLyrics(LyricsResult result) {
         if (mLyrics == null || service() == null) return;
+        mLyricsSearchSeq++;
         mInlineLyrics = "";
         mLyrics.apply(player(), result, true, applied -> {
             if (applied != null) {
@@ -4381,7 +4574,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private boolean isMusicLike() {
-        String flag = mFlagAdapter == null || mFlagAdapter.isEmpty() ? "" : getFlag().getShow();
+        Flag current = getFlag();
+        String flag = current == null ? "" : current.getShow();
         Site site = getSite();
         String text = (getKey() + " " + (site == null ? "" : site.getKey()) + " " + (site == null ? "" : site.getName()) + " " + flag + " " + getName());
         return LyricsController.isMusicLikeText(text);
@@ -4828,7 +5022,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             updateEpisodeSpan(mEpisodeAdapter.getItems());
             mEpisodeAdapter.notifyItemRangeChanged(0, mEpisodeAdapter.getItemCount());
         } else {
-            setEpisodeItems(getFlag().getEpisodes());
+            Flag flag = getFlag();
+            if (flag != null) setEpisodeItems(flag.getEpisodes());
         }
         scrollEpisodeToSelected();
         mBinding.episode.post(this::updateEpisodeViewportHeight);
@@ -5068,6 +5263,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     protected void onDestroy() {
         mLyricsSearchSeq++;
+        cancelKaraokePitchGeneration(false);
         dismissLyricsResultDialog();
         stopAudioCoverRotation();
         if (mLyrics != null) mLyrics.release();

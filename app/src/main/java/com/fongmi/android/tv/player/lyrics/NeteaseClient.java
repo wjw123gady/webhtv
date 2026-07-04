@@ -34,8 +34,9 @@ public class NeteaseClient {
 
     private static final String TAG = "lyrics";
     private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
-    private static final String EAPI_URL = "https://interface3.music.163.com/eapi/song/lyric/v1";
-    private static final String EAPI_PATH = "/api/song/lyric/v1";
+    private static final String EAPI_BASE = "https://interface3.music.163.com/eapi";
+    private static final String EAPI_LYRIC_PATH = "/api/song/lyric/v1";
+    private static final String EAPI_MATCH_PATH = "/api/search/match/new";
     private static final String EAPI_KEY = "e82ckenh8dichen8";
     private static final int MIN_SCORE = 58;
     private static final Pattern YRC_LINE = Pattern.compile("^\\[(\\d+),(\\d+)](.*)$");
@@ -65,8 +66,12 @@ public class NeteaseClient {
     private LyricsResult toResult(Entry entry) {
         Lyric lyric = lyric(entry.id);
         String text = !TextUtils.isEmpty(lyric.yrc) ? yrcToEnhancedLrc(lyric.yrc) : "";
-        if (!LyricsParser.hasTimedLine(text)) text = lyric.lrc;
-        if (!LyricsParser.hasTimedLine(text)) return null;
+        boolean yrcTimed = LyricsParser.hasTimedLine(text);
+        if (!yrcTimed) text = lyric.lrc;
+        if (!LyricsParser.hasTimedLine(text)) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease lyric empty id=%s name=%s artist=%s yrc=%d yrcTimed=%s lrc=%d", entry.id, entry.name, entry.artist, safeLength(lyric.yrc), yrcTimed, safeLength(lyric.lrc));
+            return null;
+        }
         text = LyricsParser.mergeTimedText(text, auxToLrc(lyric.trans), auxToLrc(lyric.roma));
         return new LyricsResult("Netease", entry.name, entry.artist, entry.album, text, entry.durationSec * 1000L, true, entry.score);
     }
@@ -78,17 +83,77 @@ public class NeteaseClient {
             if (entry.score >= MIN_SCORE) ranked.add(entry);
         }
         ranked.sort(Comparator.comparingInt((Entry entry) -> entry.score).reversed());
+        if (SpiderDebug.isEnabled()) logRanked(request, ranked);
         return ranked;
     }
 
     private List<Entry> search(LyricsRequest request) {
         List<Entry> entries = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
-        for (String keyword : keywords(request)) search(entries, seen, request, keyword);
+        searchMatch(entries, seen, request);
+        for (String keyword : keywords(request)) searchCloud(entries, seen, request, keyword);
+        for (String keyword : keywords(request)) {
+            if (!entries.isEmpty()) break;
+            searchLegacy(entries, seen, request, keyword);
+        }
         return entries;
     }
 
-    private void search(List<Entry> entries, Set<Long> seen, LyricsRequest request, String keyword) {
+    private void searchMatch(List<Entry> entries, Set<Long> seen, LyricsRequest request) {
+        int before = entries.size();
+        try {
+            JSONObject song = new JSONObject()
+                    .put("title", request.getTitle())
+                    .put("album", request.getAlbum())
+                    .put("artist", request.getArtist())
+                    .put("duration", request.getDurationSec())
+                    .put("persistId", request.contentSignature());
+            JSONObject object = new JSONObject(postEapi(EAPI_MATCH_PATH, new JSONObject().put("songs", new JSONArray().put(song).toString())));
+            JSONObject result = object.optJSONObject("result");
+            JSONArray array = result == null ? null : result.optJSONArray("songs");
+            if (array == null) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease match raw=0 added=0 no-array code=%d", object.optInt("code", -1));
+                return;
+            }
+            for (int i = 0; i < array.length(); i++) addEntry(entries, seen, parseEntry(array.optJSONObject(i), request, false, null));
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease match raw=%d added=%d", array.length(), entries.size() - before);
+        } catch (Exception e) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease match failed title=%s error=%s", request.getTitle(), e.getMessage());
+        }
+    }
+
+    private void searchCloud(List<Entry> entries, Set<Long> seen, LyricsRequest request, String keyword) {
+        int before = entries.size();
+        HttpUrl url = HttpUrl.parse("https://music.163.com/api/cloudsearch/pc").newBuilder()
+                .addQueryParameter("s", keyword)
+                .addQueryParameter("type", "1")
+                .addQueryParameter("limit", "8")
+                .addQueryParameter("offset", "0")
+                .addQueryParameter("total", "true")
+                .build();
+        try {
+            JSONObject object = new JSONObject(get(url.toString()));
+            JSONObject result = object.optJSONObject("result");
+            JSONArray array = result == null ? null : result.optJSONArray("songs");
+            if (array == null) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease cloud keyword=%s raw=0 added=0 no-array code=%d", keyword, object.optInt("code", -1));
+                return;
+            }
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject item = array.optJSONObject(i);
+                Entry entry = parseEntry(item, request, false, null);
+                addEntry(entries, seen, entry);
+                Entry origin = parseOriginEntry(item, request, entry);
+                addEntry(entries, seen, origin);
+            }
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease cloud keyword=%s raw=%d added=%d", keyword, array.length(), entries.size() - before);
+        } catch (Exception e) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease cloud failed title=%s error=%s", request.getTitle(), e.getMessage());
+        }
+    }
+
+    private void searchLegacy(List<Entry> entries, Set<Long> seen, LyricsRequest request, String keyword) {
+        int before = entries.size();
         HttpUrl url = HttpUrl.parse("https://music.163.com/api/search/get/web").newBuilder()
                 .addQueryParameter("s", keyword)
                 .addQueryParameter("type", "1")
@@ -99,21 +164,14 @@ public class NeteaseClient {
             JSONObject object = new JSONObject(get(url.toString()));
             JSONObject result = object.optJSONObject("result");
             JSONArray array = result == null ? null : result.optJSONArray("songs");
-            if (array == null) return;
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject item = array.optJSONObject(i);
-                if (item == null) continue;
-                Entry entry = new Entry();
-                entry.id = item.optLong("id");
-                entry.name = clean(item.optString("name"));
-                entry.artist = artists(item.optJSONArray("artists"));
-                JSONObject album = item.optJSONObject("album");
-                entry.album = album == null ? "" : clean(album.optString("name"));
-                entry.durationSec = Math.round(item.optInt("duration", 0) / 1000f);
-                if (entry.id > 0 && !TextUtils.isEmpty(entry.name) && seen.add(entry.id)) entries.add(entry);
+            if (array == null) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease legacy keyword=%s raw=0 added=0 no-array code=%d", keyword, object.optInt("code", -1));
+                return;
             }
+            for (int i = 0; i < array.length(); i++) addEntry(entries, seen, parseEntry(array.optJSONObject(i), request, false, null));
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease legacy keyword=%s raw=%d added=%d", keyword, array.length(), entries.size() - before);
         } catch (Exception e) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease search failed title=%s error=%s", request.getTitle(), e.getMessage());
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease legacy failed title=%s error=%s", request.getTitle(), e.getMessage());
         }
     }
 
@@ -132,6 +190,7 @@ public class NeteaseClient {
 
     private int score(LyricsRequest request, Entry entry) {
         int score = 0;
+        if (entry.origin) score += 18;
         score += textScore(request.getTitle(), entry.name, 58, 32, -50);
         if (!TextUtils.isEmpty(request.getArtist())) score += textScore(request.getArtist(), entry.artist, 26, 14, -8);
         score += durationScore(request.getDurationSec(), entry.durationSec);
@@ -156,7 +215,9 @@ public class NeteaseClient {
                     .put("yv", 0)
                     .put("ytv", 0)
                     .put("yrv", 0);
-            return parseLyric(new JSONObject(postEapi(EAPI_PATH, object)));
+            Lyric lyric = parseLyric(new JSONObject(postEapi(EAPI_LYRIC_PATH, object)));
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease eapi lyric id=%s yrc=%d lrc=%d trans=%d roma=%d", id, safeLength(lyric.yrc), safeLength(lyric.lrc), safeLength(lyric.trans), safeLength(lyric.roma));
+            return lyric;
         } catch (Exception e) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease eapi lyric failed id=%s error=%s", id, e.getMessage());
             return new Lyric();
@@ -184,6 +245,7 @@ public class NeteaseClient {
             lyric.lrc = lrc == null ? "" : lrc.optString("lyric");
             lyric.trans = trans == null ? "" : trans.optString("lyric");
             lyric.roma = roma == null ? "" : roma.optString("lyric");
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease legacy lyric id=%s yrc=%d lrc=%d trans=%d roma=%d", id, safeLength(lyric.yrc), safeLength(lyric.lrc), safeLength(lyric.trans), safeLength(lyric.roma));
         } catch (Exception e) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "netease lyric failed id=%s error=%s", id, e.getMessage());
         }
@@ -258,6 +320,42 @@ public class NeteaseClient {
         return request.searchKeywords();
     }
 
+    private Entry parseEntry(JSONObject item, LyricsRequest request, boolean origin, Entry parent) {
+        if (item == null) return null;
+        Entry entry = new Entry();
+        entry.id = item.optLong("id");
+        entry.name = clean(item.optString("name"));
+        entry.artist = artists(firstArray(item, "ar", "artists"));
+        JSONObject album = firstObjectAllowEmpty(item, "al", "album");
+        entry.album = album == null ? "" : clean(album.optString("name"));
+        entry.durationSec = durationSec(firstLong(item, "dt", "duration"));
+        entry.origin = origin;
+        entry.parentId = parent == null ? 0 : parent.id;
+        if (entry.durationSec <= 0 && request.getDurationSec() > 0) entry.durationSec = request.getDurationSec();
+        return entry;
+    }
+
+    private Entry parseOriginEntry(JSONObject item, LyricsRequest request, Entry parent) {
+        if (item == null) return null;
+        JSONObject origin = item.optJSONObject("originSongSimpleData");
+        if (origin == null) return null;
+        Entry entry = new Entry();
+        entry.id = origin.optLong("songId");
+        entry.name = clean(origin.optString("name"));
+        entry.artist = artists(origin.optJSONArray("artists"));
+        JSONObject album = origin.optJSONObject("albumMeta");
+        entry.album = album == null ? "" : clean(album.optString("name"));
+        entry.durationSec = request.getDurationSec() > 0 ? request.getDurationSec() : parent == null ? 0 : parent.durationSec;
+        entry.origin = true;
+        entry.parentId = parent == null ? 0 : parent.id;
+        return entry;
+    }
+
+    private void addEntry(List<Entry> entries, Set<Long> seen, Entry entry) {
+        if (entry == null || entry.id <= 0 || TextUtils.isEmpty(entry.name) || !seen.add(entry.id)) return;
+        entries.add(entry);
+    }
+
     private int textScore(String wanted, String actual, int exact, int contains, int mismatch) {
         String a = LyricsMatcher.normalize(wanted);
         String b = LyricsMatcher.normalize(actual);
@@ -297,7 +395,7 @@ public class NeteaseClient {
         String data = path + "-36cd479b6b5-" + text + "-36cd479b6b5-" + digest;
         FormBody body = new FormBody.Builder().add("params", aesEcbHex(data)).build();
         Request request = new Request.Builder()
-                .url(EAPI_URL)
+                .url(eapiUrl(path))
                 .post(body)
                 .header("User-Agent", USER_AGENT)
                 .header("Referer", "https://music.163.com/")
@@ -307,6 +405,10 @@ public class NeteaseClient {
             if (!response.isSuccessful() || response.body() == null) return "";
             return response.body().string();
         }
+    }
+
+    private String eapiUrl(String path) {
+        return EAPI_BASE + path.replaceFirst("^/api", "");
     }
 
     private String aesEcbHex(String text) throws Exception {
@@ -345,11 +447,59 @@ public class NeteaseClient {
         return null;
     }
 
+    private JSONObject firstObjectAllowEmpty(JSONObject object, String... keys) {
+        if (object == null) return null;
+        for (String key : keys) {
+            JSONObject value = object.optJSONObject(key);
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    private JSONArray firstArray(JSONObject object, String... keys) {
+        if (object == null) return null;
+        for (String key : keys) {
+            JSONArray value = object.optJSONArray(key);
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    private long firstLong(JSONObject object, String... keys) {
+        if (object == null) return 0;
+        for (String key : keys) {
+            long value = object.optLong(key, 0);
+            if (value > 0) return value;
+        }
+        return 0;
+    }
+
+    private int durationSec(long duration) {
+        if (duration <= 0) return 0;
+        return duration > 10000 ? Math.round(duration / 1000f) : (int) Math.round(duration);
+    }
+
     private String clean(String text) {
         return Uri.decode(text == null ? "" : text)
                 .replace("&nbsp;", " ")
                 .replaceAll("<[^>]+>", "")
                 .trim();
+    }
+
+    private int safeLength(String text) {
+        return text == null ? 0 : text.length();
+    }
+
+    private void logRanked(LyricsRequest request, List<Entry> ranked) {
+        StringBuilder builder = new StringBuilder();
+        int count = Math.min(ranked == null ? 0 : ranked.size(), 5);
+        for (int i = 0; i < count; i++) {
+            Entry item = ranked.get(i);
+            if (i > 0) builder.append(", ");
+            builder.append(item.score).append(':').append(item.name).append('/').append(item.artist).append('/').append(item.durationSec);
+            if (item.origin) builder.append("/origin").append(item.parentId > 0 ? '@' + String.valueOf(item.parentId) : "");
+        }
+        SpiderDebug.log(TAG, "netease ranked title=%s artist=%s count=%d top=[%s]", request.getTitle(), request.getArtist(), ranked == null ? 0 : ranked.size(), builder);
     }
 
     private String formatTime(long timeMs) {
@@ -373,6 +523,8 @@ public class NeteaseClient {
         private String album;
         private int durationSec;
         private int score;
+        private boolean origin;
+        private long parentId;
     }
 
     private static class Lyric {

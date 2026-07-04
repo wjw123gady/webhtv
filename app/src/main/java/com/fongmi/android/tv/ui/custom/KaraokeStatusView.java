@@ -185,6 +185,10 @@ public class KaraokeStatusView extends LinearLayout {
 
         private static final long WINDOW_BEFORE_MS = 2200;
         private static final long WINDOW_AFTER_MS = 4200;
+        private static final long POSITION_BACKWARD_SEEK_MS = 800;
+        private static final long POSITION_FORWARD_SEEK_MS = 1800;
+        private static final long HISTORY_RESET_MS = 2_000;
+        private static final long HISTORY_MIN_INTERVAL_MS = 70;
         private static final int HISTORY_COUNT = 72;
         private static final int BAR_COUNT = 24;
         private static final float MIN_PITCH_SPAN = 14f;
@@ -204,6 +208,8 @@ public class KaraokeStatusView extends LinearLayout {
         private float lastHistoryPitch = Float.NaN;
         private long smoothBasePosition = -1;
         private long smoothBaseRealtime;
+        private long renderPosition = -1;
+        private long lastSyncedPosition = -1;
         private float level;
         private boolean playing;
 
@@ -214,6 +220,7 @@ public class KaraokeStatusView extends LinearLayout {
         private void setState(KaraokeTrack track, KaraokeScoreSnapshot snapshot) {
             if (this.track != track) {
                 clearHistory();
+                resetTimelineClock();
                 pitchScale = pitchScaleFrom(track);
             }
             this.track = track;
@@ -225,12 +232,13 @@ public class KaraokeStatusView extends LinearLayout {
 
         private void setPlaying(boolean playing) {
             if (this.playing == playing) return;
+            long now = SystemClock.elapsedRealtime();
+            long position = drawPosition(now);
             this.playing = playing;
-            if (!playing && snapshot != null && smoothBasePosition < 0) {
-                smoothBasePosition = snapshot.getPositionMs();
-                smoothBaseRealtime = SystemClock.elapsedRealtime();
-                invalidate();
-            }
+            smoothBasePosition = position;
+            smoothBaseRealtime = now;
+            renderPosition = position;
+            invalidate();
         }
 
         private void setLevel(float level) {
@@ -242,10 +250,29 @@ public class KaraokeStatusView extends LinearLayout {
         }
 
         private void syncPosition(long positionMs) {
-            long position = Math.max(0, positionMs);
+            long syncedPosition = Math.max(0, positionMs);
+            long position = syncedPosition;
+            long now = SystemClock.elapsedRealtime();
+            boolean resetHistory = false;
+            if (playing && smoothBasePosition >= 0) {
+                long current = drawPosition(now);
+                long delta = syncedPosition - current;
+                if (delta < -POSITION_BACKWARD_SEEK_MS && isBackwardSeek(syncedPosition)) {
+                    renderPosition = position;
+                    resetHistory = true;
+                } else if (delta > POSITION_FORWARD_SEEK_MS && isForwardSeek(syncedPosition)) {
+                    renderPosition = position;
+                    resetHistory = true;
+                } else if (delta < 0 || delta > POSITION_FORWARD_SEEK_MS) {
+                    position = current;
+                }
+            } else {
+                renderPosition = position;
+            }
+            lastSyncedPosition = syncedPosition;
             smoothBasePosition = position;
-            smoothBaseRealtime = SystemClock.elapsedRealtime();
-            if (lastHistoryPosition >= 0 && Math.abs(position - lastHistoryPosition) > 2_000) clearHistory();
+            smoothBaseRealtime = now;
+            if (resetHistory || (lastHistoryPosition >= 0 && Math.abs(position - lastHistoryPosition) > HISTORY_RESET_MS)) clearHistory();
             invalidate();
         }
 
@@ -497,12 +524,19 @@ public class KaraokeStatusView extends LinearLayout {
                 return;
             }
             long position = snapshot.getPositionMs();
-            if (lastHistoryPosition >= 0 && Math.abs(position - lastHistoryPosition) > 2_000) clearHistory();
+            if (lastHistoryPosition >= 0) {
+                long delta = position - lastHistoryPosition;
+                if (delta < -POSITION_BACKWARD_SEEK_MS || delta > HISTORY_RESET_MS) {
+                    clearHistory();
+                } else if (delta < 0) {
+                    return;
+                }
+            }
             if (!snapshot.isVoiced() || Double.isNaN(snapshot.getSungMidi())) {
                 lastHistoryPosition = position;
                 return;
             }
-            if (lastHistoryPosition >= 0 && Math.abs(position - lastHistoryPosition) < 70) return;
+            if (lastHistoryPosition >= 0 && position - lastHistoryPosition < HISTORY_MIN_INTERVAL_MS) return;
             float pitch = (float) snapshot.getSungMidi();
             if (snapshot.getTargetNote() != null && !Double.isNaN(snapshot.getDistanceSemitones())) pitch = (float) (snapshot.getTargetNote().getPitch() + snapshot.getDistanceSemitones());
             if (historySize == HISTORY_COUNT) {
@@ -531,12 +565,20 @@ public class KaraokeStatusView extends LinearLayout {
             lastHistoryPitch = Float.NaN;
         }
 
+        private void resetTimelineClock() {
+            smoothBasePosition = -1;
+            smoothBaseRealtime = 0;
+            renderPosition = -1;
+            lastSyncedPosition = -1;
+        }
+
         private void updateSmoothBase(KaraokeScoreSnapshot snapshot) {
             if (snapshot == null || smoothBasePosition >= 0) return;
             long now = SystemClock.elapsedRealtime();
             long position = snapshot.getPositionMs();
             smoothBasePosition = position;
             smoothBaseRealtime = now;
+            renderPosition = position;
         }
 
         private long drawPosition() {
@@ -544,11 +586,33 @@ public class KaraokeStatusView extends LinearLayout {
         }
 
         private long drawPosition(long now) {
-            if (snapshot == null) return 0;
-            if (!playing) return smoothBasePosition >= 0 ? smoothBasePosition : snapshot.getPositionMs();
-            if (smoothBasePosition < 0) return snapshot.getPositionMs();
-            long elapsed = Math.max(0, now - smoothBaseRealtime);
-            return smoothBasePosition + elapsed;
+            long candidate;
+            if (snapshot == null) {
+                candidate = 0;
+            } else if (!playing) {
+                candidate = smoothBasePosition >= 0 ? smoothBasePosition : snapshot.getPositionMs();
+            } else if (smoothBasePosition < 0) {
+                candidate = snapshot.getPositionMs();
+            } else {
+                long elapsed = Math.max(0, now - smoothBaseRealtime);
+                candidate = smoothBasePosition + elapsed;
+            }
+            if (!playing) {
+                renderPosition = candidate;
+                return candidate;
+            }
+            if (renderPosition < 0 || candidate >= renderPosition) {
+                renderPosition = candidate;
+            }
+            return renderPosition;
+        }
+
+        private boolean isBackwardSeek(long position) {
+            return lastSyncedPosition < 0 || position < lastSyncedPosition - POSITION_BACKWARD_SEEK_MS;
+        }
+
+        private boolean isForwardSeek(long position) {
+            return lastSyncedPosition < 0 || position > lastSyncedPosition + POSITION_FORWARD_SEEK_MS;
         }
 
         private float xOf(long timeMs, long start, long end, float left, float right) {

@@ -85,9 +85,10 @@ public class LyricsMatcher {
     public static String normalize(String text) {
         String value = clean(text).toLowerCase(Locale.ROOT);
         if (TextUtils.isEmpty(value)) return "";
-        value = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        value = ChineseText.toSimplified(Normalizer.normalize(value, Normalizer.Form.NFKC));
         value = value.replaceAll("\\.[a-z0-9]{2,5}$", "");
         value = value.replaceAll("\\([^)]*\\)|\\[[^]]*]|（[^）]*）|【[^】]*】", "");
+        value = value.replaceAll("(?i)(?<=[\\u4e00-\\u9fff])\\s*dj(?:[a-z0-9\\u4e00-\\u9fff]*版)?\\s*$", "");
         value = value.replaceAll("(?i)official|music video|video|audio|lyrics|lyric|mv|flac|mp3|lossless|tv size|short ver\\.?|full ver\\.?|opening|ending|op|ed|feat\\.?|featuring", "");
         value = value.replaceAll("(?i)tvアニメ|テレビアニメ|アニメ|オープニング|エンディング|主題歌|挿入歌", "");
         value = value.replaceAll("[\\s_\\-.,:;!?/\\\\|+~`'\"#@$%^&*=<>，。！？、·：；“”‘’《》〈〉]+", "");

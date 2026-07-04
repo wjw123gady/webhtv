@@ -4,7 +4,6 @@ import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.net.Uri;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
@@ -143,13 +142,13 @@ class BasicPitchTfliteGenerator {
     }
 
     private static AudioBuffer decode(KaraokeTrackRepository.MediaInput input, List<KaraokePitchTrackGenerator.Segment> segments, KaraokePitchTrackGenerator.ProgressReporter reporter) throws Exception {
-        MediaExtractor extractor = new MediaExtractor();
+        KaraokeAudioExtractor.Opened source = null;
         MediaCodec decoder = null;
         try {
             reporter.update(5, KaraokePitchTrackGenerator.STAGE_DECODE);
-            setDataSource(extractor, input.getUrl(), input.getHeaders());
-            int track = selectAudioTrack(extractor);
-            if (track < 0) throw new IllegalStateException("no audio track");
+            source = KaraokeAudioExtractor.open(input);
+            MediaExtractor extractor = source.extractor;
+            int track = source.track;
             extractor.selectTrack(track);
             MediaFormat format = extractor.getTrackFormat(track);
             String mime = format.getString(MediaFormat.KEY_MIME);
@@ -159,10 +158,7 @@ class BasicPitchTfliteGenerator {
             decoder.start();
             return decodeLoop(extractor, decoder, format, decodeDurationMs(input, format, segments), reporter);
         } finally {
-            try {
-                extractor.release();
-            } catch (Exception ignored) {
-            }
+            if (source != null) source.close();
             if (decoder != null) {
                 try {
                     decoder.stop();
@@ -250,30 +246,6 @@ class BasicPitchTfliteGenerator {
         if (duration <= 0 && format != null && format.containsKey(MediaFormat.KEY_DURATION)) duration = Math.max(0, format.getLong(MediaFormat.KEY_DURATION) / 1000L);
         long target = end > 0 ? end + DECODE_EXTRA_MS : duration;
         return duration > 0 ? Math.min(duration, target) : Math.max(target, SAMPLE_RATE);
-    }
-
-    private static void setDataSource(MediaExtractor extractor, String url, Map<String, String> headers) throws Exception {
-        if (TextUtils.isEmpty(url)) throw new IllegalStateException("empty url");
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme();
-        if ("content".equalsIgnoreCase(scheme) || "android.resource".equalsIgnoreCase(scheme)) {
-            extractor.setDataSource(App.get(), uri, headers);
-        } else if ("file".equalsIgnoreCase(scheme)) {
-            extractor.setDataSource(Uri.decode(uri.getPath()));
-        } else if (TextUtils.isEmpty(scheme)) {
-            extractor.setDataSource(url);
-        } else {
-            extractor.setDataSource(url, headers);
-        }
-    }
-
-    private static int selectAudioTrack(MediaExtractor extractor) {
-        for (int i = 0; i < extractor.getTrackCount(); i++) {
-            MediaFormat format = extractor.getTrackFormat(i);
-            String mime = format.getString(MediaFormat.KEY_MIME);
-            if (!TextUtils.isEmpty(mime) && mime.toLowerCase(Locale.ROOT).startsWith("audio/")) return i;
-        }
-        return -1;
     }
 
     private static int sampleRate(MediaFormat format) {

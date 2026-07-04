@@ -6,9 +6,11 @@ import android.text.TextUtils;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
 
+import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.ui.custom.LyricsOverlayView;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Util;
 
 import java.util.ArrayList;
@@ -18,6 +20,9 @@ import java.util.Locale;
 
 public class LyricsController {
 
+    private static final String TAG = "lyrics-ui";
+    private static final long DURATION_WAIT_DELAY_MS = 350;
+    private static final int DURATION_WAIT_LIMIT = 4;
     private static final List<String> AUDIO_EXTS = List.of(".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".ape", ".wma", ".alac", ".amr", ".mka");
 
     private final LyricsRepository repository = new LyricsRepository();
@@ -27,6 +32,9 @@ public class LyricsController {
     private String loadingSignature;
     private String activeSignature;
     private String emptySignature;
+    private String durationWaitSignature;
+    private int durationWaitAttempts;
+    private Runnable durationWaitRunnable;
     private int sequence;
 
     public interface Callback {
@@ -51,31 +59,46 @@ public class LyricsController {
 
     public void refresh(PlayerManager player, boolean audioOnly) {
         if (player == null || !audioOnly) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh clear player=%s audioOnly=%s", player != null, audioOnly);
+            cancelDurationWait();
             clear();
             return;
         }
         LyricsRequest request = LyricsRequest.from(player);
         if (!request.isValid()) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh invalid parse=%s", request.getParseInfo());
+            cancelDurationWait();
             clear();
             return;
         }
         String signature = request.signature();
-        if (signature.equals(activeSignature) || signature.equals(loadingSignature) || signature.equals(emptySignature)) return;
+        if (signature.equals(activeSignature) || signature.equals(loadingSignature) || signature.equals(emptySignature)) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh skip title=%s artist=%s parse=%s active=%s loading=%s empty=%s", request.getTitle(), request.getArtist(), request.getParseInfo(), signature.equals(activeSignature), signature.equals(loadingSignature), signature.equals(emptySignature));
+            return;
+        }
+        if (shouldWaitDuration(player, audioOnly, request)) return;
+        if (request.getDurationMs() > 0) cancelDurationWait();
+        if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh start title=%s artist=%s parse=%s duration=%d", request.getTitle(), request.getArtist(), request.getParseInfo(), request.getDurationMs());
         loadingSignature = signature;
         activeSignature = null;
         lines = Collections.emptyList();
         clearViews();
         int current = ++sequence;
         repository.loadPreferWord(request, result -> {
-            if (current != sequence) return;
+            if (current != sequence) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh drop stale title=%s current=%d sequence=%d", request.getTitle(), current, sequence);
+                return;
+            }
             loadingSignature = null;
             if (result == null || !result.isValid()) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh empty title=%s artist=%s parse=%s", request.getTitle(), request.getArtist(), request.getParseInfo());
                 emptySignature = signature;
                 clearViews();
                 return;
             }
             ArrayList<LyricsLine> parsed = new ArrayList<>(result.getLines(request.getDurationMs()));
             if (parsed.isEmpty()) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh parsed empty source=%s track=%s artist=%s synced=%s word=%s lyrics=%d", result.getSource(), result.getTrackName(), result.getArtistName(), result.isSynced(), result.hasWordTiming(), result.getLyrics() == null ? 0 : result.getLyrics().length());
                 emptySignature = signature;
                 clearViews();
                 return;
@@ -84,6 +107,7 @@ public class LyricsController {
             lines = parsed;
             setLyrics(result, parsed);
             update(player);
+            if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh applied source=%s track=%s artist=%s lines=%d synced=%s word=%s", result.getSource(), result.getTrackName(), result.getArtistName(), parsed.size(), result.isSynced(), result.hasWordTiming());
         });
     }
 
@@ -234,11 +258,17 @@ public class LyricsController {
         if (secondaryView != null) secondaryView.update(adjust(player.getPosition()), player.isPlaying());
     }
 
+    public void refreshStyle() {
+        view.refreshStyle();
+        if (secondaryView != null) secondaryView.refreshStyle();
+    }
+
     public List<LyricsLine> getLines() {
         return lines;
     }
 
     public void clear() {
+        cancelDurationWait();
         sequence++;
         loadingSignature = null;
         activeSignature = null;
@@ -247,12 +277,38 @@ public class LyricsController {
         clearViews();
     }
 
+    private boolean shouldWaitDuration(PlayerManager player, boolean audioOnly, LyricsRequest request) {
+        if (request.getDurationMs() > 0) return false;
+        String contentSignature = request.contentSignature();
+        if (!TextUtils.equals(durationWaitSignature, contentSignature)) {
+            durationWaitSignature = contentSignature;
+            durationWaitAttempts = 0;
+        }
+        if (durationWaitAttempts >= DURATION_WAIT_LIMIT) return false;
+        durationWaitAttempts++;
+        if (durationWaitRunnable != null) App.removeCallbacks(durationWaitRunnable);
+        durationWaitRunnable = () -> {
+            if (TextUtils.equals(durationWaitSignature, contentSignature)) refresh(player, audioOnly);
+        };
+        App.post(durationWaitRunnable, DURATION_WAIT_DELAY_MS);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "refresh wait duration title=%s artist=%s parse=%s attempt=%d/%d", request.getTitle(), request.getArtist(), request.getParseInfo(), durationWaitAttempts, DURATION_WAIT_LIMIT);
+        return true;
+    }
+
+    private void cancelDurationWait() {
+        if (durationWaitRunnable != null) App.removeCallbacks(durationWaitRunnable);
+        durationWaitRunnable = null;
+        durationWaitSignature = null;
+        durationWaitAttempts = 0;
+    }
+
     private void setLyrics(LyricsResult result, List<LyricsLine> lines) {
         view.setLyrics(result, lines);
         if (secondaryView != null) secondaryView.setLyrics(result, lines);
     }
 
     private void clearViews() {
+        if (SpiderDebug.isEnabled()) SpiderDebug.log(TAG, "views clear");
         view.clear();
         if (secondaryView != null) secondaryView.clear();
     }
