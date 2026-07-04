@@ -3393,6 +3393,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void setAudioStageVisible(boolean visible) {
         if (mAudioStageVisible == visible) {
+            syncAudioStageSurface(visible);
             updateAudioStageText();
             updateAudioStageControls();
             return;
@@ -3410,16 +3411,20 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             setAudioToolRowVisible(false, false);
         }
         if (visible) applyAudioBackground();
-        mBinding.lyrics.setAudioStageMode(visible);
-        mBinding.lyrics.setSuppressed(visible);
-        mBinding.audioLyrics.setSuppressed(!visible);
-        syncKaraokeStageVisibility();
-        setVideoDetailsVisible(!visible);
+        syncAudioStageSurface(visible);
         applyAudioBackgroundActionInsets();
         applyAudioStageLayout(visible);
         updateAudioStageText();
         updateAudioStageControls();
         if (visible) mBinding.audioStage.post(this::focusAudioStageDefault);
+    }
+
+    private void syncAudioStageSurface(boolean visible) {
+        mBinding.lyrics.setAudioStageMode(visible);
+        mBinding.lyrics.setSuppressed(visible);
+        mBinding.audioLyrics.setSuppressed(!visible);
+        syncKaraokeStageVisibility();
+        setVideoDetailsVisible(!visible);
     }
 
     private void showInitialAudioStage() {
@@ -3431,7 +3436,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (mOsd != null) mOsd.setControlsVisible(false);
         App.removeCallbacks(mR1);
         hideInfo();
-        setVideoDetailsVisible(false);
+        syncAudioStageSurface(true);
         applyAudioBackgroundActionInsets();
         applyAudioStageLayout(true);
         mBinding.audioTitle.setText(TextUtils.isEmpty(getName()) ? getString(R.string.player_audio_badge_audio) : getName());
