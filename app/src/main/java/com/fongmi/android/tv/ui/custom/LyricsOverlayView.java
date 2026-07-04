@@ -39,6 +39,7 @@ public class LyricsOverlayView extends FrameLayout {
     private static final long WORD_REFRESH_MS = 50;
     private static final long AUDIO_STAGE_WORD_REFRESH_MS = 16;
     private static final long ROW_FADE_DURATION_MS = 160;
+    private static final long POSITION_RESET_THRESHOLD_MS = 1200;
     private static final int PRIMARY_COLOR = 0xFFFFC766;
 
     private final LinearLayout box;
@@ -145,21 +146,33 @@ public class LyricsOverlayView extends FrameLayout {
             setVisibility(hiddenVisibility());
             return;
         }
+        long position = Math.max(0, positionMs);
+        boolean positionReset = isPositionReset(position, playing);
+        if (positionReset) {
+            stopWordRefresh();
+            index = -1;
+        }
         this.playing = playing;
-        this.basePositionMs = Math.max(0, positionMs);
+        this.basePositionMs = position;
         this.baseRealtimeMs = SystemClock.elapsedRealtime();
         if (dragging) return;
-        int nextIndex = LyricsParser.findLine(lines, positionMs);
+        int nextIndex = LyricsParser.findLine(lines, position);
         if (nextIndex == index) {
-            renderPrimaryLine(positionMs);
-            scheduleWordRefresh(positionMs);
+            renderPrimaryLine(position);
+            scheduleWordRefresh(position);
             return;
         }
         int previousIndex = index;
         index = nextIndex;
-        render(positionMs, shouldAnimateLineChange(previousIndex, nextIndex), Integer.compare(nextIndex, previousIndex));
-        scheduleWordRefresh(positionMs);
+        render(position, shouldAnimateLineChange(previousIndex, nextIndex), Integer.compare(nextIndex, previousIndex));
+        scheduleWordRefresh(position);
         setVisibility(VISIBLE);
+    }
+
+    private boolean isPositionReset(long positionMs, boolean nextPlaying) {
+        if (!nextPlaying || !playing || index < 0 || basePositionMs <= 0) return false;
+        long current = displayPositionMs();
+        return positionMs + POSITION_RESET_THRESHOLD_MS < current;
     }
 
     private void render(long positionMs) {
