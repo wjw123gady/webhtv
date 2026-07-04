@@ -472,9 +472,9 @@ public class LyricsOverlayView extends FrameLayout {
     private int lyricTextSize(boolean primary, int distance) {
         if (desktopMode) return primary ? 20 : 14;
         if (landscapeAudioStage()) {
-            if (tightAudioRows()) return primary ? 24 : 16;
-            if (compact) return primary ? 30 : distance == 1 ? 22 : 19;
-            return primary ? 36 : distance == 1 ? 26 : 22;
+            if (tightAudioRows()) return primary ? 22 : 15;
+            if (compact) return primary ? 28 : distance == 1 ? 20 : 18;
+            return primary ? 34 : distance == 1 ? 24 : 21;
         }
         if (tightAudioRows()) return primary ? 15 : 10;
         if (compact) return primary ? 18 : 13;
@@ -503,9 +503,9 @@ public class LyricsOverlayView extends FrameLayout {
     }
 
     private int landscapeRowMinHeight(boolean primary) {
-        if (tightAudioRows()) return primary ? 34 : 22;
-        if (compact) return primary ? 54 : 32;
-        return primary ? 72 : 42;
+        if (tightAudioRows()) return primary ? 32 : 20;
+        if (compact) return primary ? 50 : 30;
+        return primary ? 68 : 40;
     }
 
     private boolean landscapeAudioStage() {
