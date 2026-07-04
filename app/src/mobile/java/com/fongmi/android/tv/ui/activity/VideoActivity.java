@@ -1469,7 +1469,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private boolean redirectToAudioIfNeeded(Result result) {
         List<Episode> episodes = getCurrentEpisodeItems();
         boolean handled = com.fongmi.android.tv.content.ContentDispatcher.dispatchResult(this, getHistoryKey(), getKey(), getFlag().getFlag(), mHistory.getVodName(), mHistory.getVodPic(), episodes, getSelectedEpisodePosition(episodes), result, getSite().getTimeout());
-        if (handled) finish();
+        if (handled) {
+            stopPlayback();
+            finish();
+        }
         return handled;
     }
 
@@ -2879,7 +2882,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
         @Override
         public void onStop() {
-            finish();
+            finishVideoPlayback();
         }
 
         @Override

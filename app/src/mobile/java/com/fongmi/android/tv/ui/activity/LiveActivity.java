@@ -1323,7 +1323,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
         @Override
         public void onStop() {
-            finish();
+            finishLivePlayback();
         }
 
         @Override
@@ -1763,7 +1763,8 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
             hideUI();
         } else {
             hideInfo();
-            if (isStop()) finish();
+            // PiP 窗口点 × 关闭时，主动停止播放，避免声音继续
+            if (isStop()) finishLivePlayback();
         }
     }
 
