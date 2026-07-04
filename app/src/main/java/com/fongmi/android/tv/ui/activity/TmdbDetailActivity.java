@@ -1564,6 +1564,19 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             try {
                 TmdbLoadResult result = tmdbFuture.get();
                 if (result != null && result.bundle() == null && finalVod != null) {
+                    String detailTitle = finalVod.getName();
+                    String initialTitle = getTmdbRawTitle();
+                    if (!TextUtils.isEmpty(detailTitle) && !normalize(detailTitle).equals(normalize(initialTitle))) {
+                        logTmdbMatch("基础匹配未命中，使用站源标题重试：初始标题=%s，站源标题=%s", initialTitle, detailTitle);
+                        AutoTmdbMatch detailRetry = searchResolvedTmdbMatch(detailTitle, finalVod);
+                        if (detailRetry.item() != null) {
+                            result = new TmdbLoadResult(loadTmdbBundle(detailRetry.item()), detailRetry.items());
+                        } else if (!detailRetry.items().isEmpty()) {
+                            result = new TmdbLoadResult(null, detailRetry.items());
+                        }
+                    }
+                }
+                if (result != null && result.bundle() == null && finalVod != null) {
                     String query = cleanTmdbSearchQuery(finalVod.getName());
                     logTmdbMatch("基础匹配未命中，使用站源详情继续消歧：片名=%s，清洗后=%s，年份=%s，演员=%s，导演=%s，简介长度=%d",
                             finalVod.getName(), query, finalVod.getYear(), finalVod.getActor(), finalVod.getDirector(), finalVod.getContent().length());
@@ -2089,8 +2102,11 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private AutoTmdbMatch searchResolvedTmdbMatch() throws Exception {
-        String rawTitle = getTmdbRawTitle();
-        MediaTitleRequest request = buildTmdbTitleRequest(rawTitle);
+        return searchResolvedTmdbMatch(getTmdbRawTitle(), vod);
+    }
+
+    private AutoTmdbMatch searchResolvedTmdbMatch(String rawTitle, @Nullable Vod sourceVod) throws Exception {
+        MediaTitleRequest request = buildTmdbTitleRequest(rawTitle, sourceVod);
         MediaTitleResolver resolver = new MediaTitleResolver();
         List<String> attempted = new ArrayList<>();
         MediaTitleResolution resolution = resolver.resolve(request);
@@ -2124,13 +2140,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         return new AutoTmdbMatch(null, lastItems);
     }
 
-    private MediaTitleRequest buildTmdbTitleRequest(String rawTitle) {
+    private MediaTitleRequest buildTmdbTitleRequest(String rawTitle, @Nullable Vod sourceVod) {
+        Vod detailVod = sourceVod != null ? sourceVod : vod;
         return MediaTitleRequest.builder()
                 .siteKey(getKeyText())
                 .vodId(getIdText())
                 .rawTitle(rawTitle)
-                .rawRemarks(vod == null ? getMarkText() : coalesce(vod.getRemarks(), getMarkText()))
-                .vodYear(vod == null ? "" : vod.getYear())
+                .rawRemarks(detailVod == null ? getMarkText() : coalesce(detailVod.getRemarks(), getMarkText()))
+                .vodYear(detailVod == null ? "" : detailVod.getYear())
                 .source(MediaTitleLearningExample.SOURCE_TMDB_AUTO)
                 .allowAi(true)
                 .build();
