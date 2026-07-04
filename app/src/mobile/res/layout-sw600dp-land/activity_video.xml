@@ -520,6 +520,14 @@
 
         </FrameLayout>
 
+        <View
+            android:id="@+id/videoShadow"
+            android:layout_width="400dp"
+            android:layout_height="4dp"
+            android:layout_below="@+id/video"
+            android:layout_marginStart="16dp"
+            android:background="@drawable/shadow" />
+
         <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/titleRow"
             android:layout_width="match_parent"
