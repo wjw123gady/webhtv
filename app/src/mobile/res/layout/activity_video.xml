@@ -290,38 +290,38 @@
                                     android:layout_width="42dp"
                                     android:layout_height="42dp"
                                     android:background="?attr/selectableItemBackgroundBorderless"
-                                    android:padding="10dp"
+                                    android:padding="9dp"
                                     android:scaleType="center"
                                     android:src="@drawable/ic_audio_repeat" />
 
                                 <androidx.appcompat.widget.AppCompatImageView
                                     android:id="@+id/audioPrev"
-                                    android:layout_width="46dp"
-                                    android:layout_height="46dp"
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
                                     android:layout_marginStart="8dp"
-                                    android:background="@drawable/shape_control"
-                                    android:padding="10dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:padding="9dp"
                                     android:scaleType="center"
                                     android:src="@drawable/exo_icon_previous" />
 
                                 <androidx.appcompat.widget.AppCompatImageView
                                     android:id="@+id/audioPlay"
-                                    android:layout_width="58dp"
-                                    android:layout_height="58dp"
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
                                     android:layout_marginStart="20dp"
                                     android:layout_marginEnd="20dp"
-                                    android:background="@drawable/shape_control"
-                                    android:padding="12dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:padding="9dp"
                                     android:scaleType="center"
                                     android:src="@drawable/exo_icon_play" />
 
                                 <androidx.appcompat.widget.AppCompatImageView
                                     android:id="@+id/audioNext"
-                                    android:layout_width="46dp"
-                                    android:layout_height="46dp"
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
                                     android:layout_marginEnd="8dp"
-                                    android:background="@drawable/shape_control"
-                                    android:padding="10dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:padding="9dp"
                                     android:scaleType="center"
                                     android:src="@drawable/exo_icon_next" />
 
@@ -330,7 +330,7 @@
                                     android:layout_width="42dp"
                                     android:layout_height="42dp"
                                     android:background="?attr/selectableItemBackgroundBorderless"
-                                    android:padding="10dp"
+                                    android:padding="9dp"
                                     android:scaleType="center"
                                     android:src="@drawable/ic_audio_queue" />
 

@@ -172,8 +172,8 @@
 
                         <androidx.appcompat.widget.AppCompatImageView
                             android:id="@+id/audioRepeatAction"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="8dp"
                             android:scaleType="center"
@@ -184,19 +184,19 @@
                             android:layout_width="40dp"
                             android:layout_height="40dp"
                             android:layout_marginStart="8dp"
-                            android:background="@drawable/shape_control"
+                            android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="8dp"
                             android:scaleType="center"
                             android:src="@drawable/exo_icon_previous" />
 
                         <androidx.appcompat.widget.AppCompatImageView
                             android:id="@+id/audioPlay"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
                             android:layout_marginStart="28dp"
                             android:layout_marginEnd="28dp"
-                            android:background="@drawable/shape_control"
-                            android:padding="9dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:padding="8dp"
                             android:scaleType="center"
                             android:src="@drawable/exo_icon_play" />
 
@@ -205,15 +205,15 @@
                             android:layout_width="40dp"
                             android:layout_height="40dp"
                             android:layout_marginEnd="8dp"
-                            android:background="@drawable/shape_control"
+                            android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="8dp"
                             android:scaleType="center"
                             android:src="@drawable/exo_icon_next" />
 
                         <androidx.appcompat.widget.AppCompatImageView
                             android:id="@+id/audioQueueAction"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="8dp"
                             android:scaleType="center"
