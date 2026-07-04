@@ -4719,10 +4719,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mLyrics.apply(player(), result, true, applied -> {
             if (applied != null) {
                 mLyricsSelectedResultKey = getLyricsResultKey(applied);
-                dismissLyricsResultDialog();
-            } else {
-                updateLyricsResultSelection();
             }
+            updateLyricsResultSelection();
             Notify.show(applied == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, applied.getSource()));
         });
     }
