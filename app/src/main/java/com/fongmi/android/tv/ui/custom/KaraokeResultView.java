@@ -68,6 +68,10 @@ public class KaraokeResultView extends LinearLayout {
         if (action != null) action.post(() -> action.requestFocus());
     }
 
+    public int getPreferredDialogWidth() {
+        return dialogWidth();
+    }
+
     private void addLandscapeResult(KaraokeResult result) {
         setOrientation(VERTICAL);
         addHeader(result);

@@ -31,6 +31,9 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
     private final int backgroundSeed;
     private final int decorationSeed;
     private int alpha;
+    private float recordHaloCenterX = Float.NaN;
+    private float recordHaloCenterY = Float.NaN;
+    private float recordHaloRadius = Float.NaN;
     private final Runnable frameCallback = this::invalidateSelf;
 
     public AudioPlayerBackgroundDrawable(int style, int artworkColor) {
@@ -64,6 +67,14 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
         this.backgroundSeed = backgroundSeed;
         this.decorationSeed = decorationSeed;
         this.alpha = 255;
+    }
+
+    public void setRecordHaloAnchor(float centerX, float centerY, float radius) {
+        if (centerX <= 0 || centerY <= 0 || radius <= 0) return;
+        this.recordHaloCenterX = centerX;
+        this.recordHaloCenterY = centerY;
+        this.recordHaloRadius = radius;
+        invalidateSelf();
     }
 
     @Override
@@ -400,9 +411,10 @@ public class AudioPlayerBackgroundDrawable extends Drawable {
 
     private void drawRecordHalo(Canvas canvas, int w, int h, long now, float phase, int accent, int accent2) {
         boolean landscape = w > h * 1.18f;
-        float cx = landscape ? w * 0.18f : w * 0.5f;
-        float cy = landscape ? h * 0.3f : h * 0.17f;
-        float r = Math.min(w, h) * (0.17f + phase * 0.018f);
+        boolean anchored = !Float.isNaN(recordHaloCenterX) && !Float.isNaN(recordHaloCenterY) && !Float.isNaN(recordHaloRadius);
+        float cx = anchored ? recordHaloCenterX : landscape ? w * 0.18f : w * 0.5f;
+        float cy = anchored ? recordHaloCenterY : landscape ? h * 0.3f : h * 0.17f;
+        float r = anchored ? recordHaloRadius * (1f + phase * 0.08f) : Math.min(w, h) * (0.17f + phase * 0.018f);
         paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);

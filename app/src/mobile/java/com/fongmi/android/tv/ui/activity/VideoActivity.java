@@ -3165,7 +3165,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
                 WindowManager.LayoutParams params = window.getAttributes();
                 params.dimAmount = 0.62f;
+                params.gravity = Gravity.CENTER;
                 window.setAttributes(params);
+                window.setLayout(view.getPreferredDialogWidth(), WindowManager.LayoutParams.WRAP_CONTENT);
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             }
             view.requestActionFocus();
@@ -4015,8 +4017,25 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void applyAudioBackground() {
         if (mBinding == null) return;
         mAudioLightEffectAnimated = service() != null && player().isPlaying();
-        mBinding.audioStage.setBackground(new AudioPlayerBackgroundDrawable(PlayerSetting.getAudioBackground(), mAudioArtworkColor, PlayerSetting.isAudioBackgroundDecorated(), PlayerSetting.isAudioBackgroundLightEffect(), mAudioLightEffectAnimated, PlayerSetting.getAudioBackgroundSeed(), PlayerSetting.getAudioBackgroundDecorationSeed()));
+        AudioPlayerBackgroundDrawable drawable = new AudioPlayerBackgroundDrawable(PlayerSetting.getAudioBackground(), mAudioArtworkColor, PlayerSetting.isAudioBackgroundDecorated(), PlayerSetting.isAudioBackgroundLightEffect(), mAudioLightEffectAnimated, PlayerSetting.getAudioBackgroundSeed(), PlayerSetting.getAudioBackgroundDecorationSeed());
+        syncAudioBackgroundHalo(drawable);
+        mBinding.audioStage.setBackground(drawable);
+        mBinding.audioStage.post(() -> syncAudioBackgroundHalo(drawable));
         mBinding.audioStage.invalidate();
+    }
+
+    private void syncAudioBackgroundHalo(AudioPlayerBackgroundDrawable drawable) {
+        if (mBinding == null || drawable == null) return;
+        View anchor = mBinding.audioDisc != null ? mBinding.audioDisc : mBinding.audioCover;
+        if (mBinding.audioStage.getWidth() <= 0 || anchor.getWidth() <= 0 || anchor.getHeight() <= 0) return;
+        int[] stage = new int[2];
+        int[] view = new int[2];
+        mBinding.audioStage.getLocationOnScreen(stage);
+        anchor.getLocationOnScreen(view);
+        float cx = view[0] - stage[0] + anchor.getWidth() / 2f;
+        float cy = view[1] - stage[1] + anchor.getHeight() / 2f;
+        float radius = Math.max(anchor.getWidth(), anchor.getHeight()) * 0.48f;
+        drawable.setRecordHaloAnchor(cx, cy, radius);
     }
 
     private void updateAudioArtworkColor(@Nullable Drawable drawable) {
