@@ -577,7 +577,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mR3 = this::setTraffic;
         mR4 = this::showEmpty;
         SpiderDebug.log("video-flow", "initView state ready cost=%dms", System.currentTimeMillis() - start);
-        if (isMusicLike()) setAudioStageVisible(true);
+        if (isMusicLike()) showInitialAudioStage();
         checkCast();
         SpiderDebug.log("video-flow", "initView preview ready cost=%dms", System.currentTimeMillis() - start);
         setRecyclerView();
@@ -3420,6 +3420,20 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         updateAudioStageText();
         updateAudioStageControls();
         if (visible) mBinding.audioStage.post(this::focusAudioStageDefault);
+    }
+
+    private void showInitialAudioStage() {
+        mAudioStageVisible = true;
+        mBinding.audioStage.setVisibility(View.VISIBLE);
+        mBinding.audioStage.bringToFront();
+        hideProgress();
+        hideControl();
+        hideInfo();
+        setVideoDetailsVisible(false);
+        applyAudioBackgroundActionInsets();
+        applyAudioStageLayout(true);
+        updateAudioStageText();
+        Util.hideSystemUI(this);
     }
 
     private void syncKaraokeStageVisibility() {
