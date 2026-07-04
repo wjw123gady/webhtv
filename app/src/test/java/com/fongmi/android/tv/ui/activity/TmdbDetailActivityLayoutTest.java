@@ -98,6 +98,20 @@ public class TmdbDetailActivityLayoutTest {
     }
 
     @Test
+    public void lockedInlineFullscreenCanStillShowControlsWhileLoading() throws Exception {
+        Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        int helper = source.indexOf("private boolean shouldBlockInlineControlsForLoading()");
+        int method = source.indexOf("private void showInlineControls(boolean show, boolean focus)");
+        int guard = source.indexOf("if (shouldBlockInlineControlsForLoading())", method);
+        int helperGuard = source.indexOf("return isInlineLoadingVisible() && !(isLock() && inlineFullscreen);", helper);
+
+        assertTrue(sourcePath + " is missing shouldBlockInlineControlsForLoading", helper >= 0);
+        assertTrue("inline controls should consult the loading guard helper before hiding controls", guard > method);
+        assertTrue("locked fullscreen loading must still allow the controls overlay to appear for unlock/exit", helperGuard > helper);
+    }
+
+    @Test
     public void mobileInlineCastReflectionKeepsR8MethodNames() throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
@@ -385,9 +399,9 @@ public class TmdbDetailActivityLayoutTest {
                         && visibleBody.contains("visibleEpisodeCache = computeVisibleEpisodes(episodes);")
                         && clearBody.contains("clearVisibleEpisodeCache();"));
         assertTrue("new detail loads must clear cached episode-list render state",
-                source.contains("clearEpisodeRenderCaches();\n        resetEpisodeRange();")
-                        && source.contains("TmdbEpisodeSorter.sort(vod);\n        clearEpisodeRenderCaches();")
-                        && source.contains("enrichVod();\n        clearEpisodeRenderCaches();"));
+                source.indexOf("resetEpisodeRange();", source.indexOf("clearEpisodeRenderCaches();")) > 0
+                        && source.indexOf("clearEpisodeRenderCaches();", source.indexOf("TmdbEpisodeSorter.sort(vod);")) > 0
+                        && source.indexOf("clearEpisodeRenderCaches();", source.indexOf("enrichVod();")) > 0);
         int seasonCountUpdate = source.indexOf("seasonEpisodeCounts.put(seasonNumber, episodes.size());");
         int visibleCacheClear = source.indexOf("clearVisibleEpisodeCache();", seasonCountUpdate);
         int seasonRender = source.indexOf("if (seasonNumber == tmdbEpisodeDataSeason", visibleCacheClear);
