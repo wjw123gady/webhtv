@@ -3171,7 +3171,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                     params.x = ResUtil.dp2px(16);
                     params.y = 0;
                     window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-                    applyGlassWindowBlur(window, params);
                     window.setAttributes(params);
                     window.setLayout(audioDrawerWidth(), WindowManager.LayoutParams.WRAP_CONTENT);
                 } else {
@@ -4508,8 +4507,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void showAudioSheet(BottomSheetDialog dialog, boolean draggable) {
+        showAudioSheet(dialog, draggable, false);
+    }
+
+    private void showAudioSheet(BottomSheetDialog dialog, boolean draggable, boolean drawerAtStart) {
         if (isLandscapeAudioSheet()) {
-            showAudioDrawerSheet(dialog);
+            showAudioDrawerSheet(dialog, drawerAtStart);
             return;
         }
         dialog.setOnShowListener(d -> {
@@ -4530,7 +4533,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void showCompactPlaybackSheet(BottomSheetDialog dialog, boolean draggable) {
-        showAudioSheet(dialog, draggable);
+        showCompactPlaybackSheet(dialog, draggable, false);
+    }
+
+    private void showCompactPlaybackSheet(BottomSheetDialog dialog, boolean draggable, boolean drawerAtStart) {
+        showAudioSheet(dialog, draggable, drawerAtStart);
         Window window = dialog.getWindow();
         if (window == null) return;
         WindowManager.LayoutParams params = window.getAttributes();
@@ -4539,7 +4546,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
     }
 
-    private void showAudioDrawerSheet(BottomSheetDialog dialog) {
+    private void showAudioDrawerSheet(BottomSheetDialog dialog, boolean atStart) {
         dialog.setOnShowListener(d -> {
             FrameLayout sheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
             if (sheet == null) return;
@@ -4550,10 +4557,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             raw.width = audioDrawerWidth();
             raw.height = height;
             if (raw instanceof CoordinatorLayout.LayoutParams params) {
-                params.gravity = Gravity.END | Gravity.BOTTOM;
-                params.setMargins(0, mStatusBarInset + ResUtil.dp2px(16), ResUtil.dp2px(16), bottomMargin);
+                params.gravity = (atStart ? Gravity.START : Gravity.END) | Gravity.BOTTOM;
+                params.setMargins(atStart ? ResUtil.dp2px(16) : 0, mStatusBarInset + ResUtil.dp2px(16), atStart ? 0 : ResUtil.dp2px(16), bottomMargin);
             } else if (raw instanceof ViewGroup.MarginLayoutParams params) {
-                params.setMargins(0, mStatusBarInset + ResUtil.dp2px(16), ResUtil.dp2px(16), bottomMargin);
+                params.setMargins(atStart ? ResUtil.dp2px(16) : 0, mStatusBarInset + ResUtil.dp2px(16), atStart ? 0 : ResUtil.dp2px(16), bottomMargin);
             }
             sheet.setLayoutParams(raw);
             BottomSheetBehavior<FrameLayout> behavior = BottomSheetBehavior.from(sheet);
@@ -4574,15 +4581,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         WindowManager.LayoutParams params = window.getAttributes();
         params.dimAmount = 0f;
-        applyGlassWindowBlur(window, params);
         window.setAttributes(params);
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-    }
-
-    private void applyGlassWindowBlur(Window window, WindowManager.LayoutParams params) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
-        params.setBlurBehindRadius(28);
-        window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+        window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
     }
 
     private int audioDrawerWidth() {
@@ -4610,7 +4611,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void showLyricsSettingsSheet(BottomSheetDialog dialog) {
-        showCompactPlaybackSheet(dialog, false);
+        showCompactPlaybackSheet(dialog, false, true);
     }
 
     private void showAudioBackgroundSheet(BottomSheetDialog dialog) {
