@@ -1,22 +1,28 @@
 package com.fongmi.android.tv.ui.dialog;
 
+import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
 
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.player.lyrics.LyricsRequest;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+
+import java.util.List;
 
 public class LyricsSearchDialog {
 
@@ -25,6 +31,10 @@ public class LyricsSearchDialog {
     }
 
     public static void show(FragmentActivity activity, String keyword, Listener listener) {
+        show(activity, keyword, LyricsRequest.searchSuggestions(keyword), listener);
+    }
+
+    public static void show(FragmentActivity activity, String keyword, List<String> suggestions, Listener listener) {
         if (activity == null || activity.isFinishing()) return;
         TextInputLayout layout = new TextInputLayout(activity);
         layout.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
@@ -44,6 +54,7 @@ public class LyricsSearchDialog {
         int pad = ResUtil.dp2px(20);
         root.setPadding(pad, ResUtil.dp2px(8), pad, 0);
         root.addView(layout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addSuggestions(root, input, suggestions);
 
         AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.ThemeOverlay_WebHTV_LightDialog)
                 .setTitle(R.string.player_lyrics_reload)
@@ -63,6 +74,57 @@ public class LyricsSearchDialog {
         dialog.show();
         Window window = dialog.getWindow();
         if (window != null) window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    }
+
+    private static void addSuggestions(LinearLayout root, TextInputEditText input, List<String> suggestions) {
+        if (suggestions == null || suggestions.isEmpty()) return;
+        HorizontalScrollView scroll = new HorizontalScrollView(root.getContext());
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(HorizontalScrollView.OVER_SCROLL_NEVER);
+
+        LinearLayout row = new LinearLayout(root.getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        int count = Math.min(8, suggestions.size());
+        for (int i = 0; i < count; i++) {
+            String text = suggestions.get(i);
+            if (TextUtils.isEmpty(text)) continue;
+            TextView chip = suggestionChip(input, text);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(32));
+            if (row.getChildCount() > 0) params.leftMargin = ResUtil.dp2px(6);
+            row.addView(chip, params);
+        }
+        if (row.getChildCount() == 0) return;
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.topMargin = ResUtil.dp2px(8);
+        root.addView(scroll, params);
+    }
+
+    private static TextView suggestionChip(TextInputEditText input, String text) {
+        TextView chip = new TextView(input.getContext());
+        chip.setText(text);
+        chip.setTextColor(0xDE111827);
+        chip.setTextSize(13);
+        chip.setGravity(android.view.Gravity.CENTER);
+        chip.setSingleLine(true);
+        chip.setEllipsize(TextUtils.TruncateAt.END);
+        chip.setPadding(ResUtil.dp2px(10), 0, ResUtil.dp2px(10), 0);
+        chip.setBackground(suggestionBackground());
+        chip.setOnClickListener(v -> {
+            input.setText(text);
+            if (input.getText() != null) input.setSelection(input.getText().length());
+            input.requestFocus();
+            Util.showKeyboard(input);
+        });
+        return chip;
+    }
+
+    private static GradientDrawable suggestionBackground() {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(0xFFF3F4F6);
+        drawable.setCornerRadius(ResUtil.dp2px(6));
+        drawable.setStroke(ResUtil.dp2px(1), 0xFFE5E7EB);
+        return drawable;
     }
 
     private static void submit(AlertDialog dialog, TextInputEditText input, Listener listener) {

@@ -1144,7 +1144,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private boolean onLyricsSearch() {
         if (!isLyricsSearchAvailable()) return false;
-        LyricsSearchDialog.show(this, getLyricsSearchKeyword(), this::searchLyrics);
+        LyricsSearchDialog.show(this, getLyricsSearchKeyword(), getLyricsSearchSuggestions(), this::searchLyrics);
         return true;
     }
 
@@ -2308,6 +2308,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (service() == null) return getName();
         LyricsRequest request = LyricsRequest.from(player());
         return request.displayKeyword();
+    }
+
+    private List<String> getLyricsSearchSuggestions() {
+        if (service() == null) return LyricsRequest.searchSuggestions(getName());
+        return LyricsRequest.from(player()).searchSuggestions();
     }
 
     private String getLyricsSearchCacheKey(String keyword) {

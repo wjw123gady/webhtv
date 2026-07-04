@@ -1336,6 +1336,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         chip.setOnClickListener(v -> {
             input.setText(text);
             if (input.getText() != null) input.setSelection(input.getText().length());
+            input.requestFocus();
+            Util.showKeyboard(input);
         });
         return chip;
     }
@@ -1511,13 +1513,13 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             root.addView(createAudioPlaylistHeader(dialog), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(42)));
         }
 
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(content, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
         TextInputEditText input = null;
         if (tab == AUDIO_QUEUE_TAB_SEARCH) {
+            ScrollView scroll = new ScrollView(this);
+            LinearLayout content = new LinearLayout(this);
+            content.setOrientation(LinearLayout.VERTICAL);
+            scroll.addView(content, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2473,12 +2475,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return createKaraokeActionGrid(dialog, compact, labels, actions, columns, true);
     }
 
-    private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, boolean[] dismissOnClicks, int columns) {
-        return createKaraokeActionGrid(dialog, compact, labels, actions, dismissOnClicks, columns, true);
-    }
-
     private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, int columns, boolean dismissOnClick) {
         return createKaraokeActionGrid(dialog, compact, labels, actions, null, columns, dismissOnClick);
+    }
+
+    private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, boolean[] dismissOnClicks, int columns) {
+        return createKaraokeActionGrid(dialog, compact, labels, actions, dismissOnClicks, columns, true);
     }
 
     private LinearLayout createKaraokeActionGrid(BottomSheetDialog dialog, boolean compact, String[] labels, Runnable[] actions, @Nullable boolean[] dismissOnClicks, int columns, boolean dismissOnClick) {
@@ -2492,7 +2494,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             for (int j = 0; j < safeColumns; j++) {
                 int index = i + j;
                 if (index >= labels.length) break;
-                boolean dismiss = dismissOnClicks != null && index < dismissOnClicks.length ? dismissOnClicks[index] : dismissOnClick;
+                boolean dismiss = dismissOnClicks == null || index >= dismissOnClicks.length ? dismissOnClick : dismissOnClicks[index];
                 row.addView(createKaraokeActionButton(dialog, labels[index], actions[index], compact, dismiss), fullRow ? karaokeActionButtonFullParams() : karaokeActionButtonParams(j > 0));
                 if (fullRow) break;
             }
@@ -4500,8 +4502,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mLyrics.apply(player(), result, true, applied -> {
             if (applied != null) {
                 mLyricsSelectedResultKey = getLyricsResultKey(applied);
+                dismissLyricsResultDialog();
+            } else {
+                updateLyricsResultSelection();
             }
-            updateLyricsResultSelection();
             Notify.show(applied == null ? getString(R.string.player_lyrics_not_found) : getString(R.string.player_lyrics_loaded, applied.getSource()));
         });
     }
