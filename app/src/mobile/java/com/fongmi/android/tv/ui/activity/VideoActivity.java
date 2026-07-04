@@ -584,9 +584,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mKaraoke = new KaraokeController();
         mKaraoke.setListener((status, track, sample, snapshot) -> {
             boolean playing = service() != null && player().isPlaying();
-            mBinding.karaoke.setPlaying(playing);
+            if (mBinding.karaoke != null) mBinding.karaoke.setPlaying(playing);
             mBinding.audioKaraoke.setPlaying(playing);
-            mBinding.karaoke.setState(status, track, sample, snapshot);
+            if (mBinding.karaoke != null) mBinding.karaoke.setState(status, track, sample, snapshot);
             mBinding.audioKaraoke.setState(status, track, sample, snapshot);
             syncKaraokeStageVisibility();
         });
@@ -3943,7 +3943,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void syncKaraokeStageVisibility() {
         if (mBinding == null) return;
         if (mAudioStageVisible) {
-            mBinding.karaoke.setVisibility(View.GONE);
+            if (mBinding.karaoke != null) mBinding.karaoke.setVisibility(View.GONE);
             if (PlayerSetting.isKaraokeMode() && mBinding.audioKaraoke.getVisibility() == View.GONE) mBinding.audioKaraoke.setVisibility(View.INVISIBLE);
         } else {
             mBinding.audioKaraoke.setVisibility(View.GONE);
@@ -3963,7 +3963,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void applyAudioPageMode(boolean visible) {
-        mBinding.videoShadow.setVisibility(visible ? View.GONE : View.VISIBLE);
+        if (mBinding.videoShadow != null) mBinding.videoShadow.setVisibility(visible ? View.GONE : View.VISIBLE);
         mBinding.name.setVisibility(visible ? View.GONE : View.VISIBLE);
         mBinding.remark.setVisibility(visible ? View.GONE : View.VISIBLE);
         mBinding.site.setVisibility(visible ? View.GONE : mBinding.site.getText().length() == 0 ? View.GONE : View.VISIBLE);
@@ -4723,7 +4723,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (service() == null || player().isEmpty()) return;
         long position = Math.max(0, player().getPosition() + PlayerSetting.getLyricsTimeOffsetMs());
         boolean playing = player().isPlaying();
-        mBinding.karaoke.syncPosition(position, playing);
+        if (mBinding.karaoke != null) mBinding.karaoke.syncPosition(position, playing);
         mBinding.audioKaraoke.syncPosition(position, playing);
     }
 
