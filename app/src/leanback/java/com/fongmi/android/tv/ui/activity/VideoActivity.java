@@ -170,6 +170,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private String mInlineLyrics;
     private ObjectAnimator mAudioCoverAnimator;
     private int mAudioArtworkColor = Color.rgb(55, 45, 68);
+    private int mAudioBackgroundRandomNonce;
     private Map<String, View> mActionButtons;
     private QuickSearchDialog mQuickSearchDialog;
     private PlayerOsdController mOsd;
@@ -568,7 +569,13 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.audioQueueAction.setOnClickListener(view -> onEpisodes());
         mBinding.audioLyricsAction.setOnClickListener(view -> onLyricsSearch());
         mBinding.audioKaraokeAction.setOnClickListener(view -> onKaraokeTrackPanel());
-        mBinding.audioMoreAction.setOnClickListener(view -> showControl(mBinding.control.action.player));
+        mBinding.audioMoreAction.setOnClickListener(view -> onAudioMore());
+        mBinding.audioKeepAction.setOnClickListener(view -> onKeep());
+        mBinding.audioSettingAction.setOnClickListener(view -> onAudioSetting());
+        mBinding.audioBackgroundToolAction.setOnClickListener(view -> randomizeAudioBackgroundMix(true));
+        mBinding.audioTrackAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_AUDIO));
+        mBinding.audioSubtitleAction.setOnClickListener(view -> onTrack(C.TRACK_TYPE_TEXT));
+        mBinding.audioInfoAction.setOnClickListener(view -> onAudioInfo());
         mBinding.shortDisplay.setOnClickListener(view -> onShortDisplay());
         mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
         mBinding.control.action.reset.setOnLongClickListener(view -> onResetToggle());
@@ -1210,6 +1217,29 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (keep != null) keep.delete();
         else createKeep();
         checkKeepImg();
+    }
+
+    private void onAudioMore() {
+        setAudioToolRowVisible(mBinding.audioToolRow.getVisibility() != View.VISIBLE, true);
+    }
+
+    private void setAudioToolRowVisible(boolean visible, boolean requestFocus) {
+        mBinding.audioToolRow.setVisibility(visible ? View.VISIBLE : View.GONE);
+        mBinding.audioMoreAction.setSelected(visible);
+        if (!requestFocus) return;
+        if (visible) mBinding.audioKeepAction.requestFocus();
+        else mBinding.audioMoreAction.requestFocus();
+    }
+
+    private void onAudioInfo() {
+        if (service() == null || player().isEmpty()) return;
+        showInfo();
+        App.post(this::hideCenter, Constant.INTERVAL_HIDE);
+    }
+
+    private void onAudioSetting() {
+        setAudioToolRowVisible(false, false);
+        showControl(mBinding.control.action.player);
     }
 
     private void onVideo() {
@@ -1871,6 +1901,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         hideControl();
     }
 
+    private void onTrack(int type) {
+        TrackDialog.create().type(type).player(player()).show(this);
+        hideControl();
+    }
+
     private void onTitle() {
         TitleDialog.create().player(player()).show(this);
         hideControl();
@@ -2182,7 +2217,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void checkKeepImg() {
-        mBinding.keep.setCompoundDrawablesWithIntrinsicBounds(Keep.find(getHistoryKey()) == null ? R.drawable.ic_detail_keep_off : R.drawable.ic_detail_keep_on, 0, 0, 0);
+        boolean kept = Keep.find(getHistoryKey()) != null;
+        mBinding.keep.setCompoundDrawablesWithIntrinsicBounds(kept ? R.drawable.ic_detail_keep_on : R.drawable.ic_detail_keep_off, 0, 0, 0);
+        mBinding.audioKeepAction.setSelected(kept);
+        mBinding.audioKeepAction.setCompoundDrawablesWithIntrinsicBounds(0, kept ? R.drawable.ic_detail_keep_on : R.drawable.ic_detail_keep_off, 0, 0);
     }
 
     private void createKeep() {
@@ -2298,6 +2336,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mAudioStageVisible = visible;
         if (!visible) mAudioLightEffectAnimated = false;
         mBinding.audioStage.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) setAudioToolRowVisible(false, false);
         if (visible) applyAudioBackground();
         mBinding.lyrics.setAudioStageMode(visible);
         mBinding.lyrics.setSuppressed(visible);
@@ -2307,6 +2346,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         applyAudioStageLayout(visible);
         updateAudioStageText();
         updateAudioStageControls();
+        if (visible) mBinding.audioStage.post(this::focusAudioStageDefault);
     }
 
     private void syncKaraokeStageVisibility() {
@@ -2355,17 +2395,36 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void updateAudioStageControls() {
         if (mBinding == null) return;
+        boolean hasPrev = hasAudioAdjacent(mHistory != null && mHistory.isRevPlay() ? 1 : -1);
+        boolean hasNext = hasAudioAdjacent(mHistory != null && mHistory.isRevPlay() ? -1 : 1);
         boolean hasQueue = mEpisodeAdapter != null && mEpisodeAdapter.getItemCount() > 1;
-        mBinding.audioPrev.setEnabled(hasQueue);
-        mBinding.audioPrev.setAlpha(hasQueue ? 1f : 0.35f);
-        mBinding.audioNext.setEnabled(hasQueue);
-        mBinding.audioNext.setAlpha(hasQueue ? 1f : 0.35f);
+        mBinding.audioPrev.setEnabled(hasPrev);
+        mBinding.audioPrev.setAlpha(hasPrev ? 1f : 0.35f);
+        mBinding.audioNext.setEnabled(hasNext);
+        mBinding.audioNext.setAlpha(hasNext ? 1f : 0.35f);
         mBinding.audioQueueAction.setEnabled(hasQueue);
         mBinding.audioQueueAction.setAlpha(hasQueue ? 1f : 0.35f);
+        setAudioToolEnabled(mBinding.audioTrackAction, service() != null && player().haveTrack(C.TRACK_TYPE_AUDIO));
+        setAudioToolEnabled(mBinding.audioSubtitleAction, service() != null && player().haveTrack(C.TRACK_TYPE_TEXT));
+        setAudioToolEnabled(mBinding.audioInfoAction, service() != null && !player().isEmpty());
         setAudioRepeatSelected(service() != null && player().isRepeatOne());
         mBinding.audioKaraokeAction.setSelected(PlayerSetting.isKaraokeMode());
+        checkKeepImg();
         checkAudioPlayImg(service() != null && player().isPlaying());
         syncAudioCoverRotation();
+    }
+
+    private boolean hasAudioAdjacent(int offset) {
+        if (mEpisodeAdapter == null || mEpisodeAdapter.getItemCount() <= 0) return false;
+        int position = mEpisodeAdapter.getSelectedPosition();
+        if (position == RecyclerView.NO_POSITION) position = mEpisodeAdapter.getPosition();
+        int target = position + offset;
+        return target >= 0 && target < mEpisodeAdapter.getItemCount();
+    }
+
+    private void setAudioToolEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        view.setAlpha(enabled ? 1f : 0.35f);
     }
 
     private void setAudioRepeatSelected(boolean selected) {
@@ -2382,6 +2441,56 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.audioStage.setBackground(drawable);
         mBinding.audioStage.post(() -> syncAudioBackgroundHalo(drawable));
         mBinding.audioStage.invalidate();
+    }
+
+    private void randomizeAudioBackgroundMix(boolean notify) {
+        PlayerSetting.putAudioBackground(PlayerSetting.AUDIO_BACKGROUND_RANDOM);
+        PlayerSetting.putAudioBackgroundDecorated(true);
+        PlayerSetting.putAudioBackgroundSeed(newAudioBackgroundSeed(2, PlayerSetting.getAudioBackgroundSeed()));
+        PlayerSetting.putAudioBackgroundDecorationSeed(newAudioBackgroundDecorationSeed());
+        applyAudioBackground();
+        if (notify) Notify.show(getString(R.string.player_audio_background_random_mix_done));
+    }
+
+    private int newAudioBackgroundDecorationSeed() {
+        int previous = PlayerSetting.getAudioBackgroundDecorationSeed();
+        int previousMotif = audioBackgroundDecorationMotif(previous);
+        for (int i = 0; i < 8; i++) {
+            int seed = newAudioBackgroundSeed(10 + i, previous);
+            if (audioBackgroundDecorationMotif(seed) != previousMotif) return seed;
+        }
+        return newAudioBackgroundSeed(31, previous);
+    }
+
+    private int newAudioBackgroundSeed(int salt, int previous) {
+        int previousHue = audioBackgroundHue(previous);
+        for (int i = 0; i < 8; i++) {
+            int seed = mixAudioBackgroundSeed((int) System.nanoTime() ^ (int) System.currentTimeMillis() ^ (++mAudioBackgroundRandomNonce * 0x9E3779B9) ^ salt * 0x45D9F3B);
+            if (seed != 0 && seed != previous && hueDistance(audioBackgroundHue(seed), previousHue) >= 36) return seed;
+        }
+        return mixAudioBackgroundSeed(previous ^ (++mAudioBackgroundRandomNonce * 0x7FEB352D) ^ salt * 0x846CA68B);
+    }
+
+    private int audioBackgroundDecorationMotif(int seed) {
+        return Math.floorMod(mixAudioBackgroundSeed(seed == 0 ? 0x5A17B3 : seed), 24);
+    }
+
+    private int audioBackgroundHue(int seed) {
+        return Math.floorMod(mixAudioBackgroundSeed(seed == 0 ? 0x5A17B3 : seed), 360);
+    }
+
+    private int hueDistance(int a, int b) {
+        int distance = Math.abs(a - b);
+        return Math.min(distance, 360 - distance);
+    }
+
+    private int mixAudioBackgroundSeed(int value) {
+        value ^= value >>> 16;
+        value *= 0x7FEB352D;
+        value ^= value >>> 15;
+        value *= 0x846CA68B;
+        value ^= value >>> 16;
+        return value;
     }
 
     private void syncAudioBackgroundHalo(AudioPlayerBackgroundDrawable drawable) {
@@ -3105,10 +3214,70 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (isVisible(mBinding.control.getRoot())) setR1Callback();
         if (isVisible(mBinding.control.getRoot())) mFocus2 = getCurrentFocus();
         if (onEpisodeKey(event)) return true;
+        if (mAudioStageVisible && isGone(mBinding.control.getRoot()) && dispatchAudioStageKey(event)) return true;
         if (isFullscreen() && isGone(mBinding.control.getRoot()) && mKeyDown.hasEvent(event) && service() != null) return mKeyDown.onKeyDown(event);
         if (KeyUtil.isMediaFastForward(event)) return onSeekForward();
         if (KeyUtil.isMediaRewind(event)) return onSeekBack();
         return super.dispatchKeyEvent(event);
+    }
+
+    private boolean dispatchAudioStageKey(KeyEvent event) {
+        if (!isAudioStageNavigationKey(event)) return false;
+        View focus = getCurrentFocus();
+        if (KeyUtil.isEnterKey(event)) {
+            if (focus != null && isChildOf(mBinding.audioStage, focus) && focus.isEnabled() && focus.isClickable()) {
+                if (KeyUtil.isActionUp(event)) focus.performClick();
+                return true;
+            }
+            return false;
+        }
+        if (!KeyUtil.isActionDown(event)) return true;
+        if (focus == null || !isChildOf(mBinding.audioStage, focus) || focus == mBinding.audioStage || focus == mBinding.video) return focusAudioStageDefault();
+        moveAudioStageFocus(focus, event);
+        return true;
+    }
+
+    private boolean isAudioStageNavigationKey(KeyEvent event) {
+        return KeyUtil.isEnterKey(event) || KeyUtil.isUpKey(event) || KeyUtil.isDownKey(event) || KeyUtil.isLeftKey(event) || KeyUtil.isRightKey(event);
+    }
+
+    private boolean focusAudioStageDefault() {
+        if (mBinding == null || !mAudioStageVisible) return false;
+        if (mBinding.audioPlay.isEnabled() && mBinding.audioPlay.requestFocus()) return true;
+        return focusFirstChild(mBinding.audioStage);
+    }
+
+    private boolean moveAudioStageFocus(View focus, KeyEvent event) {
+        List<View> focusables = new ArrayList<>();
+        collectAudioStageFocusables(mBinding.audioStage, focusables);
+        View target = findAudioStageFocusTarget(focus, focusables, event);
+        return target != null && target.requestFocus();
+    }
+
+    private void collectAudioStageFocusables(View view, List<View> focusables) {
+        if (view == null || view.getVisibility() != View.VISIBLE || !view.isEnabled()) return;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) collectAudioStageFocusables(group.getChildAt(i), focusables);
+        }
+        if (view.isFocusable()) focusables.add(view);
+    }
+
+    private View findAudioStageFocusTarget(View focus, List<View> focusables, KeyEvent event) {
+        Rect current = new Rect();
+        if (focus == null || !focus.getGlobalVisibleRect(current)) return null;
+        View target = null;
+        long bestScore = Long.MAX_VALUE;
+        for (View item : focusables) {
+            if (item == focus) continue;
+            Rect candidate = new Rect();
+            if (!item.getGlobalVisibleRect(candidate) || !isLutQuickFocusCandidate(current, candidate, event)) continue;
+            long score = scoreLutQuickFocusCandidate(current, candidate, event);
+            if (score < bestScore) {
+                bestScore = score;
+                target = item;
+            }
+        }
+        return target;
     }
 
     private boolean dispatchLutQuickKey(KeyEvent event) {

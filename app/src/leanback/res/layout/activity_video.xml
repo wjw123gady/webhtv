@@ -233,7 +233,7 @@
                                     android:id="@+id/audioRepeatAction"
                                     android:layout_width="48dp"
                                     android:layout_height="48dp"
-                                    android:background="@drawable/selector_video"
+                                    android:background="@drawable/selector_audio_action"
                                     android:focusable="true"
                                     android:focusableInTouchMode="true"
                                     android:padding="10dp"
@@ -263,7 +263,7 @@
                                     android:id="@+id/audioPrev"
                                     android:layout_width="48dp"
                                     android:layout_height="48dp"
-                                    android:background="@drawable/selector_video"
+                                    android:background="@drawable/selector_audio_action"
                                     android:focusable="true"
                                     android:focusableInTouchMode="true"
                                     android:padding="10dp"
@@ -293,7 +293,7 @@
                                     android:id="@+id/audioPlay"
                                     android:layout_width="52dp"
                                     android:layout_height="52dp"
-                                    android:background="@drawable/selector_video"
+                                    android:background="@drawable/selector_audio_action"
                                     android:focusable="true"
                                     android:focusableInTouchMode="true"
                                     android:padding="10dp"
@@ -323,7 +323,7 @@
                                     android:id="@+id/audioNext"
                                     android:layout_width="48dp"
                                     android:layout_height="48dp"
-                                    android:background="@drawable/selector_video"
+                                    android:background="@drawable/selector_audio_action"
                                     android:focusable="true"
                                     android:focusableInTouchMode="true"
                                     android:padding="10dp"
@@ -353,7 +353,7 @@
                                     android:id="@+id/audioQueueAction"
                                     android:layout_width="48dp"
                                     android:layout_height="48dp"
-                                    android:background="@drawable/selector_video"
+                                    android:background="@drawable/selector_audio_action"
                                     android:focusable="true"
                                     android:focusableInTouchMode="true"
                                     android:padding="10dp"
@@ -403,6 +403,58 @@
                                 app:drawableTopCompat="@drawable/ic_audio_more" />
 
                         </androidx.appcompat.widget.LinearLayoutCompat>
+
+                    </androidx.appcompat.widget.LinearLayoutCompat>
+
+                    <androidx.appcompat.widget.LinearLayoutCompat
+                        android:id="@+id/audioToolRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioKeepAction"
+                            style="@style/AudioToolButton"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/keep"
+                            app:drawableTopCompat="@drawable/ic_detail_keep_off" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioSettingAction"
+                            style="@style/AudioToolButton"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/play_config"
+                            app:drawableTopCompat="@drawable/ic_remote_settings" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioBackgroundToolAction"
+                            style="@style/AudioToolButton"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/player_audio_background"
+                            app:drawableTopCompat="@drawable/ic_audio_background" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioTrackAction"
+                            style="@style/AudioToolButton"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/play_track_audio"
+                            app:drawableTopCompat="@drawable/ic_audio_track" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioSubtitleAction"
+                            style="@style/AudioToolButton"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/play_track_text"
+                            app:drawableTopCompat="@drawable/ic_action_subtitle" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/audioInfoAction"
+                            style="@style/AudioToolButton"
+                            android:text="@string/player_osd"
+                            app:drawableTopCompat="@drawable/ic_audio_info" />
 
                     </androidx.appcompat.widget.LinearLayoutCompat>
 
