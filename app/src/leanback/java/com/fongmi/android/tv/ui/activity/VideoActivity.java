@@ -4488,6 +4488,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             return Math.max(ResUtil.dp2px(126), Math.min(ResUtil.dp2px(desired), max));
         }
         int max = isLandscapeAudioSheet() ? audioDrawerListMaxHeight() : ResUtil.getScreenHeight(this) * (ResUtil.isLand(this) ? 46 : 56) / 100;
+        if (isLandscapeAudioSheet()) return max;
         Flag flag = getFlag();
         int count = flag == null ? 1 : Math.max(1, Math.min(isLandscapeAudioSheet() ? 12 : 8, flag.getEpisodes().size()));
         int desired = 8 + count * 46;
