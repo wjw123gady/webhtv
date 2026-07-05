@@ -146,9 +146,12 @@ public class LyricsRequest {
     }
 
     public String stableSignature() {
-        String mediaKey = clean(key);
-        if (!TextUtils.isEmpty(mediaKey)) return Util.md5("lyrics-v2|key|" + mediaKey);
-        return Util.md5("lyrics-v2|meta|" + identityText(title) + "|" + identityText(artist) + "|" + identityText(album));
+        String mediaKey = identityText(key);
+        String titleKey = identityText(title);
+        String artistKey = identityText(artist);
+        String albumKey = identityText(album);
+        if (!TextUtils.isEmpty(mediaKey)) return Util.md5("lyrics-v3|key-meta|" + mediaKey + "|" + titleKey + "|" + artistKey + "|" + albumKey);
+        return Util.md5("lyrics-v2|meta|" + titleKey + "|" + artistKey + "|" + albumKey);
     }
 
     public String searchSignature() {
