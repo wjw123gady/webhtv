@@ -31,6 +31,7 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
@@ -226,6 +227,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private String mInlineLyrics;
     private String mPlaybackEpisodeKey;
     private String mArtworkRequestOwner;
+    private String mAudioArtworkColorKey;
     private ObjectAnimator mAudioCoverAnimator;
     private int mAudioArtworkColor = Color.rgb(55, 45, 68);
     private int mAudioBackgroundRandomNonce;
@@ -262,6 +264,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private Runnable mR2;
     private Runnable mR3;
     private Runnable mR4;
+    private Runnable mAudioRefreshLyricsRunnable;
+    private Runnable mApplyAudioBackgroundRunnable;
+    private Runnable mHideAudioFocusRunnable;
     private Clock mClock;
     private View mFocus1;
     private View mFocus2;
@@ -586,6 +591,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mR2 = this::updateFocus;
         mR3 = this::setTraffic;
         mR4 = this::showEmpty;
+        mAudioRefreshLyricsRunnable = this::refreshLyricsNow;
+        mApplyAudioBackgroundRunnable = this::applyAudioBackground;
+        mHideAudioFocusRunnable = this::hideAudioStageFocusHighlight;
         SpiderDebug.log("video-flow", "initView state ready cost=%dms", System.currentTimeMillis() - start);
         if (isMusicLike()) showInitialAudioStage();
         checkCast();
@@ -680,6 +688,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.audioInfoAction.setOnClickListener(view -> onInfo());
         mBinding.audioStage.setOnClickListener(view -> focusAudioStageDefault());
         mBinding.shortDisplay.setOnClickListener(view -> onShortDisplay());
+        setupAudioStageFocusFeedback();
         mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
         mBinding.control.action.reset.setOnLongClickListener(view -> onResetToggle());
         mBinding.control.action.ending.setOnLongClickListener(view -> onEndingReset());
@@ -706,6 +715,34 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 if (count > getEpisodeSegmentSize(count) && position > 1) scrollToEpisode(mArrayAdapter.getStart(position));
             }
         });
+    }
+
+    private void setupAudioStageFocusFeedback() {
+        View.OnFocusChangeListener listener = (view, hasFocus) -> {
+            if (hasFocus) showAudioStageFocusHighlight(view);
+            else view.setActivated(false);
+        };
+        for (View view : audioStageFocusButtons()) view.setOnFocusChangeListener(listener);
+    }
+
+    private View[] audioStageFocusButtons() {
+        return new View[]{
+                mBinding.audioRepeatAction, mBinding.audioPrev, mBinding.audioPlay, mBinding.audioNext, mBinding.audioQueueAction,
+                mBinding.audioLyricsAction, mBinding.audioKaraokeAction, mBinding.audioMoreAction,
+                mBinding.audioCastAction, mBinding.audioKeepAction, mBinding.audioSettingAction, mBinding.audioTrackAction, mBinding.audioSubtitleAction, mBinding.audioInfoAction,
+                mBinding.audioBackgroundAction
+        };
+    }
+
+    private void showAudioStageFocusHighlight(@Nullable View target) {
+        if (target == null) return;
+        App.removeCallbacks(mHideAudioFocusRunnable);
+        for (View view : audioStageFocusButtons()) view.setActivated(view == target);
+        App.post(mHideAudioFocusRunnable, 3000);
+    }
+
+    private void hideAudioStageFocusHighlight() {
+        for (View view : audioStageFocusButtons()) view.setActivated(false);
     }
 
     private void setActionFocusScroll() {
@@ -1334,19 +1371,20 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        TextInputLayout layout = new TextInputLayout(this);
-        styleAudioSheetInput(layout, getString(R.string.player_lyrics_keyword));
-        TextInputEditText input = new TextInputEditText(layout.getContext());
+        EditText input = new EditText(this);
         input.setSingleLine(true);
         input.setMaxLines(1);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(0x70FFFFFF);
+        input.setHint(getString(R.string.player_lyrics_keyword));
+        input.setTextSize(15);
+        input.setPadding(ResUtil.dp2px(14), 0, ResUtil.dp2px(14), 0);
+        input.setBackground(audioSheetControlBackground(0x14FFFFFF, 0x32FFFFFF));
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT | InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE);
         input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         input.setText(TextUtils.isEmpty(keyword) ? "" : keyword);
         if (input.getText() != null) input.setSelection(input.getText().length());
-        layout.addView(input, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        row.addView(layout, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(input, new LinearLayout.LayoutParams(0, ResUtil.dp2px(50), 1));
         LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(ResUtil.dp2px(50), ResUtil.dp2px(50));
         searchParams.leftMargin = ResUtil.dp2px(10);
         View searchButton = createAudioSheetIconButton(R.drawable.ic_action_search, () -> submitLyricsSearchSheet(dialog, input));
@@ -1366,14 +1404,14 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         loadLyricsSearchSuggestions(dialog, root, input, searchButton, request, keyword, signature);
     }
 
-    private void focusLyricsSearchTarget(TextInputEditText input, View focusTarget) {
+    private void focusLyricsSearchTarget(EditText input, View focusTarget) {
         if (input == null || focusTarget == null) return;
         input.clearFocus();
         Util.hideKeyboard(input);
         focusTarget.requestFocus();
     }
 
-    private void loadLyricsSearchSuggestions(BottomSheetDialog dialog, LinearLayout root, TextInputEditText input, View searchButton, @Nullable LyricsRequest request, String keyword, String signature) {
+    private void loadLyricsSearchSuggestions(BottomSheetDialog dialog, LinearLayout root, EditText input, View searchButton, @Nullable LyricsRequest request, String keyword, String signature) {
         Task.execute(() -> {
             List<String> suggestions = request == null ? LyricsRequest.searchSuggestions(keyword) : request.searchSuggestions();
             List<String> values = withLastLyricsSearchSuggestion(suggestions, signature);
@@ -1389,7 +1427,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     @Nullable
-    private View addLyricsSearchSuggestions(LinearLayout root, TextInputEditText input, View searchButton, List<String> suggestions) {
+    private View addLyricsSearchSuggestions(LinearLayout root, EditText input, View searchButton, List<String> suggestions) {
         if (suggestions == null || suggestions.isEmpty()) return null;
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
@@ -1417,7 +1455,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return first;
     }
 
-    private TextView createLyricsSearchSuggestionChip(TextInputEditText input, View searchButton, String text) {
+    private TextView createLyricsSearchSuggestionChip(EditText input, View searchButton, String text) {
         TextView chip = createAudioSheetText(text, 13, false);
         chip.setGravity(Gravity.CENTER);
         chip.setSingleLine(true);
@@ -1434,7 +1472,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return chip;
     }
 
-    private void submitLyricsSearchSheet(BottomSheetDialog dialog, TextInputEditText input) {
+    private void submitLyricsSearchSheet(BottomSheetDialog dialog, EditText input) {
         String keyword = input.getText() == null ? "" : input.getText().toString().trim();
         if (TextUtils.isEmpty(keyword)) {
             input.setError(getString(R.string.player_lyrics_keyword_required));
@@ -3170,10 +3208,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void loadArtwork(String url, String owner) {
         mArtworkRequestOwner = owner;
+        String colorKey = Objects.toString(owner, "") + "|" + Objects.toString(url, "");
         if (TextUtils.isEmpty(url)) {
             mBinding.exo.setDefaultArtwork(null);
             mBinding.audioCover.setImageResource(R.drawable.artwork);
-            updateAudioArtworkColor(null);
+            updateAudioArtworkColor(colorKey, null);
             return;
         }
         mBinding.audioCover.setImageResource(R.drawable.artwork);
@@ -3183,7 +3222,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 if (!TextUtils.equals(mArtworkRequestOwner, owner)) return;
                 mBinding.exo.setDefaultArtwork(resource);
                 mBinding.audioCover.setImageDrawable(resource);
-                updateAudioArtworkColor(resource);
+                updateAudioArtworkColor(colorKey, resource);
             }
 
             @Override
@@ -3192,7 +3231,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 mBinding.exo.setDefaultArtwork(errorDrawable);
                 if (errorDrawable == null) mBinding.audioCover.setImageResource(R.drawable.artwork);
                 else mBinding.audioCover.setImageDrawable(errorDrawable);
-                updateAudioArtworkColor(errorDrawable);
+                updateAudioArtworkColor(colorKey, errorDrawable);
             }
         });
     }
@@ -3478,6 +3517,15 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void refreshLyrics() {
+        if (isMusicLike() && mAudioRefreshLyricsRunnable != null) {
+            App.removeCallbacks(mAudioRefreshLyricsRunnable);
+            App.post(mAudioRefreshLyricsRunnable, mAudioStageVisible ? 320 : 120);
+            return;
+        }
+        refreshLyricsNow();
+    }
+
+    private void refreshLyricsNow() {
         if (mLyrics == null || service() == null) return;
         setAudioOnly(LyricsController.isAudioOnly(player()));
         boolean audioContent = isAudioOnly() || isMusicLike();
@@ -3712,9 +3760,14 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         drawable.setRecordHaloAnchor(cx, cy, radius);
     }
 
-    private void updateAudioArtworkColor(@Nullable Drawable drawable) {
+    private void updateAudioArtworkColor(String key, @Nullable Drawable drawable) {
+        if (TextUtils.equals(mAudioArtworkColorKey, key)) return;
+        mAudioArtworkColorKey = key;
         mAudioArtworkColor = extractAudioArtworkColor(drawable);
-        if (mAudioStageVisible && PlayerSetting.getAudioBackground() == PlayerSetting.AUDIO_BACKGROUND_ARTWORK) applyAudioBackground();
+        if (mAudioStageVisible && PlayerSetting.getAudioBackground() == PlayerSetting.AUDIO_BACKGROUND_ARTWORK && mApplyAudioBackgroundRunnable != null) {
+            App.removeCallbacks(mApplyAudioBackgroundRunnable);
+            App.post(mApplyAudioBackgroundRunnable, 240);
+        }
     }
 
     private int extractAudioArtworkColor(@Nullable Drawable drawable) {
@@ -5407,6 +5460,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private boolean dispatchAudioStageKey(KeyEvent event) {
         if (!isAudioStageNavigationKey(event)) return false;
         View focus = getCurrentFocus();
+        if (KeyUtil.isActionDown(event) && focus != null && isChildOf(mBinding.audioStage, focus)) showAudioStageFocusHighlight(focus);
         if (KeyUtil.isEnterKey(event)) {
             if (focus != null && isChildOf(mBinding.audioStage, focus) && focus.isEnabled() && focus.isClickable()) {
                 if (KeyUtil.isActionUp(event)) focus.performClick();
@@ -5478,7 +5532,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private boolean focusAudioStageDefault() {
         if (mBinding == null || !mAudioStageVisible) return false;
-        if (mBinding.audioPlay.isEnabled() && mBinding.audioPlay.requestFocus()) return true;
+        if (mBinding.audioPlay.isEnabled() && mBinding.audioPlay.requestFocus()) {
+            showAudioStageFocusHighlight(mBinding.audioPlay);
+            return true;
+        }
         return focusFirstChild(mBinding.audioStage);
     }
 
@@ -5486,7 +5543,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         List<View> focusables = new ArrayList<>();
         collectAudioStageFocusables(mBinding.audioStage, focusables);
         View target = findAudioStageFocusTarget(focus, focusables, event);
-        return target != null && target.requestFocus();
+        if (target == null || !target.requestFocus()) return false;
+        showAudioStageFocusHighlight(target);
+        return true;
     }
 
     private void collectAudioStageFocusables(View view, List<View> focusables) {
@@ -5796,7 +5855,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         DanmakuApi.cancel();
         dismissQuickSearchDialog();
         RefreshEvent.keep();
-        App.removeCallbacks(mR1, mR2, mR3, mR4);
+        App.removeCallbacks(mR1, mR2, mR3, mR4, mAudioRefreshLyricsRunnable, mApplyAudioBackgroundRunnable, mHideAudioFocusRunnable);
         stopAudioCoverRotation();
         if (mOsd != null) mOsd.release();
         mViewModel.getResult().removeObserver(mObserveDetail);
