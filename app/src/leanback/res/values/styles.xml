@@ -101,7 +101,7 @@
     <style name="AudioActionIconButton">
         <item name="android:layout_width">40dp</item>
         <item name="android:layout_height">40dp</item>
-        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:background">@drawable/selector_audio_action_icon</item>
         <item name="android:focusable">true</item>
         <item name="android:padding">8dp</item>
         <item name="android:scaleType">center</item>

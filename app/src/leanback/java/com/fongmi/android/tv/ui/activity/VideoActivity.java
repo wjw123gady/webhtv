@@ -3,6 +3,7 @@ package com.fongmi.android.tv.ui.activity;
 import android.annotation.SuppressLint;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
@@ -202,7 +203,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private boolean mAudioLightEffectAnimated;
     private boolean mKaraokeResultShown;
     private BottomSheetDialog mLyricsResultDialog;
-    private BottomSheetDialog mAudioQueueDialog;
+    private Dialog mAudioQueueDialog;
     private BottomSheetDialog mKaraokePitchDialog;
     private ProgressBar mKaraokePitchProgress;
     private TextView mKaraokePitchMessage;
@@ -1450,9 +1451,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void showAudioQueueSheet(String keyword, int selectedTab, boolean focusSearch) {
         if (mAudioQueueDialog != null && mAudioQueueDialog.isShowing()) mAudioQueueDialog.dismiss();
-        BottomSheetDialog dialog = createAudioSheet();
-        LinearLayout root = createAudioSheetRoot();
         int tab = selectedTab == AUDIO_QUEUE_TAB_SEARCH ? AUDIO_QUEUE_TAB_SEARCH : AUDIO_QUEUE_TAB_CURRENT;
+        boolean queueDrawer = tab == AUDIO_QUEUE_TAB_CURRENT && isLandscapeAudioSheet();
+        Dialog dialog = queueDrawer ? createAudioQueueDialog() : createAudioSheet();
+        LinearLayout root = createAudioSheetRoot();
+        if (tab == AUDIO_QUEUE_TAB_CURRENT && isLandscapeAudioSheet()) styleAudioQueueDrawerRoot(root);
         if (tab == AUDIO_QUEUE_TAB_SEARCH) {
             root.addView(createAudioQueueSearchHeader(dialog), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(34)));
         } else {
@@ -1526,7 +1529,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 return true;
             });
         }
-        showCompactPlaybackSheet(dialog);
+        if (queueDrawer) showAudioQueueDrawerDialog(dialog);
+        else showCompactPlaybackSheet((BottomSheetDialog) dialog);
         if (focusSearch && input != null) {
             TextInputEditText finalInput = input;
             input.post(() -> Util.showKeyboard(finalInput));
@@ -1632,7 +1636,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         setAudioQueueStatus(added > 0 ? getString(R.string.player_audio_playlist_added, added) : getString(R.string.player_audio_playlist_exists));
     }
 
-    private View createAudioPlaylistHeader(BottomSheetDialog dialog) {
+    private View createAudioPlaylistHeader(Dialog dialog) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1657,7 +1661,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return row;
     }
 
-    private View createAudioQueueSearchHeader(BottomSheetDialog dialog) {
+    private View createAudioQueueSearchHeader(Dialog dialog) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1793,7 +1797,28 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         List<Episode> items = flag == null ? new ArrayList<>() : flag.getEpisodes();
         int selected = getSelectedEpisodePosition(items);
         mAudioQueueAdapter.setItems(items, selected);
-        if (mAudioQueueList != null && selected >= 0) mAudioQueueList.post(() -> mAudioQueueList.scrollToPosition(selected));
+        if (mAudioQueueList != null && selected >= 0) {
+            mAudioQueueList.post(() -> {
+                mAudioQueueList.scrollToPosition(selected);
+                mAudioQueueList.post(() -> focusAudioQueueItem(selected));
+            });
+        }
+    }
+
+    private void focusAudioQueueItem(int position) {
+        if (mAudioQueueList == null) return;
+        RecyclerView.ViewHolder holder = mAudioQueueList.findViewHolderForAdapterPosition(position);
+        if (holder != null) holder.itemView.requestFocus();
+    }
+
+    private void focusAudioQueueSelectedItem() {
+        if (mAudioQueueList == null || mAudioQueueAdapter == null) return;
+        int selected = mAudioQueueAdapter.getSelectedPosition();
+        if (selected < 0) return;
+        mAudioQueueList.post(() -> {
+            mAudioQueueList.scrollToPosition(selected);
+            mAudioQueueList.post(() -> focusAudioQueueItem(selected));
+        });
     }
 
     private class AudioQueueAdapter extends RecyclerView.Adapter<AudioQueueAdapter.Holder> {
@@ -1806,6 +1831,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             if (next != null) items.addAll(next);
             this.selected = selected;
             notifyDataSetChanged();
+        }
+
+        private int getSelectedPosition() {
+            return selected;
         }
 
         @Override
@@ -1832,8 +1861,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             row.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
 
             ImageView remove = createAudioSheetInlineIconButton(R.drawable.ic_action_delete, () -> {});
-            remove.setFocusable(false);
-            remove.setFocusableInTouchMode(false);
             row.addView(remove, new LinearLayout.LayoutParams(ResUtil.dp2px(36), ResUtil.dp2px(36)));
             return new Holder(row, title, remove);
         }
@@ -4269,6 +4296,13 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return new BottomSheetDialog(this);
     }
 
+    private Dialog createAudioQueueDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCanceledOnTouchOutside(true);
+        return dialog;
+    }
+
     private LinearLayout createAudioSheetRoot() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -4291,6 +4325,14 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private void styleAudioDrawerRoot(LinearLayout root) {
         root.setPadding(ResUtil.dp2px(22), ResUtil.dp2px(10), ResUtil.dp2px(22), ResUtil.dp2px(14));
         int height = audioDrawerHeight();
+        root.setMinimumHeight(height);
+        root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height));
+        root.setBackground(audioDrawerBackground());
+    }
+
+    private void styleAudioQueueDrawerRoot(LinearLayout root) {
+        root.setPadding(ResUtil.dp2px(22), ResUtil.dp2px(10), ResUtil.dp2px(22), ResUtil.dp2px(14));
+        int height = audioQueueDrawerHeight();
         root.setMinimumHeight(height);
         root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height));
         root.setBackground(audioDrawerBackground());
@@ -4488,7 +4530,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             return Math.max(ResUtil.dp2px(126), Math.min(ResUtil.dp2px(desired), max));
         }
         int max = isLandscapeAudioSheet() ? audioDrawerListMaxHeight() : ResUtil.getScreenHeight(this) * (ResUtil.isLand(this) ? 46 : 56) / 100;
-        if (isLandscapeAudioSheet()) return max;
+        if (isLandscapeAudioSheet()) return audioQueueDrawerListMaxHeight();
         Flag flag = getFlag();
         int count = flag == null ? 1 : Math.max(1, Math.min(isLandscapeAudioSheet() ? 12 : 8, flag.getEpisodes().size()));
         int desired = 8 + count * 46;
@@ -4592,6 +4634,30 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         focusAudioSheetContent(dialog);
     }
 
+    private void showAudioQueueDrawerDialog(Dialog dialog) {
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        int height = audioQueueDrawerHeight();
+        int top = Math.max(0, audioQueueDrawerScreenHeight() - height - audioDrawerBottomMargin());
+        window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        window.getDecorView().setPadding(0, 0, 0, 0);
+        WindowManager.LayoutParams params = window.getAttributes();
+        params.width = audioDrawerWidth();
+        params.height = height;
+        params.gravity = Gravity.TOP | Gravity.END;
+        params.x = ResUtil.dp2px(16);
+        params.y = top;
+        params.dimAmount = 0f;
+        params.windowAnimations = 0;
+        window.setAttributes(params);
+        window.setLayout(audioDrawerWidth(), height);
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+        hideSystemBarsForAudioDialog(dialog);
+        focusAudioQueueSelectedItem();
+    }
+
     private void focusAudioSheetContent(BottomSheetDialog dialog) {
         if (dialog == null) return;
         Window window = dialog.getWindow();
@@ -4623,6 +4689,16 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.getRoot().post(() -> Util.hideSystemUI(this));
     }
 
+    private void hideSystemBarsForAudioDialog(Dialog dialog) {
+        Window window = dialog.getWindow();
+        if (window != null) {
+            Util.hideSystemUI(window);
+            window.getDecorView().post(() -> Util.hideSystemUI(window));
+        }
+        Util.hideSystemUI(this);
+        mBinding.getRoot().post(() -> Util.hideSystemUI(this));
+    }
+
     private int audioDrawerWidth() {
         return clamp(Math.round(ResUtil.getScreenWidth(this) * 0.42f), ResUtil.dp2px(380), ResUtil.dp2px(560));
     }
@@ -4635,12 +4711,32 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return clamp(Math.round(screenHeight * 0.84f), ResUtil.dp2px(320), max);
     }
 
+    private int audioQueueDrawerHeight() {
+        int screenHeight = audioQueueDrawerScreenHeight();
+        int topMargin = mStatusBarInset + ResUtil.dp2px(16);
+        int bottomMargin = audioDrawerBottomMargin();
+        int max = Math.max(ResUtil.dp2px(320), screenHeight - topMargin - bottomMargin);
+        return clamp(Math.round(screenHeight * 0.84f), ResUtil.dp2px(320), max);
+    }
+
+    private int audioQueueDrawerScreenHeight() {
+        int height = ResUtil.getScreenHeight(this);
+        if (mBinding != null && mBinding.getRoot().getHeight() > 0) height = Math.max(height, mBinding.getRoot().getHeight());
+        android.view.Display.Mode mode = getWindowManager().getDefaultDisplay().getMode();
+        int modeHeight = ResUtil.isLand(this) ? Math.min(mode.getPhysicalWidth(), mode.getPhysicalHeight()) : Math.max(mode.getPhysicalWidth(), mode.getPhysicalHeight());
+        return Math.max(height, modeHeight);
+    }
+
     private int audioDrawerBottomMargin() {
         return ResUtil.dp2px(16) + mEpisodeBottomInset;
     }
 
     private int audioDrawerListMaxHeight() {
         return Math.max(ResUtil.dp2px(126), audioDrawerHeight() - ResUtil.dp2px(88));
+    }
+
+    private int audioQueueDrawerListMaxHeight() {
+        return Math.max(ResUtil.dp2px(126), audioQueueDrawerHeight() - ResUtil.dp2px(88));
     }
 
     private int clamp(int value, int min, int max) {
@@ -5254,8 +5350,16 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         }
         if (!KeyUtil.isActionDown(event)) return true;
         if (focus == null || !isChildOf(mBinding.audioStage, focus) || focus == mBinding.audioStage || focus == mBinding.video) return focusAudioStageDefault();
+        if (dispatchAudioSeekKey(focus, event)) return true;
         moveAudioStageFocus(focus, event);
         return true;
+    }
+
+    private boolean dispatchAudioSeekKey(View focus, KeyEvent event) {
+        if (focus == null || !isChildOf(mBinding.audioSeek, focus)) return false;
+        if (KeyUtil.isLeftKey(event)) return onSeekBack();
+        if (KeyUtil.isRightKey(event)) return onSeekForward();
+        return false;
     }
 
     private boolean isAudioStageNavigationKey(KeyEvent event) {
