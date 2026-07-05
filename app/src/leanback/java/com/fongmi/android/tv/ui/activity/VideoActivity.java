@@ -1319,11 +1319,14 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private boolean onLyricsSearch() {
         if (!isLyricsSearchAvailable()) return false;
-        showLyricsSearchSheet(getLyricsSearchKeyword(), getLyricsSearchSuggestions());
+        LyricsRequest request = service() == null ? null : LyricsRequest.from(player());
+        String keyword = request == null ? getName() : request.displayKeyword();
+        String signature = request == null ? getName() : request.stableSignature();
+        showLyricsSearchSheet(keyword, request, signature);
         return true;
     }
 
-    private void showLyricsSearchSheet(String keyword, List<String> suggestions) {
+    private void showLyricsSearchSheet(String keyword, @Nullable LyricsRequest request, String signature) {
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
         root.addView(createAudioSheetTitle(getString(R.string.player_lyrics_reload)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(34)));
@@ -1351,7 +1354,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         inputParams.topMargin = ResUtil.dp2px(12);
         root.addView(row, inputParams);
-        View firstSuggestion = addLyricsSearchSuggestions(root, input, searchButton, suggestions);
 
         dialog.setContentView(root);
         input.setOnEditorActionListener((v, actionId, event) -> {
@@ -1360,10 +1362,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             return true;
         });
         showCompactPlaybackSheet(dialog);
-        View focusTarget = firstSuggestion == null ? searchButton : firstSuggestion;
-        focusLyricsSearchTarget(input, focusTarget);
-        focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 220);
-        focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 420);
+        focusLyricsSearchTarget(input, searchButton);
+        loadLyricsSearchSuggestions(dialog, root, input, searchButton, request, keyword, signature);
     }
 
     private void focusLyricsSearchTarget(TextInputEditText input, View focusTarget) {
@@ -1371,6 +1371,21 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         input.clearFocus();
         Util.hideKeyboard(input);
         focusTarget.requestFocus();
+    }
+
+    private void loadLyricsSearchSuggestions(BottomSheetDialog dialog, LinearLayout root, TextInputEditText input, View searchButton, @Nullable LyricsRequest request, String keyword, String signature) {
+        Task.execute(() -> {
+            List<String> suggestions = request == null ? LyricsRequest.searchSuggestions(keyword) : request.searchSuggestions();
+            List<String> values = withLastLyricsSearchSuggestion(suggestions, signature);
+            App.post(() -> {
+                if (!dialog.isShowing()) return;
+                View firstSuggestion = addLyricsSearchSuggestions(root, input, searchButton, values);
+                View focusTarget = firstSuggestion == null ? searchButton : firstSuggestion;
+                focusLyricsSearchTarget(input, focusTarget);
+                focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 220);
+                focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 420);
+            });
+        });
     }
 
     @Nullable
@@ -1898,9 +1913,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
                 holder.title.setText(getString(R.string.player_audio_playlist_empty));
                 holder.title.setTextColor(0x99FFFFFF);
                 holder.remove.setVisibility(View.GONE);
+                holder.remove.setFocusable(false);
                 holder.row.setBackground(null);
                 holder.row.setOnClickListener(null);
                 holder.row.setOnLongClickListener(null);
+                holder.row.setOnKeyListener(null);
+                holder.remove.setOnKeyListener(null);
                 return;
             }
             Episode item = items.get(position);
@@ -1908,11 +1926,22 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             holder.title.setText((position + 1) + ". " + item.getDisplayName());
             holder.title.setTextColor(active ? SHEET_TEXT_PRIMARY : SHEET_TEXT_SECONDARY);
             holder.remove.setVisibility(View.VISIBLE);
+            holder.remove.setFocusable(true);
             holder.remove.setOnClickListener(v -> removeAudioQueueEpisode(item));
+            holder.remove.setOnKeyListener((v, keyCode, event) -> {
+                if (!KeyUtil.isLeftKey(event)) return false;
+                if (KeyUtil.isActionDown(event)) holder.row.requestFocus();
+                return true;
+            });
             holder.row.setBackground(audioSheetItemBackground(active));
             holder.row.setOnClickListener(v -> playAudioQueueEpisode(item));
             holder.row.setOnLongClickListener(v -> {
                 removeAudioQueueEpisode(item);
+                return true;
+            });
+            holder.row.setOnKeyListener((v, keyCode, event) -> {
+                if (!KeyUtil.isRightKey(event) || holder.remove.getVisibility() != View.VISIBLE) return false;
+                if (KeyUtil.isActionDown(event)) holder.remove.requestFocus();
                 return true;
             });
         }
