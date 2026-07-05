@@ -4290,7 +4290,9 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void styleAudioDrawerRoot(LinearLayout root) {
         root.setPadding(ResUtil.dp2px(22), ResUtil.dp2px(10), ResUtil.dp2px(22), ResUtil.dp2px(14));
-        root.setMinimumHeight(audioDrawerHeight());
+        int height = audioDrawerHeight();
+        root.setMinimumHeight(height);
+        root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height));
         root.setBackground(audioDrawerBackground());
     }
 
@@ -4569,12 +4571,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             raw.height = height;
             if (raw instanceof CoordinatorLayout.LayoutParams params) {
                 params.gravity = (atStart ? Gravity.START : Gravity.END) | Gravity.BOTTOM;
-                params.setMargins(0, 0, 0, 0);
+                params.setMargins(atStart ? ResUtil.dp2px(16) : 0, mStatusBarInset + ResUtil.dp2px(16), atStart ? 0 : ResUtil.dp2px(16), bottomMargin);
             } else if (raw instanceof ViewGroup.MarginLayoutParams params) {
-                params.setMargins(0, 0, 0, 0);
+                params.setMargins(atStart ? ResUtil.dp2px(16) : 0, mStatusBarInset + ResUtil.dp2px(16), atStart ? 0 : ResUtil.dp2px(16), bottomMargin);
             }
             sheet.setLayoutParams(raw);
-            applyAudioDrawerInset(sheet, atStart, bottomMargin);
             BottomSheetBehavior<FrameLayout> behavior = BottomSheetBehavior.from(sheet);
             behavior.setFitToContents(false);
             behavior.setExpandedOffset(Math.max(0, ResUtil.getScreenHeight(this) - height - bottomMargin));
@@ -4588,15 +4589,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         applyAudioSheetWindowGlass(dialog);
         hideSystemBarsForAudioSheet(dialog);
         focusAudioSheetContent(dialog);
-    }
-
-    private void applyAudioDrawerInset(View sheet, boolean atStart, int bottomMargin) {
-        sheet.setTranslationX(atStart ? ResUtil.dp2px(16) : -ResUtil.dp2px(16));
-        sheet.setTranslationY(-bottomMargin);
-        sheet.post(() -> {
-            sheet.setTranslationX(atStart ? ResUtil.dp2px(16) : -ResUtil.dp2px(16));
-            sheet.setTranslationY(-bottomMargin);
-        });
     }
 
     private void focusAudioSheetContent(BottomSheetDialog dialog) {
