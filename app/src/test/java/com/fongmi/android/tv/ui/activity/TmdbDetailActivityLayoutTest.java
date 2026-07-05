@@ -183,10 +183,15 @@ public class TmdbDetailActivityLayoutTest {
         int bind = source.indexOf("private void bindBackdrop()");
         int surface = source.indexOf("private void applyBackdropSurface(ThemeColors colors)");
         int wallpaper = source.indexOf("private boolean useAppWallpaperBackdrop()");
+        int customWall = source.indexOf("protected boolean customWall()");
 
         assertTrue(sourcePath + " is missing bindBackdrop", bind >= 0);
         assertTrue(sourcePath + " is missing applyBackdropSurface", surface >= 0);
         assertTrue(sourcePath + " is missing useAppWallpaperBackdrop", wallpaper >= 0);
+        assertTrue(sourcePath + " is missing customWall", customWall >= 0);
+        int customWallEnd = source.indexOf("\n    }", customWall);
+        assertTrue("unmatched TMDB detail needs the app wallpaper layer behind its transparent fallback",
+                source.substring(customWall, customWallEnd).contains("return true;"));
         assertTrue("unmatched TMDB detail must not use the source poster as the large backdrop fallback",
                 source.indexOf("bindBackdropImage(vod.getName(), wallpaperBackdrop ? \"\" : tmdbBackdropUrl(), wallpaperBackdrop ? \"\" : vod.getPic());", bind) > bind);
         assertTrue("unmatched TMDB detail must keep the hero layer visible so the wallpaper can be shaded",
@@ -1220,8 +1225,10 @@ public class TmdbDetailActivityLayoutTest {
                         && activity.contains("binding.playerPanel.post(() -> {")
                         && activity.contains("binding.root.postDelayed(() -> {")
                         && activity.contains("}, 180);"));
-        assertTrue("native enhanced/detail-player fullscreen Back must use the same embedded-player exit path as fusion",
-                backFromFullscreenBody.contains("exitInlineFullscreen();")
+        assertTrue("leanback detail-player fullscreen Back must close playback back to the detail page, while fusion keeps embedded exit",
+                backFromFullscreenBody.contains("if (Util.isLeanback() && isPlayerMode())")
+                        && backFromFullscreenBody.indexOf("exitInlineFullscreen();") < backFromFullscreenBody.indexOf("closeDetailFullscreenPlayer();")
+                        && backFromFullscreenBody.contains("return;")
                         && !backFromFullscreenBody.contains("finishPlaybackToHome();")
                         && !backFromFullscreenBody.contains("Setting.isPlayBackToDetail()")
                         && focusBody.contains("if (!isInlinePlayerMode()) return;")

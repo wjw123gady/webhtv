@@ -114,6 +114,7 @@ import com.fongmi.android.tv.ui.dialog.TrackDialog;
 import com.fongmi.android.tv.ui.helper.DetailThemeVisibility;
 import com.fongmi.android.tv.ui.helper.EpisodeRangePolicy;
 import com.fongmi.android.tv.ui.helper.EpisodeSeasonPolicy;
+import com.fongmi.android.tv.ui.helper.PlayerControlFocusHelper;
 import com.fongmi.android.tv.ui.helper.TmdbCinemaTheme;
 import com.fongmi.android.tv.ui.helper.TmdbDetailLabels;
 import com.fongmi.android.tv.ui.helper.TmdbEpisodeGridPolicy;
@@ -408,7 +409,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     @Override
     protected boolean customWall() {
-        return false;
+        return true;
     }
 
     @Override
@@ -1440,12 +1441,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.playerPanel.setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP));
     }
 
-    private boolean isLeanbackFusionPlayerPanel() {
-        return Util.isLeanback() && isFusionMode();
+    private boolean isLeanbackInlinePlayerPanel() {
+        return Util.isLeanback() && (isFusionMode() || isPlayerMode());
     }
 
     private void setupPlayerPanelFocusLayer() {
-        if (!isLeanbackFusionPlayerPanel()) return;
+        if (!isLeanbackInlinePlayerPanel()) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) binding.playerPanel.setDefaultFocusHighlightEnabled(false);
         binding.playerPanel.setRippleColor(ColorStateList.valueOf(0x00000000));
     }
@@ -4818,7 +4819,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         updateInlineTitle();
         updateInlineButtons(service() != null && player() != null && !player().isEmpty() && player().isPlaying());
         inlineControlsView().setVisibility(View.VISIBLE);
-        if (focus || !Util.isMobile()) focusInlineDefaultControl();
+        focusInlineDefaultControl();
         touchInlineControls();
         updateInlineDisplayPanel();
     }
@@ -4891,15 +4892,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void focusInlineDefaultControl() {
-        if (!Util.isMobile()) {
-            inlineControlsView().post(() -> {
-                if (isInlineControlsVisible()) binding.playerFullscreenAction.requestFocus();
-            });
-            return;
-        }
-        if (hasFocusedChild(inlineControlsView())) return;
         inlineControlsView().post(() -> {
-            if (isInlineControlsVisible() && !hasFocusedChild(inlineControlsView())) getInlineControlFocus().requestFocus();
+            if (isInlineControlsVisible()) PlayerControlFocusHelper.ensureFocus(inlineControlsView(), getInlineControlFocus());
         });
     }
 
@@ -5651,6 +5645,11 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void backFromInlineFullscreen() {
+        if (Util.isLeanback() && isPlayerMode()) {
+            exitInlineFullscreen();
+            closeDetailFullscreenPlayer();
+            return;
+        }
         exitInlineFullscreen();
     }
 
@@ -6892,8 +6891,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             return true;
         }
         if (isInlineControlsVisible()) {
-            rememberInlineControlFocus();
             setInlineHideCallback();
+            if (handleInlineControlFocusKey(event)) return true;
+            rememberInlineControlFocus();
         }
         if (handleInlineSeekKey(event)) return true;
         if (KeyUtil.isMenuKey(event) && (inlineFullscreen || isInlineControlsVisible())) {
@@ -6928,6 +6928,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             return true;
         }
         return false;
+    }
+
+    private boolean handleInlineControlFocusKey(KeyEvent event) {
+        return PlayerControlFocusHelper.handleKey(inlineControlsView(), getInlineControlFocus(), event);
     }
 
     private boolean handleInlineSeekKey(KeyEvent event) {
