@@ -183,6 +183,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private static final int SHEET_CONTROL_BG_SUBTLE = 0x12FFFFFF;
     private static final int SHEET_CONTROL_STROKE = 0x24FFFFFF;
     private static final int SHEET_CONTROL_STROKE_SELECTED = 0x4DFFFFFF;
+    private static final long AUDIO_SEEK_STEP_FINE_MS = 3000L;
+    private static final long AUDIO_SEEK_STEP_NORMAL_MS = 6000L;
+    private static final long AUDIO_SEEK_STEP_FAST_MS = 10000L;
+    private static final long AUDIO_SEEK_STEP_MAX_MS = 15000L;
 
     private ActivityVideoBinding mBinding;
     private ViewGroup.LayoutParams mFrameParams;
@@ -225,6 +229,10 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private ObjectAnimator mAudioCoverAnimator;
     private int mAudioArtworkColor = Color.rgb(55, 45, 68);
     private int mAudioBackgroundRandomNonce;
+    private long mAudioSeekPreviewOffset;
+    private int mAudioSeekPreviewDirection;
+    private int mAudioSeekPreviewRepeat;
+    private boolean mAudioSeekPreviewing;
     private final Map<String, String> mAudioQueueFlags = new HashMap<>();
     private final Map<String, String> mAudioQueueTitles = new HashMap<>();
     private final Map<String, String> mAudioQueueArtists = new HashMap<>();
@@ -1338,11 +1346,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         row.addView(layout, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(ResUtil.dp2px(50), ResUtil.dp2px(50));
         searchParams.leftMargin = ResUtil.dp2px(10);
-        row.addView(createAudioSheetIconButton(R.drawable.ic_action_search, () -> submitLyricsSearchSheet(dialog, input)), searchParams);
+        View searchButton = createAudioSheetIconButton(R.drawable.ic_action_search, () -> submitLyricsSearchSheet(dialog, input));
+        row.addView(searchButton, searchParams);
         LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         inputParams.topMargin = ResUtil.dp2px(12);
         root.addView(row, inputParams);
-        addLyricsSearchSuggestions(root, input, suggestions);
+        View firstSuggestion = addLyricsSearchSuggestions(root, input, searchButton, suggestions);
 
         dialog.setContentView(root);
         input.setOnEditorActionListener((v, actionId, event) -> {
@@ -1351,11 +1360,22 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             return true;
         });
         showCompactPlaybackSheet(dialog);
-        input.post(() -> Util.showKeyboard(input));
+        View focusTarget = firstSuggestion == null ? searchButton : firstSuggestion;
+        focusLyricsSearchTarget(input, focusTarget);
+        focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 220);
+        focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 420);
     }
 
-    private void addLyricsSearchSuggestions(LinearLayout root, TextInputEditText input, List<String> suggestions) {
-        if (suggestions == null || suggestions.isEmpty()) return;
+    private void focusLyricsSearchTarget(TextInputEditText input, View focusTarget) {
+        if (input == null || focusTarget == null) return;
+        input.clearFocus();
+        Util.hideKeyboard(input);
+        focusTarget.requestFocus();
+    }
+
+    @Nullable
+    private View addLyricsSearchSuggestions(LinearLayout root, TextInputEditText input, View searchButton, List<String> suggestions) {
+        if (suggestions == null || suggestions.isEmpty()) return null;
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         scroll.setOverScrollMode(HorizontalScrollView.OVER_SCROLL_NEVER);
@@ -1363,23 +1383,26 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        View first = null;
         int count = Math.min(8, suggestions.size());
         for (int i = 0; i < count; i++) {
             String text = suggestions.get(i);
             if (TextUtils.isEmpty(text)) continue;
-            TextView chip = createLyricsSearchSuggestionChip(input, text);
+            TextView chip = createLyricsSearchSuggestionChip(input, searchButton, text);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(32));
             if (row.getChildCount() > 0) params.leftMargin = ResUtil.dp2px(6);
             row.addView(chip, params);
+            if (first == null) first = chip;
         }
-        if (row.getChildCount() == 0) return;
+        if (row.getChildCount() == 0) return null;
         scroll.addView(row, new HorizontalScrollView.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(32)));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(32));
         params.topMargin = ResUtil.dp2px(8);
         root.addView(scroll, params);
+        return first;
     }
 
-    private TextView createLyricsSearchSuggestionChip(TextInputEditText input, String text) {
+    private TextView createLyricsSearchSuggestionChip(TextInputEditText input, View searchButton, String text) {
         TextView chip = createAudioSheetText(text, 13, false);
         chip.setGravity(Gravity.CENTER);
         chip.setSingleLine(true);
@@ -1387,11 +1410,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         chip.setPadding(ResUtil.dp2px(10), 0, ResUtil.dp2px(10), 0);
         chip.setTextColor(SHEET_TEXT_SECONDARY);
         chip.setBackground(audioSheetControlBackground(SHEET_CONTROL_BG_SUBTLE, SHEET_CONTROL_STROKE));
+        setAudioSheetFocusable(chip);
         chip.setOnClickListener(v -> {
             input.setText(text);
             if (input.getText() != null) input.setSelection(input.getText().length());
-            input.requestFocus();
-            Util.showKeyboard(input);
+            focusLyricsSearchTarget(input, searchButton);
         });
         return chip;
     }
@@ -4281,6 +4304,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setPadding(ResUtil.dp2px(10), 0, ResUtil.dp2px(10), 0);
         view.setTextColor(0xF2FFFFFF);
         view.setBackground(audioSheetControlBackground(0x14FFFFFF, 0x22FFFFFF));
+        setAudioSheetFocusable(view);
         view.setOnClickListener(v -> {
             if (dismissOnClick) dialog.dismiss();
             action.run();
@@ -5361,18 +5385,60 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             }
             return false;
         }
+        if (dispatchAudioSeekKey(focus, event)) return true;
         if (!KeyUtil.isActionDown(event)) return true;
         if (focus == null || !isChildOf(mBinding.audioStage, focus) || focus == mBinding.audioStage || focus == mBinding.video) return focusAudioStageDefault();
-        if (dispatchAudioSeekKey(focus, event)) return true;
         moveAudioStageFocus(focus, event);
         return true;
     }
 
     private boolean dispatchAudioSeekKey(View focus, KeyEvent event) {
         if (focus == null || !isChildOf(mBinding.audioSeek, focus)) return false;
-        if (KeyUtil.isLeftKey(event)) return onSeekBack();
-        if (KeyUtil.isRightKey(event)) return onSeekForward();
-        return false;
+        if (!KeyUtil.isLeftKey(event) && !KeyUtil.isRightKey(event)) return false;
+        if (KeyUtil.isActionUp(event)) {
+            finishAudioSeekPreview();
+            return true;
+        }
+        if (!KeyUtil.isActionDown(event)) return true;
+        previewAudioSeek(KeyUtil.isRightKey(event) ? 1 : -1, event.getRepeatCount());
+        return true;
+    }
+
+    private void previewAudioSeek(int direction, int repeatCount) {
+        if (service() == null || player().isEmpty()) return;
+        if (mAudioSeekPreviewDirection != direction) {
+            mAudioSeekPreviewOffset = 0;
+            mAudioSeekPreviewRepeat = 0;
+            mAudioSeekPreviewDirection = direction;
+        }
+        mAudioSeekPreviewing = true;
+        mAudioSeekPreviewRepeat = Math.max(mAudioSeekPreviewRepeat + 1, repeatCount + 1);
+        long current = player().getPosition();
+        long duration = Math.max(0, player().getDuration());
+        long next = current + mAudioSeekPreviewOffset + direction * getAudioSeekStep(mAudioSeekPreviewRepeat);
+        long target = duration > 0 ? Math.min(Math.max(0, next), duration) : Math.max(0, next);
+        mAudioSeekPreviewOffset = target - current;
+        mBinding.audioSeek.previewSeekPosition(target);
+        onSeeking(mAudioSeekPreviewOffset);
+    }
+
+    private long getAudioSeekStep(int repeat) {
+        if (repeat <= 2) return AUDIO_SEEK_STEP_FINE_MS;
+        if (repeat <= 6) return AUDIO_SEEK_STEP_NORMAL_MS;
+        if (repeat <= 12) return AUDIO_SEEK_STEP_FAST_MS;
+        return AUDIO_SEEK_STEP_MAX_MS;
+    }
+
+    private void finishAudioSeekPreview() {
+        if (!mAudioSeekPreviewing) return;
+        long offset = mAudioSeekPreviewOffset;
+        mAudioSeekPreviewOffset = 0;
+        mAudioSeekPreviewDirection = 0;
+        mAudioSeekPreviewRepeat = 0;
+        mAudioSeekPreviewing = false;
+        mBinding.audioSeek.clearSeekPreview();
+        if (offset == 0) return;
+        onSeekEnd(offset);
     }
 
     private boolean isAudioStageNavigationKey(KeyEvent event) {
