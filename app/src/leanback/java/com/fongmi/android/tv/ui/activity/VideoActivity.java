@@ -950,6 +950,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mInlineLyrics = getEpisodeInlineLyrics(episode);
         applyPlaybackArtwork(episode);
         clearLyrics();
+        clearKaraokeState();
         if (isMusicLike()) setAudioStageVisible(true);
         mViewModel.playerContent(getKey(), playFlag, episode.getUrl());
         mBinding.widget.title.setSelected(true);
@@ -2891,6 +2892,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         player().clear();
         mClock.setCallback(null);
         clearLyrics();
+        clearKaraokeState();
         if (mFlagAdapter.getItemCount() == 0) return;
         if (mEpisodeAdapter.getItemCount() == 0) return;
         getPlayer(getFlag(), getEpisode());
@@ -3974,6 +3976,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (mLyrics != null) mLyrics.clear();
     }
 
+    private void clearKaraokeState() {
+        mKaraokeResultShown = false;
+        if (mKaraoke != null) mKaraoke.clear();
+    }
+
     private void dismissLyricsResultDialog() {
         if (mLyricsResultDialog == null) return;
         mLyricsResultDialog.dismiss();
@@ -4875,6 +4882,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         Track.delete(player().getKey());
         mClock.setCallback(null);
         clearLyrics();
+        clearKaraokeState();
         player().resetTrack();
         player().reset();
         player().stop();
@@ -5608,6 +5616,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     @Override
     public void onCasted() {
         clearLyrics();
+        clearKaraokeState();
         player().stop();
     }
 

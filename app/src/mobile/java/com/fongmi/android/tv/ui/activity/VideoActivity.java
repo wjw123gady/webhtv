@@ -1077,6 +1077,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mInlineLyrics = getEpisodeInlineLyrics(episode);
         applyPlaybackArtwork(episode);
         clearLyrics();
+        clearKaraokeState();
         if (isMusicLike()) setAudioStageVisible(true);
         mViewModel.playerContent(getKey(), playFlag, episode.getUrl());
         mBinding.control.title.setSelected(true);
@@ -3400,6 +3401,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         player().clear();
         mClock.setCallback(null);
         clearLyrics();
+        clearKaraokeState();
         if (mFlagAdapter.isEmpty()) return;
         if (mEpisodeAdapter.isEmpty()) return;
         Flag flag = getFlag();
@@ -4894,6 +4896,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (mLyrics != null) mLyrics.clear();
     }
 
+    private void clearKaraokeState() {
+        mKaraokeResultShown = false;
+        if (mKaraoke != null) mKaraoke.clear();
+    }
+
     private void dismissLyricsResultDialog() {
         if (mLyricsResultDialog == null) return;
         mLyricsResultDialog.dismiss();
@@ -4962,6 +4969,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         Track.delete(player().getKey());
         mClock.setCallback(null);
         clearLyrics();
+        clearKaraokeState();
         player().resetTrack();
         player().reset();
         player().stop();
@@ -5378,6 +5386,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     public void onCasted() {
         clearLyrics();
+        clearKaraokeState();
         player().stop();
     }
 
