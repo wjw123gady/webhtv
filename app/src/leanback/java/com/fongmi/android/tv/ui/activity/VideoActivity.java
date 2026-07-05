@@ -208,6 +208,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private boolean mAudioLightEffectAnimated;
     private boolean mKaraokeResultShown;
     private boolean mSkipKaraokeTrackAutoLoad;
+    private BottomSheetDialog mLyricsSearchDialog;
     private BottomSheetDialog mLyricsResultDialog;
     private Dialog mAudioQueueDialog;
     private BottomSheetDialog mKaraokePitchDialog;
@@ -254,6 +255,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private boolean quickSearchDialogClosed;
     private boolean useParse;
     private int mLyricsSearchSeq;
+    private int mLyricsSearchSheetSeq;
     private int mAudioQueueSearchSeq;
     private int mStatusBarInset;
     private int mEpisodeBottomInset;
@@ -1373,14 +1375,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private boolean onLyricsSearch() {
         if (!isLyricsSearchAvailable()) return false;
-        LyricsRequest request = service() == null ? null : LyricsRequest.from(player());
-        String keyword = request == null ? getName() : request.displayKeyword();
-        String signature = request == null ? getName() : request.stableSignature();
-        showLyricsSearchSheet(keyword, request, signature);
+        showLyricsSearchSheet(getName(), ++mLyricsSearchSheetSeq);
         return true;
     }
 
-    private void showLyricsSearchSheet(String keyword, @Nullable LyricsRequest request, String signature) {
+    private void showLyricsSearchSheet(String keyword, int seq) {
+        long start = System.currentTimeMillis();
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
         root.addView(createAudioSheetTitle(getString(R.string.player_lyrics_reload)), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ResUtil.dp2px(34)));
@@ -1418,7 +1418,15 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         });
         showCompactPlaybackSheet(dialog);
         focusLyricsSearchTarget(input, searchButton);
-        loadLyricsSearchSuggestions(dialog, root, input, searchButton, request, keyword, signature);
+        SpiderDebug.log("lyrics-ui", "search sheet shown cost=%dms keyword=%s", System.currentTimeMillis() - start, keyword);
+        dialog.setOnDismissListener(d -> {
+            if (mLyricsSearchDialog == dialog) {
+                mLyricsSearchDialog = null;
+                mLyricsSearchSheetSeq++;
+            }
+        });
+        mLyricsSearchDialog = dialog;
+        loadLyricsSearchSuggestions(dialog, root, input, searchButton, keyword, seq, mLyricsSearchSeq);
     }
 
     private void focusLyricsSearchTarget(EditText input, View focusTarget) {
@@ -1428,23 +1436,51 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         focusTarget.requestFocus();
     }
 
-    private void loadLyricsSearchSuggestions(BottomSheetDialog dialog, LinearLayout root, EditText input, View searchButton, @Nullable LyricsRequest request, String keyword, String signature) {
+    private void loadLyricsSearchSuggestions(BottomSheetDialog dialog, LinearLayout root, EditText input, View searchButton, String fallbackKeyword, int seq, int searchSeqAtOpen) {
         Task.execute(() -> {
-            List<String> suggestions = request == null ? LyricsRequest.searchSuggestions(keyword) : request.searchSuggestions();
+            long start = System.currentTimeMillis();
+            LyricsRequest request = null;
+            try {
+                if (service() != null) request = LyricsRequest.from(player());
+            } catch (Throwable e) {
+                SpiderDebug.log("lyrics-ui", "search sheet request fallback error=%s", e.getMessage());
+            }
+            String keyword = request == null ? fallbackKeyword : request.displayKeyword();
+            String signature = request == null ? fallbackKeyword : request.stableSignature();
+            List<String> suggestions = request == null ? LyricsRequest.searchSuggestions(fallbackKeyword) : request.searchSuggestions();
             List<String> values = withLastLyricsSearchSuggestion(suggestions, signature);
             App.post(() -> {
-                if (!dialog.isShowing()) return;
-                View firstSuggestion = addLyricsSearchSuggestions(root, input, searchButton, values);
+                if (seq != mLyricsSearchSheetSeq || !dialog.isShowing()) return;
+                String current = input.getText() == null ? "" : input.getText().toString();
+                if (!TextUtils.isEmpty(keyword) && (TextUtils.isEmpty(current) || TextUtils.equals(current, fallbackKeyword))) {
+                    input.setText(keyword);
+                    if (input.getText() != null) input.setSelection(input.getText().length());
+                }
+                View firstSuggestion = addLyricsSearchSuggestions(dialog, root, input, searchButton, values);
                 View focusTarget = firstSuggestion == null ? searchButton : firstSuggestion;
                 focusLyricsSearchTarget(input, focusTarget);
                 focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 220);
                 focusTarget.postDelayed(() -> focusLyricsSearchTarget(input, focusTarget), 420);
+                String autoKeyword = firstLyricsSearchSuggestion(values);
+                if (!TextUtils.isEmpty(autoKeyword) && mLyricsSearchSeq == searchSeqAtOpen && (TextUtils.isEmpty(current) || TextUtils.equals(current, fallbackKeyword))) {
+                    searchLyrics(autoKeyword, false);
+                }
+                SpiderDebug.log("lyrics-ui", "search sheet suggestions ready cost=%dms count=%d", System.currentTimeMillis() - start, values == null ? 0 : values.size());
             });
         });
     }
 
+    private String firstLyricsSearchSuggestion(List<String> suggestions) {
+        if (suggestions == null) return "";
+        for (String suggestion : suggestions) {
+            String value = Objects.toString(suggestion, "").trim();
+            if (!TextUtils.isEmpty(value)) return value;
+        }
+        return "";
+    }
+
     @Nullable
-    private View addLyricsSearchSuggestions(LinearLayout root, EditText input, View searchButton, List<String> suggestions) {
+    private View addLyricsSearchSuggestions(BottomSheetDialog dialog, LinearLayout root, EditText input, View searchButton, List<String> suggestions) {
         if (suggestions == null || suggestions.isEmpty()) return null;
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
@@ -1458,7 +1494,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         for (int i = 0; i < count; i++) {
             String text = suggestions.get(i);
             if (TextUtils.isEmpty(text)) continue;
-            TextView chip = createLyricsSearchSuggestionChip(input, searchButton, text);
+            TextView chip = createLyricsSearchSuggestionChip(dialog, input, searchButton, text);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(32));
             if (row.getChildCount() > 0) params.leftMargin = ResUtil.dp2px(6);
             row.addView(chip, params);
@@ -1472,7 +1508,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return first;
     }
 
-    private TextView createLyricsSearchSuggestionChip(EditText input, View searchButton, String text) {
+    private TextView createLyricsSearchSuggestionChip(BottomSheetDialog dialog, EditText input, View searchButton, String text) {
         TextView chip = createAudioSheetText(text, 13, false);
         chip.setGravity(Gravity.CENTER);
         chip.setSingleLine(true);
@@ -1485,6 +1521,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             input.setText(text);
             if (input.getText() != null) input.setSelection(input.getText().length());
             focusLyricsSearchTarget(input, searchButton);
+            submitLyricsSearchSheet(dialog, input);
         });
         return chip;
     }
@@ -3938,9 +3975,13 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void rememberLyricsSearchKeyword(String keyword) {
+        rememberLyricsSearchKeyword(keyword, getLyricsSearchSignature());
+    }
+
+    private void rememberLyricsSearchKeyword(String keyword, String signature) {
         String value = Objects.toString(keyword, "").trim();
         if (TextUtils.isEmpty(value)) return;
-        mLyricsLastSearchSignature = getLyricsSearchSignature();
+        mLyricsLastSearchSignature = signature;
         mLyricsLastSearchKeyword = value;
     }
 
@@ -3969,17 +4010,41 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     }
 
     private void searchLyrics(String keyword) {
+        searchLyrics(keyword, true);
+    }
+
+    private void searchLyrics(String keyword, boolean showLoading) {
         if (mLyrics == null || service() == null) return;
         setAudioOnly(LyricsController.isAudioOnly(player()));
         int seq = ++mLyricsSearchSeq;
-        String cacheKey = getLyricsSearchCacheKey(keyword);
-        rememberLyricsSearchKeyword(keyword);
-        if (TextUtils.equals(mLyricsSearchKeyword, cacheKey) && mLyricsSearchResults != null && !mLyricsSearchResults.isEmpty()) {
-            showLyricsResults(seq, cacheKey, mLyricsSearchResults, true);
-            return;
-        }
-        showLyricsSearching(seq);
-        mLyrics.search(player(), isAudioOnly() || isMusicLike(), keyword, (results, complete) -> showLyricsResults(seq, cacheKey, results, complete));
+        PlayerManager manager = player();
+        boolean audioContent = isAudioOnly() || isMusicLike();
+        if (showLoading) showLyricsSearching(seq);
+        Task.execute(() -> {
+            LyricsRequest request;
+            try {
+                request = LyricsRequest.from(manager).withKeyword(keyword);
+            } catch (Throwable e) {
+                SpiderDebug.log("lyrics-ui", "search request failed keyword=%s error=%s", keyword, e.getMessage());
+                App.post(() -> showLyricsResults(seq, Objects.toString(keyword, ""), List.of(), true));
+                return;
+            }
+            String cacheKey = request.signature();
+            String stableSignature = request.stableSignature();
+            App.post(() -> {
+                if (seq != mLyricsSearchSeq || isFinishing()) return;
+                rememberLyricsSearchKeyword(keyword, stableSignature);
+                if (TextUtils.equals(mLyricsSearchKeyword, cacheKey) && mLyricsSearchResults != null && !mLyricsSearchResults.isEmpty()) {
+                    showLyricsResults(seq, cacheKey, mLyricsSearchResults, true);
+                    return;
+                }
+                if (!audioContent || !request.isValid()) {
+                    showLyricsResults(seq, cacheKey, List.of(), true);
+                    return;
+                }
+                mLyrics.search(request, (results, complete) -> showLyricsResults(seq, cacheKey, results, complete));
+            });
+        });
     }
 
     private void showLyricsSearching(int seq) {
@@ -4027,6 +4092,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             updateLyricsResultSheetHeight(labels.length);
             return;
         }
+        dismissLyricsSearchDialog();
         dismissLyricsResultDialog();
         BottomSheetDialog dialog = createAudioSheet();
         LinearLayout root = createAudioSheetRoot();
@@ -4050,6 +4116,11 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mLyricsResultDialog = dialog;
         updateLyricsResultList(labels);
         showCompactPlaybackSheet(dialog, false);
+    }
+
+    private void dismissLyricsSearchDialog() {
+        if (mLyricsSearchDialog != null) mLyricsSearchDialog.dismiss();
+        mLyricsSearchDialog = null;
     }
 
     private void applyLyrics(LyricsResult result) {
@@ -5864,6 +5935,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     @Override
     protected void onDestroy() {
         mLyricsSearchSeq++;
+        mLyricsSearchSheetSeq++;
+        dismissLyricsSearchDialog();
         dismissLyricsResultDialog();
         if (mLyrics != null) mLyrics.release();
         if (mKaraoke != null) mKaraoke.release();

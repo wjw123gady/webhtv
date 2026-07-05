@@ -166,6 +166,10 @@ public class LyricsController {
             return;
         }
         LyricsRequest request = LyricsRequest.from(player).withKeyword(keyword);
+        search(request, callback);
+    }
+
+    public void search(LyricsRequest request, SearchCallback callback) {
         if (!request.isValid()) {
             if (callback != null) callback.onResult(Collections.emptyList(), true);
             return;
