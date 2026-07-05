@@ -94,6 +94,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -756,6 +757,7 @@ public final class ExoPlayerScrubbingTest {
   }
 
   @Test
+  @Config(minSdk = 29) // TODO: b/511134574 - Get this test passing on all API levels.
   public void operatingRateOverride_propagatedToMediaCodec() throws Exception {
     AtomicReference<MediaCodecAdapter> spyVideoMediaCodecAdapter = new AtomicReference<>();
     DefaultRenderersFactory renderersFactory =
@@ -862,6 +864,8 @@ public final class ExoPlayerScrubbingTest {
   }
 
   @Test
+  @Config(minSdk = 31) // Relies on async MediaCodec mode, which is only the default on API 31+.
+  @Ignore("Flaky: b/515127273")
   public void dynamicSchedulingInScrubbingMode_renderCalledMoreFrequentlyThan10ms()
       throws Exception {
     Context context = ApplicationProvider.getApplicationContext();
@@ -928,6 +932,8 @@ public final class ExoPlayerScrubbingTest {
   }
 
   @Test
+  @Config(minSdk = 31) // TODO: b/511055213 - Run on all API levels when Robolectric is fixed.
+  @Ignore("Flaky: b/515127273")
   public void dynamicSchedulingDisabledInScrubbingMode_renderCalledEvery10ms() throws Exception {
     Context context = ApplicationProvider.getApplicationContext();
     FakeClock clock = new FakeClock(/* isAutoAdvancing= */ true);

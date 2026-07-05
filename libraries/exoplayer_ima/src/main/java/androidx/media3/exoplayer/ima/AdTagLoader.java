@@ -21,6 +21,7 @@ import static androidx.media3.exoplayer.ima.ImaUtil.BITRATE_UNSET;
 import static androidx.media3.exoplayer.ima.ImaUtil.TIMEOUT_UNSET;
 import static androidx.media3.exoplayer.ima.ImaUtil.getAdGroupTimesUsForCuePoints;
 import static androidx.media3.exoplayer.ima.ImaUtil.getImaLooper;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Math.max;
@@ -490,7 +491,14 @@ import java.util.Objects;
     }
     Player player = this.player;
     this.timeline = timeline;
-    long contentDurationUs = timeline.getPeriod(player.getCurrentPeriodIndex(), period).durationUs;
+    int windowIndex = player.getCurrentMediaItemIndex();
+    Timeline.Window window = new Timeline.Window();
+    timeline.getWindow(windowIndex, window);
+    checkArgument(
+        window.firstPeriodIndex == window.lastPeriodIndex,
+        "Only single-period Timelines are supported.");
+    long contentDurationUs = timeline.getPeriod(window.firstPeriodIndex, period).durationUs;
+
     contentDurationMs = Util.usToMs(contentDurationUs);
     if (contentDurationUs != adPlaybackState.contentDurationUs) {
       adPlaybackState = adPlaybackState.withContentDurationUs(contentDurationUs);
@@ -707,10 +715,29 @@ import java.util.Objects;
     if (player == null) {
       return lastAdProgress;
     } else if (imaAdState != IMA_AD_STATE_NONE && playingAd) {
-      long adDuration = player.getDuration();
-      return adDuration == C.TIME_UNSET
-          ? VideoProgressUpdate.VIDEO_TIME_NOT_READY
-          : new VideoProgressUpdate(player.getCurrentPosition(), adDuration);
+      int playerAdIndex = player.getCurrentAdIndexInAdGroup();
+      long adPosition = player.getCurrentPosition();
+      @Nullable AdInfo imaAdInfo = this.imaAdInfo;
+      if (player.isPlayingAd()
+          && imaAdInfo != null
+          && player.getCurrentAdGroupIndex() == imaAdInfo.adGroupIndex
+          && playerAdIndex == imaAdInfo.adIndexInAdGroup) {
+        long adDuration = player.getDuration();
+        return adDuration == C.TIME_UNSET
+            ? VideoProgressUpdate.VIDEO_TIME_NOT_READY
+            : new VideoProgressUpdate(adPosition, adDuration);
+      } else {
+        if (configuration.debugModeEnabled) {
+          Log.d(
+              TAG,
+              "getAdVideoProgressUpdate: player not at expected ad (group="
+                  + player.getCurrentAdGroupIndex()
+                  + ", index="
+                  + playerAdIndex
+                  + "), returning NOT_READY");
+        }
+        return VideoProgressUpdate.VIDEO_TIME_NOT_READY;
+      }
     } else {
       return VideoProgressUpdate.VIDEO_TIME_NOT_READY;
     }

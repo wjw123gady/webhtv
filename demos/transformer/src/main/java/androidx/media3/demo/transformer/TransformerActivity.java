@@ -64,6 +64,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.DebugViewProvider;
 import androidx.media3.common.Effect;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.OverlaySettings;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.ChannelMixingAudioProcessor;
 import androidx.media3.common.audio.ChannelMixingMatrix;
@@ -80,6 +81,7 @@ import androidx.media3.effect.DefaultHardwareBufferEffectsPipeline;
 import androidx.media3.effect.DrawableOverlay;
 import androidx.media3.effect.GlEffect;
 import androidx.media3.effect.GlShaderProgram;
+import androidx.media3.effect.HardwareBufferFrame;
 import androidx.media3.effect.HslAdjustment;
 import androidx.media3.effect.LanczosResample;
 import androidx.media3.effect.OverlayEffect;
@@ -92,10 +94,13 @@ import androidx.media3.effect.SingleColorLut;
 import androidx.media3.effect.StaticOverlaySettings;
 import androidx.media3.effect.TextOverlay;
 import androidx.media3.effect.TextureOverlay;
+import androidx.media3.effect.ndk.HardwareBufferJni;
+import androidx.media3.effect.ndk.NdkTransformerBuilder;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor;
 import androidx.media3.exoplayer.util.DebugTextViewHelper;
 import androidx.media3.transformer.Composition;
+import androidx.media3.transformer.CompositionFrameMetadata;
 import androidx.media3.transformer.DefaultEncoderFactory;
 import androidx.media3.transformer.EditedMediaItem;
 import androidx.media3.transformer.EditedMediaItemSequence;
@@ -363,8 +368,22 @@ public final class TransformerActivity extends AppCompatActivity {
   @OptIn(markerClass = androidx.media3.common.util.ExperimentalApi.class)
   private Transformer createTransformer(
       @Nullable Bundle bundle, Composition composition, Uri inputUri, String filePath) {
-    Transformer.Builder transformerBuilder = new Transformer.Builder(/* context= */ this);
+    Transformer.Builder transformerBuilder;
 
+    if (bundle != null && bundle.getBoolean(ConfigurationActivity.ENABLE_PACKET_PROCESSOR)) {
+      // We cannot use checkState(SDK_INT < 28); because the compiler is not smart enough.
+      if (SDK_INT < 28) {
+        throw new IllegalStateException("API version 28+ required to export with PacketProcessor");
+      }
+      transformerBuilder = NdkTransformerBuilder.create(/* context= */ this);
+      transformerBuilder.setHardwareBufferEffectsPipeline(
+          DefaultHardwareBufferEffectsPipeline.create(
+              /* context= */ this,
+              HardwareBufferJni.INSTANCE,
+              /* overlaySettingsProvider= */ TransformerActivity::getOverlaySettings));
+    } else {
+      transformerBuilder = new Transformer.Builder(/* context= */ this);
+    }
     transformerBuilder.addListener(
         new Transformer.Listener() {
           @Override
@@ -471,8 +490,15 @@ public final class TransformerActivity extends AppCompatActivity {
               bundle.getBoolean(ConfigurationActivity.SHOULD_FLATTEN_FOR_SLOW_MOTION))
           .setEffects(new Effects(audioProcessors, videoEffects));
     }
+    ImmutableSet.Builder<Integer> sequenceTrackTypesBuilder = new ImmutableSet.Builder<>();
+    if (bundle == null || bundle.getBoolean(ConfigurationActivity.ENABLE_AUDIO_TRACK, true)) {
+      sequenceTrackTypesBuilder.add(C.TRACK_TYPE_AUDIO);
+    }
+    if (bundle == null || bundle.getBoolean(ConfigurationActivity.ENABLE_VIDEO_TRACK, true)) {
+      sequenceTrackTypesBuilder.add(C.TRACK_TYPE_VIDEO);
+    }
     EditedMediaItemSequence.Builder editedMediaItemSequenceBuilder =
-        new EditedMediaItemSequence.Builder(ImmutableSet.of(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO))
+        new EditedMediaItemSequence.Builder(sequenceTrackTypesBuilder.build())
             .addItem(editedMediaItemBuilder.build());
 
     Composition.Builder compositionBuilder =
@@ -767,7 +793,17 @@ public final class TransformerActivity extends AppCompatActivity {
     exportStopwatch.stop();
     long elapsedTimeMs = exportStopwatch.elapsed(TimeUnit.MILLISECONDS);
     informationTextView.setText(
-        getString(R.string.export_completed, elapsedTimeMs / 1000.f, filePath));
+        getString(R.string.export_completed, elapsedTimeMs / 1000f, filePath));
+    if (exportResult.approximateDurationMs > 0 && exportResult.videoFrameCount > 0) {
+      informationTextView.append("\n");
+      // This calculates the average frame rate of the exported video (e.g. 30fps),
+      // which is useful for verifying frame rate changes during export.
+      // It does not represent the processing/export throughput.
+      informationTextView.append(
+          getString(
+              R.string.average_fps,
+              exportResult.videoFrameCount * 1000f / exportResult.approximateDurationMs));
+    }
     progressViewGroup.setVisibility(View.GONE);
     debugFrame.removeAllViews();
     inputCardView.setVisibility(View.VISIBLE);
@@ -778,7 +814,7 @@ public final class TransformerActivity extends AppCompatActivity {
     Log.d(TAG, DebugTraceUtil.generateTraceSummary());
     File file = new File(getExternalFilesDir(null), "trace.tsv");
     try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-      DebugTraceUtil.dumpTsv(writer);
+      writer.write(DebugTraceUtil.generateTraceSummary());
       Log.d(TAG, file.getAbsolutePath());
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -932,6 +968,14 @@ public final class TransformerActivity extends AppCompatActivity {
       oldOutputFile.delete();
     }
     oldOutputFile = outputFile;
+  }
+
+  @OptIn(markerClass = androidx.media3.common.util.ExperimentalApi.class)
+  private static OverlaySettings getOverlaySettings(HardwareBufferFrame frame) {
+    CompositionFrameMetadata metadata =
+        checkNotNull((CompositionFrameMetadata) frame.getMetadata());
+    return metadata.composition.videoCompositorSettings.getOverlaySettings(
+        metadata.sequenceIndex, frame.presentationTimeUs);
   }
 
   private boolean isUsingMediaProjection() {

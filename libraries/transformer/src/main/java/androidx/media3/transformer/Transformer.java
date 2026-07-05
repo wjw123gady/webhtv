@@ -37,7 +37,6 @@ import androidx.media3.common.Effect;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.MimeTypes;
-import androidx.media3.common.SurfaceInfo;
 import androidx.media3.common.VideoFrameProcessor;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.ChannelMixingAudioProcessor;
@@ -50,10 +49,12 @@ import androidx.media3.common.util.HandlerWrapper;
 import androidx.media3.common.util.ListenerSet;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
+import androidx.media3.common.video.FrameProcessor;
 import androidx.media3.effect.DebugTraceUtil;
 import androidx.media3.effect.DefaultVideoFrameProcessor;
 import androidx.media3.effect.HardwareBufferFrame;
 import androidx.media3.effect.HardwareBufferFrameQueue;
+import androidx.media3.effect.HardwareBufferJniWrapper;
 import androidx.media3.effect.RenderingPacketConsumer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.muxer.Muxer;
@@ -130,7 +131,8 @@ public final class Transformer {
     private RenderingPacketConsumer<ImmutableList<HardwareBufferFrame>, HardwareBufferFrameQueue>
         packetProcessor;
 
-    @Nullable private RenderingPacketConsumer<HardwareBufferFrame, SurfaceInfo> packetRenderer;
+    @Nullable private HardwareBufferJniWrapper hardwareBufferJniWrapper;
+    @Nullable private FrameProcessor.Factory frameProcessorFactory;
 
     /**
      * Creates a builder with default values.
@@ -187,7 +189,8 @@ public final class Transformer {
       this.clock = transformer.clock;
       this.metricsReporterFactory = transformer.metricsReporterFactory;
       this.packetProcessor = transformer.packetProcessor;
-      this.packetRenderer = transformer.packetRenderer;
+      this.hardwareBufferJniWrapper = transformer.hardwareBufferJniWrapper;
+      this.frameProcessorFactory = transformer.frameProcessorFactory;
     }
 
     /**
@@ -339,38 +342,38 @@ public final class Transformer {
     }
 
     /**
-     * Sets the {@link RenderingPacketConsumer} used to render {@link HardwareBufferFrame}s to the
-     * encoder.
-     *
-     * <p>This parameter has no effect when transmuxing video, or when processing audio.
+     * Sets the {@link HardwareBufferJniWrapper} used to provide native helpers.
      *
      * <p>This method is experimental and will be renamed or removed in a future release.
      *
-     * <p>If using this method, {@link #setHardwareBufferEffectsPipeline} must also be set. Do not
-     * {@linkplain #setVideoFrameProcessorFactory set} a {@link VideoFrameProcessor.Factory}.
+     * <p>This will only be used if {@link #setHardwareBufferEffectsPipeline} is set.
      *
-     * @param packetRenderer The {@link RenderingPacketConsumer} to render frames output from the
-     *     {@linkplain #setHardwareBufferEffectsPipeline effects pipeline} to the encoder's input
-     *     {@link android.view.Surface}.
+     * @param hardwareBufferJniWrapper The {@link HardwareBufferJniWrapper} to provide native
+     *     helpers.
      * @return This builder.
      */
     @CanIgnoreReturnValue
     @ExperimentalApi // TODO: b/449956776 - Remove once FrameConsumer API is finalized.
-    public Builder setHardwareBufferRenderer(
-        RenderingPacketConsumer<HardwareBufferFrame, SurfaceInfo> packetRenderer) {
-      this.packetRenderer = packetRenderer;
+    public Builder setNativeHardwareBufferHelpers(
+        HardwareBufferJniWrapper hardwareBufferJniWrapper) {
+      this.hardwareBufferJniWrapper = hardwareBufferJniWrapper;
       return this;
     }
 
     /**
      * Sets the {@link RenderingPacketConsumer} used to process {@link HardwareBufferFrame}s.
      *
-     * <p>This parameter has no effect when transmuxing video, or when processing audio.
+     * <p>Setting this parameter forces video transcoding. It has no effect on audio processing.
      *
      * <p>This method is experimental and will be renamed or removed in a future release.
      *
-     * <p>If using this method, {@link #setHardwareBufferRenderer} must also be set. Do not
-     * {@linkplain #setVideoFrameProcessorFactory set} a {@link VideoFrameProcessor.Factory}.
+     * <p>If using this method, do not {@linkplain #setVideoFrameProcessorFactory set} a {@link
+     * VideoFrameProcessor.Factory}.
+     *
+     * <p>For multi-sequence compositions, the index of a frame in the aggregated {@link
+     * HardwareBufferFrame} list is not guaranteed to correspond to its originating sequence's
+     * index. An input sequence that has finished outputting frames will no longer contribute to the
+     * aggregated packet.
      *
      * @param packetProcessor The {@link RenderingPacketConsumer} to process frames.
      * @return This builder.
@@ -381,6 +384,20 @@ public final class Transformer {
         RenderingPacketConsumer<ImmutableList<HardwareBufferFrame>, HardwareBufferFrameQueue>
             packetProcessor) {
       this.packetProcessor = packetProcessor;
+      return this;
+    }
+
+    /**
+     * Sets the {@link FrameProcessor.Factory} to be used to create {@link FrameProcessor}
+     * instances.
+     *
+     * @param frameProcessorFactory The {@link FrameProcessor.Factory}.
+     * @return This builder.
+     */
+    @CanIgnoreReturnValue
+    @ExperimentalApi // TODO: b/449956776 - Remove once FrameConsumer API is finalized.
+    public Builder setFrameProcessorFactory(FrameProcessor.Factory frameProcessorFactory) {
+      this.frameProcessorFactory = frameProcessorFactory;
       return this;
     }
 
@@ -692,7 +709,7 @@ public final class Transformer {
           "Muxer.Factory %s does not support writing negative timestamps to an edit list.",
           muxerFactory);
       if (packetProcessor != null) {
-        checkState(packetRenderer != null || SDK_INT >= 33);
+        checkState(hardwareBufferJniWrapper != null || SDK_INT >= 33);
       }
       return new Transformer(
           context,
@@ -719,7 +736,8 @@ public final class Transformer {
           clock,
           metricsReporterFactory,
           packetProcessor,
-          packetRenderer);
+          hardwareBufferJniWrapper,
+          frameProcessorFactory);
     }
 
     private void checkSampleMimeType(String sampleMimeType) {
@@ -848,7 +866,8 @@ public final class Transformer {
           ImmutableList<HardwareBufferFrame>, HardwareBufferFrameQueue>
       packetProcessor;
 
-  @Nullable private final RenderingPacketConsumer<HardwareBufferFrame, SurfaceInfo> packetRenderer;
+  @Nullable private final HardwareBufferJniWrapper hardwareBufferJniWrapper;
+  @Nullable private final FrameProcessor.Factory frameProcessorFactory;
 
   @Nullable private ExportOperation currentExportOperation;
   private boolean exportResumed;
@@ -886,7 +905,8 @@ public final class Transformer {
       @Nullable
           RenderingPacketConsumer<ImmutableList<HardwareBufferFrame>, HardwareBufferFrameQueue>
               packetProcessor,
-      @Nullable RenderingPacketConsumer<HardwareBufferFrame, SurfaceInfo> packetRenderer) {
+      @Nullable HardwareBufferJniWrapper hardwareBufferJniWrapper,
+      @Nullable FrameProcessor.Factory frameProcessorFactory) {
     checkState(!removeAudio || !removeVideo, "Audio and video cannot both be removed.");
     this.context = context;
     this.transformationRequest = transformationRequest;
@@ -911,7 +931,8 @@ public final class Transformer {
     this.debugViewProvider = debugViewProvider;
     this.clock = clock;
     this.packetProcessor = packetProcessor;
-    this.packetRenderer = packetRenderer;
+    this.hardwareBufferJniWrapper = hardwareBufferJniWrapper;
+    this.frameProcessorFactory = frameProcessorFactory;
     this.metricsReporterFactory = metricsReporterFactory;
     applicationHandler = clock.createHandler(looper, /* callback= */ null);
     exportOperationListener = new ExportOperationListener();
@@ -1240,7 +1261,9 @@ public final class Transformer {
     // SpeedChangingAudioProcessor does not need to adjust them.
     preProcessors.add(
         new SpeedChangingAudioProcessor(
-            item.speedProvider, /* areInputTimestampsAdjusted= */ true));
+            item.speedProvider,
+            /* areInputTimestampsAdjusted= */ true,
+            item.speedParameters.shouldMaintainPitch));
     return item.buildUpon().setPreProcessingAudioProcessors(preProcessors).build();
   }
 
@@ -1354,8 +1377,8 @@ public final class Transformer {
               applicationHandler,
               debugViewProvider,
               clock,
-              packetProcessor,
-              packetRenderer,
+              getFrameProcessorFactory(),
+              hardwareBufferJniWrapper,
               logSessionId,
               shouldApplyMp4EditListTrim(),
               muxerFactory,
@@ -1378,8 +1401,8 @@ public final class Transformer {
               applicationHandler,
               debugViewProvider,
               clock,
-              packetProcessor,
-              packetRenderer,
+              getFrameProcessorFactory(),
+              hardwareBufferJniWrapper,
               logSessionId,
               shouldApplyMp4EditListTrim(),
               muxerFactory,
@@ -1401,8 +1424,8 @@ public final class Transformer {
               applicationHandler,
               debugViewProvider,
               clock,
-              packetProcessor,
-              packetRenderer,
+              getFrameProcessorFactory(),
+              hardwareBufferJniWrapper,
               logSessionId,
               shouldApplyMp4EditListTrim(),
               muxerFactory,
@@ -1510,5 +1533,27 @@ public final class Transformer {
         checkState(maxDelayBetweenMuxerSamplesMs == C.TIME_UNSET);
       }
     }
+  }
+
+  @Nullable
+  private FrameProcessor.Factory getFrameProcessorFactory() {
+    FrameProcessor.Factory factory = frameProcessorFactory;
+    RenderingPacketConsumer<ImmutableList<HardwareBufferFrame>, HardwareBufferFrameQueue>
+        localPacketProcessor = packetProcessor;
+    if (factory == null && localPacketProcessor != null) {
+      if (SDK_INT >= 26) {
+        factory =
+            (output, listenerExecutor, listener) -> {
+              HardwareBufferFrameQueue adaptedQueue =
+                  new FrameWriterToHardwareBufferFrameQueueAdapter(output);
+              localPacketProcessor.setRenderOutput(adaptedQueue);
+              return new PacketConsumerToFrameProcessorAdapter(
+                  localPacketProcessor, listenerExecutor, listener);
+            };
+      } else {
+        throw new IllegalStateException("API 26+ required to use PacketProcessor in Transformer");
+      }
+    }
+    return factory;
   }
 }

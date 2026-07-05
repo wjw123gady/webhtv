@@ -39,6 +39,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.Timeline;
+import androidx.media3.common.Timeline.Period;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.TransferListener;
 import androidx.media3.exoplayer.analytics.PlayerId;
@@ -51,6 +52,7 @@ import androidx.media3.exoplayer.source.MediaSource.MediaSourceCaller;
 import androidx.media3.exoplayer.source.SinglePeriodTimeline;
 import androidx.media3.exoplayer.source.ads.AdsLoader.EventListener;
 import androidx.media3.exoplayer.upstream.Allocator;
+import androidx.media3.exoplayer.upstream.BandwidthMeter;
 import androidx.media3.test.utils.FakeMediaSource;
 import androidx.media3.test.utils.FakeTimeline;
 import androidx.media3.test.utils.TestUtil;
@@ -152,8 +154,7 @@ public final class AdsMediaSourceTest {
             mockAdViewProvider,
             /* useLazyContentSourcePreparation= */ true,
             /* useAdMediaSourceClipping= */ false);
-    adsMediaSource.prepareSource(
-        mockMediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+    adsMediaSource.prepareSource(mockMediaSourceCaller, PlayerId.UNSET, BandwidthMeter.NO_OP);
     shadowOf(Looper.getMainLooper()).idle();
     verify(mockAdsLoader)
         .start(
@@ -189,7 +190,7 @@ public final class AdsMediaSourceTest {
     verify(mockMediaSourceCaller)
         .onSourceInfoRefreshed(
             adsMediaSource,
-            new SinglePeriodAdTimeline(PLACEHOLDER_CONTENT_TIMELINE, PREROLL_AD_PLAYBACK_STATE));
+            new AdTimeline(PLACEHOLDER_CONTENT_TIMELINE, PREROLL_AD_PLAYBACK_STATE));
   }
 
   @Test
@@ -212,7 +213,7 @@ public final class AdsMediaSourceTest {
     verify(mockMediaSourceCaller)
         .onSourceInfoRefreshed(
             adsMediaSource,
-            new SinglePeriodAdTimeline(
+            new AdTimeline(
                 PLACEHOLDER_CONTENT_TIMELINE,
                 PREROLL_AD_PLAYBACK_STATE.withAdDurationsUs(
                     new long[][] {{PREROLL_AD_DURATION_US}})));
@@ -253,8 +254,7 @@ public final class AdsMediaSourceTest {
     verify(mockMediaSourceCaller, times(2))
         .onSourceInfoRefreshed(eq(adsMediaSource), adsTimelineCaptor.capture());
     TestUtil.timelinesAreSame(
-        adsTimelineCaptor.getValue(),
-        new SinglePeriodAdTimeline(CONTENT_TIMELINE, PREROLL_AD_PLAYBACK_STATE));
+        adsTimelineCaptor.getValue(), new AdTimeline(CONTENT_TIMELINE, PREROLL_AD_PLAYBACK_STATE));
   }
 
   @Test
@@ -340,8 +340,8 @@ public final class AdsMediaSourceTest {
     mediaSource.updateMediaItem(updatedMediaItem);
     mediaSource.prepareSource(
         (source, timeline) -> timelineReference.set(timeline),
-        /* mediaTransferListener= */ null,
-        PlayerId.UNSET);
+        PlayerId.UNSET,
+        BandwidthMeter.NO_OP);
     RobolectricUtil.runMainLooperUntil(() -> timelineReference.get() != null);
 
     assertThat(
@@ -451,8 +451,7 @@ public final class AdsMediaSourceTest {
         };
 
     // Prepare the source which must not notify the caller with a timeline yet.
-    adsMediaSource.prepareSource(
-        fakeMediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+    adsMediaSource.prepareSource(fakeMediaSourceCaller, PlayerId.UNSET, BandwidthMeter.NO_OP);
     shadowOf(Looper.getMainLooper()).idle();
 
     // Verify ads loader was called with the content timeline to allow populating the ads.
@@ -629,8 +628,7 @@ public final class AdsMediaSourceTest {
         };
 
     // Prepare the source that must not result in an external timeline without ad data.
-    adsMediaSource.prepareSource(
-        fakeMediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+    adsMediaSource.prepareSource(fakeMediaSourceCaller, PlayerId.UNSET, BandwidthMeter.NO_OP);
     shadowOf(Looper.getMainLooper()).idle();
 
     // External caller not yet notified.
@@ -944,6 +942,154 @@ public final class AdsMediaSourceTest {
   }
 
   @Test
+  public void onAdPlaybackState_mediaItemChangedForAvailableAd_throwsIllegalStateException() {
+    AdPlaybackState adPlaybackState =
+        new AdPlaybackState("adsId")
+            .withNewAdGroup(/* adGroupIndex= */ 0, /* adGroupTimeUs= */ 0L)
+            .withAdCount(/* adGroupIndex= */ 0, /* adCount= */ 1)
+            .withAdDurationsUs(/* adGroupIndex= */ 0, 1_000L)
+            .withContentResumeOffsetUs(/* adGroupIndex= */ 0, 1_000L)
+            .withAvailableAdMediaItem(
+                /* adGroupIndex= */ 0,
+                /* adIndexInAdGroup= */ 0,
+                MediaItem.fromUri("https://example.com/ad0-0"));
+    setAdPlaybackState(adPlaybackState);
+
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            setAdPlaybackState(
+                adPlaybackState.withAvailableAdMediaItem(
+                    /* adGroupIndex= */ 0,
+                    /* adIndexInAdGroup= */ 0,
+                    MediaItem.fromUri("https://example.com/ad0-1"))));
+  }
+
+  @Test
+  public void onAdPlaybackState_mediaItemChangedForPlayedAd_passesValidationWithoutException() {
+    AdPlaybackState adPlaybackStateWithPlayedAd =
+        new AdPlaybackState("adsId")
+            .withNewAdGroup(/* adGroupIndex= */ 0, /* adGroupTimeUs= */ 0L)
+            .withAdCount(/* adGroupIndex= */ 0, /* adCount= */ 1)
+            .withContentResumeOffsetUs(/* adGroupIndex= */ 0, 1_000L)
+            .withAvailableAdMediaItem(
+                /* adGroupIndex= */ 0,
+                /* adIndexInAdGroup= */ 0,
+                MediaItem.fromUri("https://example.com/ad0-0"))
+            .withPlayedAd(/* adGroupIndex= */ 0, /* adIndexInAdGroup= */ 0);
+
+    assertUpdatingAdPlaybackStateWithDifferentMediaItem(adPlaybackStateWithPlayedAd);
+  }
+
+  @Test
+  public void onAdPlaybackState_mediaItemChangedForSkippedAd_passesValidationWithoutException() {
+    AdPlaybackState adPlaybackStateWithSkippedAd =
+        new AdPlaybackState("adsId")
+            .withNewAdGroup(/* adGroupIndex= */ 0, /* adGroupTimeUs= */ 0L)
+            .withAdCount(/* adGroupIndex= */ 0, /* adCount= */ 1)
+            .withContentResumeOffsetUs(/* adGroupIndex= */ 0, 1_000L)
+            .withAvailableAdMediaItem(
+                /* adGroupIndex= */ 0,
+                /* adIndexInAdGroup= */ 0,
+                MediaItem.fromUri("https://example.com/ad0-0"))
+            .withSkippedAd(/* adGroupIndex= */ 0, /* adIndexInAdGroup= */ 0);
+
+    assertUpdatingAdPlaybackStateWithDifferentMediaItem(adPlaybackStateWithSkippedAd);
+  }
+
+  @Test
+  public void onAdPlaybackState_mediaItemChangedForFailedAd_passesValidationWithoutException() {
+    AdPlaybackState adPlaybackStateWithFailedAd =
+        new AdPlaybackState("adsId")
+            .withNewAdGroup(/* adGroupIndex= */ 0, /* adGroupTimeUs= */ 0L)
+            .withAdCount(/* adGroupIndex= */ 0, /* adCount= */ 1)
+            .withContentResumeOffsetUs(/* adGroupIndex= */ 0, 1_000L)
+            .withAvailableAdMediaItem(
+                /* adGroupIndex= */ 0,
+                /* adIndexInAdGroup= */ 0,
+                MediaItem.fromUri("https://example.com/ad0-0"))
+            .withAdLoadError(/* adGroupIndex= */ 0, /* adIndexInAdGroup= */ 0);
+
+    assertUpdatingAdPlaybackStateWithDifferentMediaItem(adPlaybackStateWithFailedAd);
+  }
+
+  @Test
+  public void
+      onAdPlaybackState_adGroupCountShrinksForFullyProcessedAdGroup_passesValidationWithoutException() {
+    AdPlaybackState initialAdPlaybackState =
+        new AdPlaybackState("adsId")
+            .withNewAdGroup(/* adGroupIndex= */ 0, /* adGroupTimeUs= */ 0L)
+            .withAdCount(/* adGroupIndex= */ 0, /* adCount= */ 3)
+            .withContentResumeOffsetUs(/* adGroupIndex= */ 0, 1_000L)
+            .withAvailableAdMediaItem(0, 0, MediaItem.fromUri("https://example.com/ad0-0"))
+            .withAvailableAdMediaItem(0, 1, MediaItem.fromUri("https://example.com/ad0-1"))
+            .withAvailableAdMediaItem(0, 2, MediaItem.fromUri("https://example.com/ad0-2"))
+            .withPlayedAd(0, 0)
+            .withSkippedAd(0, 1)
+            .withAdLoadError(0, 2);
+    setAdPlaybackState(initialAdPlaybackState);
+    // Shrink ad count from 3 to 1, resetting to unavailable.
+    AdPlaybackState shrunkenAdPlaybackState =
+        initialAdPlaybackState
+            .withRemovedAdsAfterIndex(/* adGroupIndex= */ 0, /* adIndexInAdGroup= */ 0)
+            .withUnavailableAdGroup(/* adGroupIndex= */ 0);
+
+    setAdPlaybackState(shrunkenAdPlaybackState);
+
+    ArgumentCaptor<Timeline> timeline = ArgumentCaptor.forClass(Timeline.class);
+    verify(mockMediaSourceCaller, times(2)).onSourceInfoRefreshed(any(), timeline.capture());
+    assertThat(
+            timeline.getAllValues().stream()
+                .map((t) -> t.getPeriod(/* periodIndex= */ 0, new Period()).adPlaybackState))
+        .containsExactly(initialAdPlaybackState, shrunkenAdPlaybackState)
+        .inOrder();
+  }
+
+  @Test
+  public void
+      onAdPlaybackState_adGroupCountShrinksForAdGroupWithPlayableAds_throwsIllegalStateException() {
+    AdPlaybackState initialAdPlaybackState =
+        new AdPlaybackState("adsId")
+            .withNewAdGroup(/* adGroupIndex= */ 0, /* adGroupTimeUs= */ 0L)
+            .withAdCount(/* adGroupIndex= */ 0, /* adCount= */ 3)
+            .withContentResumeOffsetUs(/* adGroupIndex= */ 0, 1_000L)
+            .withAvailableAdMediaItem(0, 0, MediaItem.fromUri("https://example.com/ad0-0"))
+            .withAvailableAdMediaItem(0, 1, MediaItem.fromUri("https://example.com/ad0-1"))
+            .withAvailableAdMediaItem(0, 2, MediaItem.fromUri("https://example.com/ad0-2"))
+            .withPlayedAd(0, 0)
+            .withSkippedAd(0, 1);
+    // Ad index 2 is still AD_STATE_AVAILABLE (playable).
+    setAdPlaybackState(initialAdPlaybackState);
+    // Attempt to shrink ad count from 3 to 1 while playable ads remain.
+    AdPlaybackState shrunkenAdPlaybackState =
+        initialAdPlaybackState
+            .withRemovedAdsAfterIndex(/* adGroupIndex= */ 0, /* adIndexInAdGroup= */ 0)
+            .withUnavailableAdGroup(/* adGroupIndex= */ 0);
+
+    assertThrows(IllegalStateException.class, () -> setAdPlaybackState(shrunkenAdPlaybackState));
+  }
+
+  private void assertUpdatingAdPlaybackStateWithDifferentMediaItem(
+      AdPlaybackState initialAdPlaybackState) {
+    setAdPlaybackState(initialAdPlaybackState);
+    AdPlaybackState adPlaybackStateWithDifferentMediaItem =
+        initialAdPlaybackState.withAvailableAdMediaItem(
+            /* adGroupIndex= */ 0,
+            /* adIndexInAdGroup= */ 0,
+            MediaItem.fromUri("https://example.com/ad0-new"));
+
+    setAdPlaybackState(adPlaybackStateWithDifferentMediaItem);
+
+    ArgumentCaptor<Timeline> timeline = ArgumentCaptor.forClass(Timeline.class);
+    verify(mockMediaSourceCaller, times(2)).onSourceInfoRefreshed(any(), timeline.capture());
+    assertThat(
+            timeline.getAllValues().stream()
+                .map((t) -> t.getPeriod(/* periodIndex= */ 0, new Period()).adPlaybackState))
+        .containsExactly(initialAdPlaybackState, adPlaybackStateWithDifferentMediaItem)
+        .inOrder();
+  }
+
+  @Test
   public void onAdPlaybackState_withoutClipping_unsetDurationsOverriddenByActualSourceDuration() {
     AdViewProvider mockAdViewProvider = mock(AdViewProvider.class);
     MediaSource.Factory adMediaSourceFactory = mock(MediaSource.Factory.class);
@@ -961,8 +1107,7 @@ public final class AdsMediaSourceTest {
             mockAdViewProvider,
             /* useLazyContentSourcePreparation= */ false,
             /* useAdMediaSourceClipping= */ false);
-    adsMediaSource.prepareSource(
-        mockMediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+    adsMediaSource.prepareSource(mockMediaSourceCaller, PlayerId.UNSET, BandwidthMeter.NO_OP);
     shadowOf(Looper.getMainLooper()).idle();
     ArgumentCaptor<EventListener> eventListenerArgumentCaptor =
         ArgumentCaptor.forClass(AdsLoader.EventListener.class);
@@ -1064,8 +1209,7 @@ public final class AdsMediaSourceTest {
             mockAdViewProvider,
             /* useLazyContentSourcePreparation= */ false,
             /* useAdMediaSourceClipping= */ false);
-    adsMediaSource.prepareSource(
-        mockMediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+    adsMediaSource.prepareSource(mockMediaSourceCaller, PlayerId.UNSET, BandwidthMeter.NO_OP);
     shadowOf(Looper.getMainLooper()).idle();
     ArgumentCaptor<EventListener> eventListenerArgumentCaptor =
         ArgumentCaptor.forClass(AdsLoader.EventListener.class);
@@ -1132,8 +1276,7 @@ public final class AdsMediaSourceTest {
             mockAdViewProvider,
             /* useLazyContentSourcePreparation= */ false,
             /* useAdMediaSourceClipping= */ true);
-    adsMediaSource.prepareSource(
-        mockMediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+    adsMediaSource.prepareSource(mockMediaSourceCaller, PlayerId.UNSET, BandwidthMeter.NO_OP);
     shadowOf(Looper.getMainLooper()).idle();
     ArgumentCaptor<EventListener> eventListenerArgumentCaptor =
         ArgumentCaptor.forClass(AdsLoader.EventListener.class);

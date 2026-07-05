@@ -264,7 +264,8 @@ public final class HlsMediaPeriodTest {
         muxedCaptionFormats,
         /* hasIndependentSegments= */ true,
         /* variableDefinitions= */ Collections.emptyMap(),
-        /* sessionKeyDrmInitData= */ Collections.emptyList());
+        /* sessionKeyDrmInitData= */ Collections.emptyList(),
+        /* contentSteeringInfo= */ null);
   }
 
   private static Variant createMuxedVideoAudioVariant(Uri url, int peakBitrate) {
@@ -348,15 +349,20 @@ public final class HlsMediaPeriodTest {
   private static void setupPlaylistTracker(
       @Mock HlsPlaylistTracker mockPlaylistTracker, HlsMultivariantPlaylist multivariantPlaylist) {
     when(mockPlaylistTracker.getMultivariantPlaylist()).thenReturn(multivariantPlaylist);
+    HlsRedundantGroup.Factory redundantGroupFactory =
+        new HlsRedundantGroup.Factory(multivariantPlaylist);
     try {
       ImmutableList<HlsRedundantGroup> variantRedundantGroups =
-          HlsRedundantGroup.createVariantRedundantGroupList(multivariantPlaylist.variants);
+          redundantGroupFactory.createVariantRedundantGroupList();
       ImmutableList<HlsRedundantGroup> videoRedundantGroups =
-          HlsRedundantGroup.createRenditionRedundantGroupList(multivariantPlaylist.videos);
+          redundantGroupFactory.createRenditionRedundantGroupList(
+              HlsRedundantGroup.VIDEO_RENDITION);
       ImmutableList<HlsRedundantGroup> audioRedundantGroups =
-          HlsRedundantGroup.createRenditionRedundantGroupList(multivariantPlaylist.audios);
+          redundantGroupFactory.createRenditionRedundantGroupList(
+              HlsRedundantGroup.AUDIO_RENDITION);
       ImmutableList<HlsRedundantGroup> subtitleRedundantGroups =
-          HlsRedundantGroup.createRenditionRedundantGroupList(multivariantPlaylist.subtitles);
+          redundantGroupFactory.createRenditionRedundantGroupList(
+              HlsRedundantGroup.SUBTITLE_RENDITION);
       for (HlsRedundantGroup redundantGroup : variantRedundantGroups) {
         for (Uri url : redundantGroup.getAllPlaylistUrls()) {
           when(mockPlaylistTracker.getRedundantGroup(url)).thenReturn(redundantGroup);

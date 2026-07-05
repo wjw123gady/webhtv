@@ -16,15 +16,18 @@
 package androidx.media3.transformer;
 
 import androidx.media3.common.util.ExperimentalApi;
-import androidx.media3.effect.Frame;
+import androidx.media3.effect.HardwareBufferFrame;
 
 /**
- * Metadata included on {@link Frame}s in {@link CompositionPlayer}.
+ * Metadata included on {@link HardwareBufferFrame}s in {@link CompositionPlayer}.
  *
  * <p>Applications can extend this class to add custom metadata.
  */
 @ExperimentalApi // TODO: b/470355043 - Publish CompositionPlayer.
-public class CompositionFrameMetadata implements Frame.Metadata {
+public class CompositionFrameMetadata implements HardwareBufferFrame.Metadata {
+
+  /** Metadata key for storing the composition frame metadata. */
+  public static final String KEY_COMPOSITION_FRAME_METADATA = "KEY_COMPOSITION_FRAME_METADATA";
 
   /** The {@link Composition} that this frame belongs to. */
   public final Composition composition;

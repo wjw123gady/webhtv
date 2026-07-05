@@ -107,6 +107,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
  *
  * <p>Methods should be called on the application's main thread.
  */
+@SuppressWarnings("nullness") // TODO: b/78934030 - Add missing nullness checks to this class.
 @UnstableApi
 public final class RemoteCastPlayer extends BasePlayer {
 
@@ -1123,7 +1124,7 @@ public final class RemoteCastPlayer extends BasePlayer {
   }
 
   /**
-   * @deprecated Use {@link #decreaseDeviceVolume(int)} (int)} instead.
+   * @deprecated Use {@link #decreaseDeviceVolume(int)} instead.
    */
   @InlineMe(replacement = "this.decreaseDeviceVolume(0)")
   @Deprecated

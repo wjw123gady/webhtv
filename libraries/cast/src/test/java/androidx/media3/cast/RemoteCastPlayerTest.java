@@ -203,7 +203,7 @@ public class RemoteCastPlayerTest {
     remoteCastPlayer =
         new RemoteCastPlayer(
             /* context= */ null,
-            Cast.getSingletonInstance().sideloadCastContext(mockCastContext),
+            Cast.getSingletonInstance(mockCastContext),
             mediaItemConverter,
             spyTrackSelector,
             C.DEFAULT_SEEK_BACK_INCREMENT_MS,
@@ -461,7 +461,7 @@ public class RemoteCastPlayerTest {
         .thenReturn(mockPendingResult);
     PlaybackParameters playbackParameters = new PlaybackParameters(/* speed= */ 1.234f);
 
-    // Change the playback speed and and capture the result callback.
+    // Change the playback speed and capture the result callback.
     remoteCastPlayer.setPlaybackParameters(playbackParameters);
     verify(mockPendingResult).setResultCallback(setResultCallbackArgumentCaptor.capture());
     verify(mockListener).onPlaybackParametersChanged(new PlaybackParameters(/* speed= */ 1.234f));
@@ -1645,6 +1645,7 @@ public class RemoteCastPlayerTest {
   }
 
   @Test
+  @SuppressWarnings("deprecation") // Deprecated volume commands.
   public void isCommandAvailable_isTrueForAvailableCommands() {
     int[] mediaQueueItemIds = new int[] {1, 2};
     List<MediaItem> mediaItems = createMediaItems(mediaQueueItemIds);
@@ -1685,6 +1686,7 @@ public class RemoteCastPlayerTest {
   }
 
   @Test
+  @SuppressWarnings("deprecation") // Deprecated volume commands.
   public void isCommandAvailable_setVolumeIsSupported() {
     when(mockMediaStatus.isMediaCommandSupported(MediaStatus.COMMAND_SET_VOLUME)).thenReturn(true);
 
@@ -2396,7 +2398,7 @@ public class RemoteCastPlayerTest {
     RemoteCastPlayer remoteCastPlayerWithTrackSelector =
         new RemoteCastPlayer(
             /* context= */ null,
-            Cast.getSingletonInstance().sideloadCastContext(mockCastContext),
+            Cast.getSingletonInstance(mockCastContext),
             mediaItemConverter,
             new CastTrackSelector() {
               @Override
@@ -2421,7 +2423,7 @@ public class RemoteCastPlayerTest {
     RemoteCastPlayer remoteCastPlayerWithoutTrackSelector =
         new RemoteCastPlayer(
             /* context= */ null,
-            Cast.getSingletonInstance().sideloadCastContext(mockCastContext),
+            Cast.getSingletonInstance(mockCastContext),
             mediaItemConverter,
             /* trackSelector= */ null,
             C.DEFAULT_SEEK_BACK_INCREMENT_MS,

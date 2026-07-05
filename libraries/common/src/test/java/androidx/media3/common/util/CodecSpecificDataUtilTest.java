@@ -16,6 +16,7 @@
 package androidx.media3.common.util;
 
 import static androidx.media3.common.util.CodecSpecificDataUtil.getCodecProfileAndLevel;
+import static androidx.media3.common.util.CodecSpecificDataUtil.getMediaCodecProfileAndLevel;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.media.MediaCodecInfo;
@@ -58,7 +59,7 @@ public class CodecSpecificDataUtilTest {
   public void getCodecProfileAndLevel_handlesH263CodecString() {
     assertCodecProfileAndLevelForCodecsString(
         MimeTypes.VIDEO_H263,
-        "s263.1.1",
+        "s263.0.10",
         MediaCodecInfo.CodecProfileLevel.H263ProfileBaseline,
         MediaCodecInfo.CodecProfileLevel.H263Level10);
   }
@@ -169,6 +170,17 @@ public class CodecSpecificDataUtilTest {
   }
 
   @Test
+  public void getMediaCodecProfileAndLevel_handlesAv1ProfileHigh() {
+    Format format =
+        new Format.Builder()
+            .setSampleMimeType(MimeTypes.VIDEO_AV1)
+            .setCodecs("av01.1.10M.8")
+            .build();
+
+    assertThat(getMediaCodecProfileAndLevel(format).isSupportableByMediaCodec()).isFalse();
+  }
+
+  @Test
   public void getCodecProfileAndLevel_handlesFullAv1CodecString() {
     // Example from https://aomediacodec.github.io/av1-isobmff/#codecsparam.
     assertCodecProfileAndLevelForCodecsString(
@@ -241,15 +253,6 @@ public class CodecSpecificDataUtilTest {
   }
 
   @Test
-  public void getCodecProfileAndLevel_handlesMvHevcCodecString() {
-    assertCodecProfileAndLevelForCodecsString(
-        MimeTypes.VIDEO_MV_HEVC,
-        "hvc1.6.40.L120.BF.80",
-        /* profile= */ 6,
-        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4);
-  }
-
-  @Test
   public void getCodecProfileAndLevel_handlesIamfCodecString_forSimpleProfileOpus() {
     assertCodecProfileAndLevelForCodecsString(
         MimeTypes.AUDIO_IAMF,
@@ -319,6 +322,16 @@ public class CodecSpecificDataUtilTest {
         "iamf.001.000.ipcm",
         MediaCodecInfo.CodecProfileLevel.IAMFProfileBasePcm,
         0);
+  }
+
+  @Test
+  public void getMediaCodecProfileAndLevel_mvHevcWithNoMatchingMediaCodecConstant_unsupportable() {
+    Format format =
+        new Format.Builder()
+            .setSampleMimeType(MimeTypes.VIDEO_MV_HEVC)
+            .setCodecs("hvc1.6.40.L120.BF.80")
+            .build();
+    assertThat(getMediaCodecProfileAndLevel(format).isSupportableByMediaCodec()).isFalse();
   }
 
   @Test

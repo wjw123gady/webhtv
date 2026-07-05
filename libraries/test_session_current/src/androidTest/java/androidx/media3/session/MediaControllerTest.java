@@ -26,6 +26,7 @@ import static androidx.media3.test.session.common.MediaSessionConstants.TEST_GET
 import static androidx.media3.test.session.common.MediaSessionConstants.TEST_GET_CUSTOM_LAYOUT;
 import static androidx.media3.test.session.common.MediaSessionConstants.TEST_GET_SESSION_ACTIVITY;
 import static androidx.media3.test.session.common.MediaSessionConstants.TEST_IS_SESSION_COMMAND_AVAILABLE;
+import static androidx.media3.test.session.common.MediaSessionConstants.TEST_SILENT_IPC_PARSING_FAILURE;
 import static androidx.media3.test.session.common.TestUtils.LONG_TIMEOUT_MS;
 import static androidx.media3.test.session.common.TestUtils.NO_RESPONSE_TIMEOUT_MS;
 import static androidx.media3.test.session.common.TestUtils.TIMEOUT_MS;
@@ -84,7 +85,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -2347,7 +2347,6 @@ public class MediaControllerTest {
   }
 
   @Test
-  @Ignore("flaky: b/398226223")
   public void getUnmuteVolume_returnsUnmuteVolumeOfPlayerInSession_roundTrip() throws Exception {
     float testVolume = .5f;
 
@@ -2357,12 +2356,13 @@ public class MediaControllerTest {
 
     MediaController controller = controllerTestRule.createController(remoteSession.getToken());
     threadTestRule.getHandler().postAndSync(controller::mute);
-    float volume = threadTestRule.getHandler().postAndSync(controller::getVolume);
-    assertThat(volume).isEqualTo(0);
+    PollingCheck.waitFor(
+        TIMEOUT_MS, () -> threadTestRule.getHandler().postAndSync(controller::getVolume) == 0f);
 
     threadTestRule.getHandler().postAndSync(controller::unmute);
-    volume = threadTestRule.getHandler().postAndSync(controller::getVolume);
-    assertThat(volume).isEqualTo(testVolume);
+    PollingCheck.waitFor(
+        TIMEOUT_MS,
+        () -> threadTestRule.getHandler().postAndSync(controller::getVolume) == testVolume);
   }
 
   @Test
@@ -3334,6 +3334,65 @@ public class MediaControllerTest {
         });
     session.setMediaButtonPreferences(ImmutableList.copyOf(mediaButtonPreferences));
     assertThat(latch.await(TIMEOUT_MS, MILLISECONDS)).isTrue();
+  }
+
+  @Test
+  public void getCurrentTimeline_silentIpcParsingFailure_recoversWithoutCrash() throws Exception {
+    RemoteMediaSession session =
+        createRemoteMediaSession(TEST_SILENT_IPC_PARSING_FAILURE, /* tokenExtras= */ null);
+    session.getMockPlayer().createAndSetFakeTimeline(/* windowCount= */ 19);
+    MediaController controller = controllerTestRule.createController(session.getToken());
+    PollingCheck.waitFor(
+        TIMEOUT_MS,
+        () -> {
+          try {
+            return threadTestRule
+                .getHandler()
+                .postAndSync(() -> controller.getCurrentTimeline().getWindowCount() == 19);
+          } catch (Exception e) {
+            return false;
+          }
+        });
+
+    session.getMockPlayer().createAndSetFakeTimeline(/* windowCount= */ 20);
+    // Sleep to prevent coalescing of the timeline update and the discontinuity on the session side.
+    Thread.sleep(NO_RESPONSE_TIMEOUT_MS);
+    int targetIndex = 19;
+    session.getMockPlayer().setCurrentMediaItemIndexAndPeriodIndex(targetIndex, targetIndex);
+    Player.PositionInfo oldPosition =
+        new Player.PositionInfo(
+            /* windowUid= */ null,
+            /* mediaItemIndex= */ 0,
+            /* mediaItem= */ null,
+            /* periodUid= */ null,
+            /* periodIndex= */ 0,
+            /* positionMs= */ 0,
+            /* contentPositionMs= */ 0,
+            /* adGroupIndex= */ C.INDEX_UNSET,
+            /* adIndexInAdGroup= */ C.INDEX_UNSET);
+    Player.PositionInfo newPosition =
+        new Player.PositionInfo(
+            /* windowUid= */ null,
+            /* mediaItemIndex= */ targetIndex,
+            /* mediaItem= */ null,
+            /* periodUid= */ null,
+            /* periodIndex= */ 0,
+            /* positionMs= */ 0,
+            /* contentPositionMs= */ 0,
+            /* adGroupIndex= */ C.INDEX_UNSET,
+            /* adIndexInAdGroup= */ C.INDEX_UNSET);
+    session
+        .getMockPlayer()
+        .notifyPositionDiscontinuity(oldPosition, newPosition, Player.DISCONTINUITY_REASON_SEEK);
+    // Sleep to verify no update (which would trigger a crash) propagates.
+    Thread.sleep(NO_RESPONSE_TIMEOUT_MS);
+
+    AtomicInteger timelineWindowCount = new AtomicInteger();
+    threadTestRule
+        .getHandler()
+        .postAndSync(
+            () -> timelineWindowCount.set(controller.getCurrentTimeline().getWindowCount()));
+    assertThat(timelineWindowCount.get()).isEqualTo(19);
   }
 
   private static CommandButton withBackForwardOverflowSlot(CommandButton button) {

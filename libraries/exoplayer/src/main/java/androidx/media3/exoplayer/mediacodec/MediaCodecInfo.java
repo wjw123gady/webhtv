@@ -49,8 +49,10 @@ import androidx.annotation.VisibleForTesting;
 import androidx.media3.common.C;
 import androidx.media3.common.ColorInfo;
 import androidx.media3.common.Format;
+import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.CodecSpecificDataUtil;
+import androidx.media3.common.util.CodecSpecificDataUtil.MediaCodecProfileAndLevel;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
@@ -316,8 +318,8 @@ public final class MediaCodecInfo {
 
   private boolean isCodecProfileAndLevelSupported(
       Context context, Format format, boolean checkPerformanceCapabilities) {
-    Pair<Integer, Integer> codecProfileAndLevel =
-        CodecSpecificDataUtil.getCodecProfileAndLevel(format);
+    MediaCodecProfileAndLevel codecProfileAndLevel =
+        CodecSpecificDataUtil.getMediaCodecProfileAndLevel(format);
     if (format.sampleMimeType != null && format.sampleMimeType.equals(MimeTypes.VIDEO_MV_HEVC)) {
       String normalizedCodecMimeType = MimeTypes.normalizeMimeType(codecMimeType);
       if (normalizedCodecMimeType.equals(MimeTypes.VIDEO_MV_HEVC)) {
@@ -335,8 +337,11 @@ public final class MediaCodecInfo {
       // If we don't know any better, we assume that the profile and level are supported.
       return true;
     }
-    int profile = codecProfileAndLevel.first;
-    int level = codecProfileAndLevel.second;
+    if (!codecProfileAndLevel.isSupportableByMediaCodec()) {
+      return false;
+    }
+    int profile = codecProfileAndLevel.getProfile();
+    int level = codecProfileAndLevel.getLevel();
     if (MimeTypes.VIDEO_DOLBY_VISION.equals(format.sampleMimeType)) {
       // If this codec is H.264, H.265 or AV1, we only support the Dolby Vision base layer and need
       // to map the Dolby Vision profile to the corresponding base layer profile. Also assume all
@@ -430,8 +435,11 @@ public final class MediaCodecInfo {
     if (isVideo) {
       return adaptive;
     } else {
-      Pair<Integer, Integer> profileLevel = CodecSpecificDataUtil.getCodecProfileAndLevel(format);
-      return profileLevel != null && profileLevel.first == CodecProfileLevel.AACObjectXHE;
+      MediaCodecProfileAndLevel profileLevel =
+          CodecSpecificDataUtil.getMediaCodecProfileAndLevel(format);
+      return profileLevel != null
+          && profileLevel.isSupportableByMediaCodec()
+          && profileLevel.getProfile() == CodecProfileLevel.AACObjectXHE;
     }
   }
 
@@ -970,6 +978,9 @@ public final class MediaCodecInfo {
    *     new format's configuration data.
    */
   private static boolean needsAdaptationReconfigureWorkaround(String name) {
+    if (!MediaLibraryInfo.enableWorkarounds()) {
+      return false;
+    }
     return Build.MODEL.startsWith("SM-T230") && "OMX.MARVELL.VIDEO.HW.CODA7542DECODER".equals(name);
   }
 
@@ -998,6 +1009,9 @@ public final class MediaCodecInfo {
    * @return Whether to enable the workaround.
    */
   private static boolean needsRotatedVerticalResolutionWorkaround(String name) {
+    if (!MediaLibraryInfo.enableWorkarounds()) {
+      return false;
+    }
     if ("OMX.MTK.VIDEO.DECODER.HEVC".equals(name) && "mcv5a".equals(Build.DEVICE)) {
       // See https://github.com/google/ExoPlayer/issues/6612.
       return false;
@@ -1010,6 +1024,9 @@ public final class MediaCodecInfo {
    * a device declares support for a profile it doesn't actually support.
    */
   private static boolean needsProfileExcludedWorkaround(String mimeType, int profile) {
+    if (!MediaLibraryInfo.enableWorkarounds()) {
+      return false;
+    }
     // See https://github.com/google/ExoPlayer/issues/3537
     return MimeTypes.VIDEO_H265.equals(mimeType)
         && CodecProfileLevel.HEVCProfileMain10 == profile
@@ -1018,10 +1035,20 @@ public final class MediaCodecInfo {
 
   /** Returns whether the device is known to have issues with the detached surface mode. */
   private static boolean needsDetachedSurfaceUnsupportedWorkaround() {
+    if (!MediaLibraryInfo.enableWorkarounds()) {
+      return false;
+    }
+    if (SDK_INT > 37) {
+      // After API 37, we assume that detached surface mode is supported and we don't apply the
+      // workaround. Devices should not declare support for FEATURE_DetachedSurface unless they
+      // actually support it.
+      return false;
+    }
     return Build.MANUFACTURER.equals("Xiaomi")
         || Build.MANUFACTURER.equals("OPPO")
         || Build.MANUFACTURER.equals("realme")
         || Build.MANUFACTURER.equals("motorola")
-        || Build.MANUFACTURER.equals("LENOVO");
+        || Build.MANUFACTURER.equals("LENOVO")
+        || Build.MANUFACTURER.equals("Fairphone");
   }
 }

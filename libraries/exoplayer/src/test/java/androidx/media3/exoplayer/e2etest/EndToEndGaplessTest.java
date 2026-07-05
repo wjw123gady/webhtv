@@ -40,6 +40,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowAudioTrack;
 import org.robolectric.shadows.ShadowMediaCodec;
 
@@ -70,6 +71,7 @@ public class EndToEndGaplessTest {
   }
 
   @Test
+  @Config(minSdk = 29) // AudioFormat.getFrameSizeInBytes is only available from API 29.
   public void testPlayback_twoIdenticalMp3Files() throws Exception {
     ExoPlayer player =
         new ExoPlayer.Builder(ApplicationProvider.getApplicationContext())

@@ -40,9 +40,11 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.robolectric.annotation.Config.NEWEST_SDK;
 
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.media.AudioFormat;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -50,6 +52,7 @@ import android.os.Looper;
 import android.util.SparseArray;
 import android.util.SparseLongArray;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.test.utils.TestUtil;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Bytes;
@@ -935,6 +938,7 @@ public class UtilTest {
   }
 
   @Test
+  @Config(sdk = NEWEST_SDK) // Too slow to run on all SDKs.
   public void sampleCountToDuration_thenDurationToSampleCount_returnsOriginalValue() {
     // Use co-prime increments, to maximise 'discord' between sampleCount and sampleRate.
     for (long originalSampleCount = 0; originalSampleCount < 100_000; originalSampleCount += 97) {
@@ -1214,7 +1218,6 @@ public class UtilTest {
   }
 
   @Test
-  @Config(sdk = Config.ALL_SDKS)
   public void normalizeLanguageCode_keepsUndefinedTagsUnchanged() {
     assertThat(Util.normalizeLanguageCode(null)).isNull();
     assertThat(Util.normalizeLanguageCode("")).isEmpty();
@@ -1223,7 +1226,6 @@ public class UtilTest {
   }
 
   @Test
-  @Config(sdk = Config.ALL_SDKS)
   public void normalizeLanguageCode_normalizesCodeToTwoLetterISOAndLowerCase_keepingAllSubtags() {
     assertThat(Util.normalizeLanguageCode("es")).isEqualTo("es");
     assertThat(Util.normalizeLanguageCode("spa")).isEqualTo("es");
@@ -1242,7 +1244,6 @@ public class UtilTest {
   }
 
   @Test
-  @Config(sdk = Config.ALL_SDKS)
   public void normalizeLanguageCode_iso6392BibliographicalAndTextualCodes_areNormalizedToSameTag() {
     // See https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes.
     assertThat(Util.normalizeLanguageCode("alb")).isEqualTo(Util.normalizeLanguageCode("sqi"));
@@ -1269,7 +1270,6 @@ public class UtilTest {
   }
 
   @Test
-  @Config(sdk = Config.ALL_SDKS)
   public void
       normalizeLanguageCode_deprecatedLanguageTagsAndModernReplacement_areNormalizedToSameTag() {
     // See https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes, "ISO 639:1988"
@@ -1307,7 +1307,6 @@ public class UtilTest {
   }
 
   @Test
-  @Config(sdk = Config.ALL_SDKS)
   public void normalizeLanguageCode_macrolanguageTags_areFullyMaintained() {
     // See https://en.wikipedia.org/wiki/ISO_639_macrolanguage
     assertThat(Util.normalizeLanguageCode("zh-cmn")).isEqualTo("zh-cmn");
@@ -1806,6 +1805,24 @@ public class UtilTest {
     assertThat(getInt24(buffer, 0)).isEqualTo(-1);
     assertThat(getInt24(buffer, 3)).isEqualTo(0x00123456);
     assertThat(getInt24(buffer, 6)).isEqualTo(0xFFFF0001);
+  }
+
+  @Test
+  public void getAudioTrackChannelConfig_withChannelMask_returnsChannelMask() {
+    Format format =
+        new Format.Builder()
+            .setChannelCount(6)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_5POINT1)
+            .build();
+
+    assertThat(Util.getAudioTrackChannelConfig(format)).isEqualTo(AudioFormat.CHANNEL_OUT_5POINT1);
+  }
+
+  @Test
+  public void getAudioTrackChannelConfig_withoutChannelMask_infersFromChannelCount() {
+    Format format = new Format.Builder().setChannelCount(6).build();
+
+    assertThat(Util.getAudioTrackChannelConfig(format)).isEqualTo(AudioFormat.CHANNEL_OUT_5POINT1);
   }
 
   private static void assertEscapeUnescapeFileName(String fileName, String escapedFileName) {

@@ -18,7 +18,7 @@ package androidx.media3.transformer;
 import static androidx.media3.common.Player.STATE_ENDED;
 import static androidx.media3.common.util.Util.isRunningOnEmulator;
 import static androidx.media3.test.utils.AssetInfo.JPG_SINGLE_PIXEL_ASSET;
-import static androidx.media3.test.utils.AssetInfo.MP4_ASSET;
+import static androidx.media3.test.utils.AssetInfo.MP4_ADVANCED_ASSET;
 import static androidx.media3.test.utils.AssetInfo.MP4_ASSET_WITH_INCREASING_TIMESTAMPS_320W_240H_5S;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.truth.Truth.assertThat;
@@ -62,12 +62,14 @@ import androidx.media3.common.util.Util;
 import androidx.media3.datasource.AssetDataSource;
 import androidx.media3.datasource.DataSourceUtil;
 import androidx.media3.datasource.DataSpec;
+import androidx.media3.effect.DefaultHardwareBufferEffectsPipeline;
 import androidx.media3.effect.DefaultVideoFrameProcessor;
 import androidx.media3.effect.GlEffect;
 import androidx.media3.effect.GlShaderProgram;
 import androidx.media3.effect.PassthroughShaderProgram;
-import androidx.media3.effect.ProcessAndRenderToSurfaceConsumer;
 import androidx.media3.effect.SingleInputVideoGraph;
+import androidx.media3.effect.ndk.HardwareBufferJni;
+import androidx.media3.effect.ndk.NdkCompositionPlayerBuilder;
 import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.audio.ForwardingAudioSink;
@@ -97,6 +99,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -157,8 +160,8 @@ public class CompositionPlayerTest {
               new Composition.Builder(
                       EditedMediaItemSequence.withAudioAndVideoFrom(
                           ImmutableList.of(
-                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-                                  .setDurationUs(MP4_ASSET.videoDurationUs)
+                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+                                  .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
                                   .build())))
                   .build());
           compositionPlayer.prepare();
@@ -178,8 +181,8 @@ public class CompositionPlayerTest {
               new Composition.Builder(
                       EditedMediaItemSequence.withAudioAndVideoFrom(
                           ImmutableList.of(
-                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-                                  .setDurationUs(MP4_ASSET.videoDurationUs)
+                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+                                  .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
                                   .build())))
                   .build());
           compositionPlayer.setVideoSurfaceView(surfaceView);
@@ -203,8 +206,8 @@ public class CompositionPlayerTest {
               new Composition.Builder(
                       EditedMediaItemSequence.withAudioAndVideoFrom(
                           ImmutableList.of(
-                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-                                  .setDurationUs(MP4_ASSET.videoDurationUs)
+                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+                                  .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
                                   .build())))
                   .build());
           compositionPlayer.prepare();
@@ -226,8 +229,8 @@ public class CompositionPlayerTest {
               new Composition.Builder(
                       EditedMediaItemSequence.withAudioAndVideoFrom(
                           ImmutableList.of(
-                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-                                  .setDurationUs(MP4_ASSET.videoDurationUs)
+                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+                                  .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
                                   .build())))
                   .build());
           compositionPlayer.setVideoSurfaceHolder(surfaceHolder);
@@ -303,8 +306,8 @@ public class CompositionPlayerTest {
               new Composition.Builder(
                       EditedMediaItemSequence.withAudioAndVideoFrom(
                           ImmutableList.of(
-                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-                                  .setDurationUs(MP4_ASSET.videoDurationUs)
+                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+                                  .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
                                   .build())))
                   .build());
           compositionPlayer.setVideoSurfaceHolder(surfaceHolder);
@@ -438,8 +441,8 @@ public class CompositionPlayerTest {
         Effects.createExperimentalSpeedChangingEffect(
             TestSpeedProvider.createWithStartTimes(new long[] {0}, new float[] {2f}));
     EditedMediaItem video =
-        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-            .setDurationUs(MP4_ASSET.videoDurationUs)
+        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+            .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
             .setEffects(
                 new Effects(ImmutableList.of(effects.first), ImmutableList.of(effects.second)))
             .build();
@@ -469,8 +472,8 @@ public class CompositionPlayerTest {
         Effects.createExperimentalSpeedChangingEffect(
             TestSpeedProvider.createWithStartTimes(new long[] {0}, new float[] {0.5f}));
     EditedMediaItem video =
-        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-            .setDurationUs(MP4_ASSET.videoDurationUs)
+        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+            .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
             .setEffects(
                 new Effects(ImmutableList.of(effects.first), ImmutableList.of(effects.second)))
             .build();
@@ -497,8 +500,8 @@ public class CompositionPlayerTest {
   public void setGlObjectsProvider_withFailingImplementation_throws() {
     PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
     EditedMediaItem video =
-        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-            .setDurationUs(MP4_ASSET.videoDurationUs)
+        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+            .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
             .build();
 
     instrumentation.runOnMainSync(
@@ -560,8 +563,8 @@ public class CompositionPlayerTest {
       throws Exception {
     PlayerTestListener playerTestListener = new PlayerTestListener(TEST_TIMEOUT_MS);
     EditedMediaItem video =
-        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-            .setDurationUs(MP4_ASSET.videoDurationUs)
+        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+            .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
             .build();
     instrumentation.runOnMainSync(
         () -> {
@@ -612,8 +615,8 @@ public class CompositionPlayerTest {
       throws Exception {
     PlayerTestListener playerTestListener = new PlayerTestListener(TEST_TIMEOUT_MS);
     EditedMediaItem video =
-        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-            .setDurationUs(MP4_ASSET.videoDurationUs)
+        new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+            .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
             .build();
     CountDownLatch blockingLatch = new CountDownLatch(1);
     instrumentation.runOnMainSync(
@@ -701,8 +704,8 @@ public class CompositionPlayerTest {
               new Composition.Builder(
                       EditedMediaItemSequence.withAudioAndVideoFrom(
                           ImmutableList.of(
-                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ASSET.uri))
-                                  .setDurationUs(MP4_ASSET.videoDurationUs)
+                              new EditedMediaItem.Builder(MediaItem.fromUri(MP4_ADVANCED_ASSET.uri))
+                                  .setDurationUs(MP4_ADVANCED_ASSET.videoDurationUs)
                                   .setEffects(
                                       new Effects(
                                           /* audioProcessors= */ ImmutableList.of(), effects))
@@ -715,6 +718,7 @@ public class CompositionPlayerTest {
     assertThat(frameQueuedLatch.await(TEST_TIMEOUT_MS, MILLISECONDS)).isTrue();
   }
 
+  @Ignore("TODO: b/489332361 - Reimplement mechanism to force frame drops.")
   @Test
   public void videoPlayback_dropsFrames() throws Exception {
     PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
@@ -771,6 +775,7 @@ public class CompositionPlayerTest {
     assertThat(droppedFramesCounter.get()).isGreaterThan(0);
   }
 
+  @Ignore("TODO: b/489332361 - Reimplement mechanism to force frame drops.")
   @Test
   public void videoPlayback_withoutLateThresholdToDropInputUs_dropsFrames() throws Exception {
     PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
@@ -829,21 +834,22 @@ public class CompositionPlayerTest {
   }
 
   @Test
-  @SdkSuppress(minSdkVersion = 34)
+  @SdkSuppress(minSdkVersion = 28)
   public void compositionPlayer_withPacketConsumer_outputsFrameBeforeEnding() throws Exception {
     PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
     Queue<Long> videoTimestamps = new ConcurrentLinkedQueue<>();
 
     instrumentation.runOnMainSync(
         () -> {
-          ProcessAndRenderToSurfaceConsumer.Factory packetConsumerFactory =
-              new ProcessAndRenderToSurfaceConsumer.Factory();
-          packetConsumerFactory.setOutput(surfaceView.getHolder(), surfaceView::post);
+          DefaultHardwareBufferEffectsPipeline packetProcessor =
+              DefaultHardwareBufferEffectsPipeline.create(
+                  applicationContext, HardwareBufferJni.INSTANCE);
           compositionPlayer =
-              new CompositionPlayer.Builder(applicationContext)
-                  .setPacketConsumerFactory(packetConsumerFactory)
+              NdkCompositionPlayerBuilder.create(applicationContext)
+                  .setHardwareBufferEffectsPipeline(packetProcessor)
                   .experimentalSetLateThresholdToDropInputUs(C.TIME_UNSET)
                   .build();
+          compositionPlayer.setVideoSurfaceView(surfaceView);
           compositionPlayer.setVideoFrameMetadataListener(
               (presentationTimeUs, releaseTimeNs, format, mediaFormat) -> {
                 videoTimestamps.add(presentationTimeUs);
@@ -882,6 +888,56 @@ public class CompositionPlayerTest {
     listener.waitUntilPlayerEnded();
 
     assertThat(videoTimestamps).containsExactly(0L, -1L).inOrder();
+  }
+
+  @Test
+  @SdkSuppress(minSdkVersion = 28)
+  public void compositionPlayer_playAfterEnded_doesNotTimeout() throws Exception {
+    PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
+
+    instrumentation.runOnMainSync(
+        () -> {
+          DefaultHardwareBufferEffectsPipeline packetProcessor =
+              DefaultHardwareBufferEffectsPipeline.create(
+                  applicationContext, HardwareBufferJni.INSTANCE);
+          compositionPlayer =
+              NdkCompositionPlayerBuilder.create(applicationContext)
+                  .setHardwareBufferEffectsPipeline(packetProcessor)
+                  .experimentalSetLateThresholdToDropInputUs(C.TIME_UNSET)
+                  .build();
+          compositionPlayer.setVideoSurfaceView(surfaceView);
+          compositionPlayer.addListener(listener);
+          compositionPlayer.setComposition(
+              new Composition.Builder(
+                      EditedMediaItemSequence.withVideoFrom(
+                          ImmutableList.of(
+                              new EditedMediaItem.Builder(
+                                      new MediaItem.Builder()
+                                          .setUri(
+                                              MP4_ASSET_WITH_INCREASING_TIMESTAMPS_320W_240H_5S.uri)
+                                          .setClippingConfiguration(
+                                              new MediaItem.ClippingConfiguration.Builder()
+                                                  .setEndPositionMs(10)
+                                                  .build())
+                                          .build())
+                                  .setDurationUs(
+                                      MP4_ASSET_WITH_INCREASING_TIMESTAMPS_320W_240H_5S
+                                          .videoDurationUs)
+                                  .build())))
+                  .build());
+          compositionPlayer.prepare();
+          compositionPlayer.play();
+        });
+    listener.waitUntilPlayerEnded();
+
+    // Call play() again after the player has already ended.
+    // This should not cause a timeout.
+    instrumentation.runOnMainSync(() -> compositionPlayer.play());
+    listener.waitUntilPlayerEnded();
+
+    // Verify the state is still ENDED
+    instrumentation.runOnMainSync(
+        () -> assertThat(compositionPlayer.getPlaybackState()).isEqualTo(STATE_ENDED));
   }
 
   private static final class TestExternallyLoadedBitmapResolver

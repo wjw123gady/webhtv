@@ -68,7 +68,7 @@ MediaCodecAdapter (media3.video.mpeg2):
 AudioSink:
   buffer count = 4
   config:
-    pcmEncoding = 2
+    pcmEncoding = pcm-16
     channelCount = 1
     sampleRate = 44100
   buffer #0:
@@ -86,10 +86,10 @@ AudioSink:
 MetadataOutput:
   Metadata[0]:
     presentationTimeUs = 33366
-    entry[0] = SCTE-35 SpliceInsertCommand { programSplicePts=200000, programSplicePlaybackPositionUs= 1000000822222 }
+    entry[0] = SCTE-35 SpliceInsertCommand { programSplicePts=200000, programSplicePlaybackPositionUs= 954439399111 }
   Metadata[1]:
     presentationTimeUs = 33366
-    entry[0] = SCTE-35 SpliceInsertCommand { programSplicePts=200000, programSplicePlaybackPositionUs= 1000000822222 }
+    entry[0] = SCTE-35 SpliceInsertCommand { programSplicePts=200000, programSplicePlaybackPositionUs= 954439399111 }
   Metadata[2]:
     presentationTimeUs = 33366
-    entry[0] = SCTE-35 SpliceInsertCommand { programSplicePts=300000, programSplicePlaybackPositionUs= 1000001933333 }
+    entry[0] = SCTE-35 SpliceInsertCommand { programSplicePts=300000, programSplicePlaybackPositionUs= 954440510222 }

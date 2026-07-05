@@ -63,17 +63,6 @@ public final class AudioTrackAudioOutputProvider implements AudioOutputProvider 
 
   private static final String TAG = "ATAudioOutputProvider";
 
-  /**
-   * Whether to throw an {@link AudioTrackAudioOutput.InvalidAudioTrackTimestampException} when a
-   * spurious timestamp is reported from {@link AudioTrack#getTimestamp}.
-   *
-   * <p>The flag must be set before creating a player. Should be set to {@code true} for testing and
-   * debugging purposes only.
-   */
-  @SuppressWarnings("NonFinalStaticField") // Test-only access
-  @UnstableApi
-  public static boolean failOnSpuriousAudioTimestamp = false;
-
   /** A builder to create {@link AudioTrackAudioOutputProvider} instances. */
   public static final class Builder {
 
@@ -265,7 +254,7 @@ public final class AudioTrackAudioOutputProvider implements AudioOutputProvider 
       outputMode = OUTPUT_MODE_PCM;
       outputEncoding = format.pcmEncoding;
       outputSampleRate = format.sampleRate;
-      outputChannelConfig = getAudioOutputChannelConfig(format.channelCount);
+      outputChannelConfig = getAudioOutputChannelConfig(format);
       outputPcmFrameSize = Util.getPcmFrameSize(outputEncoding, format.channelCount);
       usePlaybackParameters = formatConfig.enablePlaybackParameters;
     } else {
@@ -279,7 +268,7 @@ public final class AudioTrackAudioOutputProvider implements AudioOutputProvider 
       if (formatConfig.enableOffload && audioOffloadSupport.isFormatSupported) {
         outputMode = OUTPUT_MODE_OFFLOAD;
         outputEncoding = MimeTypes.getEncoding(checkNotNull(format.sampleMimeType), format.codecs);
-        outputChannelConfig = getAudioOutputChannelConfig(format.channelCount);
+        outputChannelConfig = getAudioOutputChannelConfig(format);
         // Offload requires AudioTrack playback parameters to apply speed changes quickly.
         usePlaybackParameters = true;
         useOffloadGapless = audioOffloadSupport.isGaplessSupported;
@@ -465,12 +454,12 @@ public final class AudioTrackAudioOutputProvider implements AudioOutputProvider 
     }
   }
 
-  private int getAudioOutputChannelConfig(int channelCount) {
+  private int getAudioOutputChannelConfig(Format format) {
     if (audioTrackProvider != null) {
-      return audioTrackProvider.getAudioTrackChannelConfig(channelCount);
+      return audioTrackProvider.getAudioTrackChannelConfig(format.channelCount);
     }
 
-    return Util.getAudioTrackChannelConfig(channelCount);
+    return Util.getAudioTrackChannelConfig(format);
   }
 
   private int getAudioTrackMinBufferSize(int sampleRateInHz, int channelConfig, int encoding) {

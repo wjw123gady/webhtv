@@ -19,32 +19,42 @@ package androidx.media3.ui.compose.state
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaLibraryInfo
+import androidx.media3.common.MimeTypes.VIDEO_VP9
 import androidx.media3.common.Player
+import androidx.media3.common.SimpleBasePlayer.MediaItemData
+import androidx.media3.common.Timeline
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.test.utils.FakePlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import org.junit.Rule
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /** Unit test for [PresentationState]. */
+@OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class PresentationStateTest {
 
-  @get:Rule val composeTestRule = createComposeRule()
-
   @Test
-  fun playerInitialized_presentationStateInitialized() {
+  fun playerInitialized_presentationStateInitialized() = runComposeUiTest {
     val player = FakePlayer(playbackState = Player.STATE_IDLE)
 
     lateinit var state: PresentationState
-    composeTestRule.setContent { state = rememberPresentationState(player) }
+    setContent { state = rememberPresentationState(player) }
 
     assertThat(state.coverSurface).isTrue()
     assertThat(state.keepContentOnReset).isFalse()
@@ -52,69 +62,110 @@ class PresentationStateTest {
   }
 
   @Test
-  fun playerChangesVideoSizeBeforeEventListenerRegisters_observeGetsTheLatestValues_uiInSync() {
+  fun rememberPresentationState_recomposition_hasSizeOnFirstPass() = runComposeUiTest {
     val player = FakePlayer(playbackState = Player.STATE_IDLE)
+    player.setVideoSize(VideoSize(1920, 1080))
+    val observedSizes = mutableListOf<Size?>() // Use a list to capture all sizes
 
-    lateinit var state: PresentationState
-    composeTestRule.setContent {
-      // Schedule LaunchedEffect to update player state before PresentationState is created.
-      // This update could end up being executed *before* PresentationState schedules the start
-      // of event listening and we don't want to lose it.
-      LaunchedEffect(player) { player.videoSize = VideoSize(480, 360) }
-      state = rememberPresentationState(player)
+    setContent {
+      val state = rememberPresentationState(player)
+      // Capture the value of videoSizeDp exactly as it is seen during the composition pass.
+      // This happens before LaunchedEffect gets a chance to run.
+      observedSizes.add(state.videoSizeDp)
     }
 
-    assertThat(state.videoSizeDp).isEqualTo(Size(480f, 360f))
-    assertThat(state.coverSurface).isTrue()
-    assertThat(state.keepContentOnReset).isFalse()
+    // Assert that the VERY FIRST composition pass had the correct size constraints.
+    assertThat(observedSizes.first()).isEqualTo(Size(1920f, 1080f))
+    assertThat(observedSizes.last()).isEqualTo(Size(1920f, 1080f))
   }
 
   @Test
-  fun firstFrameRendered_shutterOpens() {
+  fun rememberPresentationState_recomposition_syncsVideoSizeImmediately() = runComposeUiTest {
+    val player = FakePlayer()
+    player.setVideoSize(VideoSize(1920, 1080))
+
+    lateinit var recomposeKey: MutableIntState
+    lateinit var state: PresentationState
+
+    setContent {
+      recomposeKey = remember { mutableIntStateOf(0) }
+      key(recomposeKey.intValue) { state = rememberPresentationState(player) }
+    }
+
+    assertThat(state.videoSizeDp).isEqualTo(Size(1920f, 1080f))
+
+    recomposeKey.intValue = 1
+    waitForIdle()
+
+    assertThat(state.videoSizeDp).isEqualTo(Size(1920f, 1080f))
+  }
+
+  @Test
+  fun playerChangesVideoSizeBeforeEventListenerRegisters_observeGetsTheLatestValues_uiInSync() =
+    runComposeUiTest {
+      val player = FakePlayer(playbackState = Player.STATE_IDLE)
+
+      lateinit var state: PresentationState
+      setContent {
+        // Schedule LaunchedEffect to update player state before PresentationState is created.
+        // This update could end up being executed *before* PresentationState schedules the start
+        // of event listening and we don't want to lose it.
+        LaunchedEffect(player) { player.videoSize = VideoSize(480, 360) }
+        state = rememberPresentationState(player)
+      }
+
+      assertThat(state.videoSizeDp).isEqualTo(Size(480f, 360f))
+      assertThat(state.coverSurface).isTrue()
+      assertThat(state.keepContentOnReset).isFalse()
+    }
+
+  @Test
+  fun firstFrameRendered_shutterOpens() = runComposeUiTest {
     val player = FakePlayer(playbackState = Player.STATE_IDLE)
 
     lateinit var state: PresentationState
-    composeTestRule.setContent { state = rememberPresentationState(player) }
+    setContent { state = rememberPresentationState(player) }
     assertThat(state.coverSurface).isTrue()
 
     player.renderFirstFrame(true)
-    composeTestRule.waitForIdle()
+    waitForIdle()
 
     assertThat(state.coverSurface).isFalse()
   }
 
   @Test
-  fun newNonNullPlayer_keepContentOnResetAndShutterAlreadyOpen_doNotCloseShutter() {
-    val player0 = FakePlayer(playbackState = Player.STATE_IDLE)
-    val player1 = FakePlayer()
+  fun newNonNullPlayer_keepContentOnResetAndShutterAlreadyOpen_doNotCloseShutter() =
+    runComposeUiTest {
+      val player0 = FakePlayer(playbackState = Player.STATE_IDLE)
+      val player1 = FakePlayer()
 
-    lateinit var playerIndex: MutableIntState
-    lateinit var state: PresentationState
-    composeTestRule.setContent {
-      playerIndex = remember { mutableIntStateOf(0) }
-      state =
-        rememberPresentationState(
-          player = if (playerIndex.intValue == 0) player0 else player1,
-          keepContentOnReset = true,
-        )
+      lateinit var playerIndex: MutableIntState
+      lateinit var state: PresentationState
+      setContent {
+        playerIndex = remember { mutableIntStateOf(0) }
+        state =
+          rememberPresentationState(
+            player = if (playerIndex.intValue == 0) player0 else player1,
+            keepContentOnReset = true,
+          )
+      }
+
+      player0.renderFirstFrame(true)
+      playerIndex.intValue = 1
+      waitForIdle()
+
+      assertThat(state.player).isEqualTo(player1)
+      assertThat(state.coverSurface).isFalse()
+      assertThat(state.keepContentOnReset).isTrue()
     }
 
-    player0.renderFirstFrame(true)
-    playerIndex.intValue = 1
-    composeTestRule.waitForIdle()
-
-    assertThat(state.player).isEqualTo(player1)
-    assertThat(state.coverSurface).isFalse()
-    assertThat(state.keepContentOnReset).isTrue()
-  }
-
   @Test
-  fun newNullPlayer_keepContentOnResetAndShutterAlreadyOpen_doNotCloseShutter() {
+  fun newNullPlayer_keepContentOnResetAndShutterAlreadyOpen_doNotCloseShutter() = runComposeUiTest {
     val player0 = FakePlayer(playbackState = Player.STATE_IDLE)
     val player1 = null
     lateinit var playerIndex: MutableIntState
     lateinit var state: PresentationState
-    composeTestRule.setContent {
+    setContent {
       playerIndex = remember { mutableIntStateOf(0) }
       state =
         rememberPresentationState(
@@ -125,7 +176,7 @@ class PresentationStateTest {
 
     player0.renderFirstFrame(true)
     playerIndex.intValue = 1
-    composeTestRule.waitForIdle()
+    waitForIdle()
 
     assertThat(state.player).isEqualTo(player1)
     assertThat(state.coverSurface).isFalse()
@@ -133,13 +184,13 @@ class PresentationStateTest {
   }
 
   @Test
-  fun nullChangedToNonNullPlayer_keepContentOnReset_shutterStaysClosed() {
+  fun nullChangedToNonNullPlayer_keepContentOnReset_shutterStaysClosed() = runComposeUiTest {
     val player0 = null
     val player1 = FakePlayer()
 
     lateinit var playerIndex: MutableIntState
     lateinit var state: PresentationState
-    composeTestRule.setContent {
+    setContent {
       playerIndex = remember { mutableIntStateOf(0) }
       state =
         rememberPresentationState(
@@ -149,7 +200,7 @@ class PresentationStateTest {
     }
 
     playerIndex.intValue = 1
-    composeTestRule.waitForIdle()
+    waitForIdle()
 
     assertThat(state.player).isEqualTo(player1)
     assertThat(state.coverSurface).isTrue()
@@ -157,38 +208,39 @@ class PresentationStateTest {
   }
 
   @Test
-  fun newNonNullPlayer_doNotKeepContentOnResetAndShutterAlreadyOpen_closeShutter() {
-    val player0 = FakePlayer(playbackState = Player.STATE_IDLE)
-    val player1 = FakePlayer()
+  fun newNonNullPlayer_doNotKeepContentOnResetAndShutterAlreadyOpen_closeShutter() =
+    runComposeUiTest {
+      val player0 = FakePlayer(playbackState = Player.STATE_IDLE)
+      val player1 = FakePlayer()
 
-    lateinit var playerIndex: MutableIntState
-    lateinit var state: PresentationState
-    composeTestRule.setContent {
-      playerIndex = remember { mutableIntStateOf(0) }
-      state =
-        rememberPresentationState(
-          player = if (playerIndex.intValue == 0) player0 else player1,
-          keepContentOnReset = false,
-        )
+      lateinit var playerIndex: MutableIntState
+      lateinit var state: PresentationState
+      setContent {
+        playerIndex = remember { mutableIntStateOf(0) }
+        state =
+          rememberPresentationState(
+            player = if (playerIndex.intValue == 0) player0 else player1,
+            keepContentOnReset = false,
+          )
+      }
+
+      player0.renderFirstFrame(true)
+      playerIndex.intValue = 1
+      waitForIdle()
+
+      assertThat(state.player).isEqualTo(player1)
+      assertThat(state.coverSurface).isTrue()
+      assertThat(state.keepContentOnReset).isFalse()
     }
 
-    player0.renderFirstFrame(true)
-    playerIndex.intValue = 1
-    composeTestRule.waitForIdle()
-
-    assertThat(state.player).isEqualTo(player1)
-    assertThat(state.coverSurface).isTrue()
-    assertThat(state.keepContentOnReset).isFalse()
-  }
-
   @Test
-  fun newNullPlayer_doNotKeepContentOnResetAndShutterAlreadyOpen_closeShutter() {
+  fun newNullPlayer_doNotKeepContentOnResetAndShutterAlreadyOpen_closeShutter() = runComposeUiTest {
     val player0 = FakePlayer(playbackState = Player.STATE_IDLE)
     val player1 = null
 
     lateinit var playerIndex: MutableIntState
     lateinit var state: PresentationState
-    composeTestRule.setContent {
+    setContent {
       playerIndex = remember { mutableIntStateOf(0) }
       state =
         rememberPresentationState(
@@ -199,7 +251,7 @@ class PresentationStateTest {
 
     player0.renderFirstFrame(true)
     playerIndex.intValue = 1
-    composeTestRule.waitForIdle()
+    waitForIdle()
 
     assertThat(state.player).isEqualTo(player1)
     assertThat(state.coverSurface).isTrue()
@@ -207,12 +259,12 @@ class PresentationStateTest {
   }
 
   @Test
-  fun keepContentOnReset_toggleValue_affectsCoveringSurfaceWithShutter() {
+  fun keepContentOnReset_toggleValue_affectsCoveringSurfaceWithShutter() = runComposeUiTest {
     val player = FakePlayer(playbackState = Player.STATE_IDLE)
 
     lateinit var keepContentOnReset: MutableState<Boolean>
     lateinit var state: PresentationState
-    composeTestRule.setContent {
+    setContent {
       keepContentOnReset = remember { mutableStateOf(true) }
       state = rememberPresentationState(player, keepContentOnReset = keepContentOnReset.value)
     }
@@ -220,15 +272,62 @@ class PresentationStateTest {
     assertThat(state.coverSurface).isTrue()
 
     player.renderFirstFrame(true)
-    composeTestRule.waitForIdle()
+    waitForIdle()
 
     assertThat(state.keepContentOnReset).isTrue()
     assertThat(state.coverSurface).isFalse()
 
     keepContentOnReset.value = false
-    composeTestRule.waitForIdle()
+    waitForIdle()
 
     assertThat(state.keepContentOnReset).isFalse()
     assertThat(state.coverSurface).isTrue()
   }
+
+  @Test
+  fun tracksChanged_withTimelineWithoutUidLookupSupport_throwsUnsupportedOperationException() =
+    runComposeUiTest {
+      val group =
+        Tracks.Group(
+          /* mediaTrackGroup = */ TrackGroup(Format.Builder().setSampleMimeType(VIDEO_VP9).build()),
+          /* adaptiveSupported = */ true,
+          /* trackSupport = */ intArrayOf(C.FORMAT_HANDLED),
+          /* trackSelected = */ booleanArrayOf(true),
+        )
+      val validTracks = Tracks(listOf(group))
+      val player =
+        FakePlayer(
+          playlist =
+            listOf(
+              MediaItemData.Builder("uid1").setTracks(Tracks.EMPTY).build(),
+              MediaItemData.Builder("uid2").setTracks(validTracks).build(),
+            )
+        )
+      var remotableTimeline: Timeline? = null
+      val presentationPlayer =
+        object : ForwardingPlayer(player) {
+          override fun getCurrentTimeline() = remotableTimeline ?: super.getCurrentTimeline()
+        }
+      lateinit var state: PresentationState
+      setContent { state = rememberPresentationState(presentationPlayer) }
+      waitForIdle()
+      assertThat(state.coverSurface).isTrue()
+
+      player.seekToNext()
+      player.renderFirstFrame(true)
+      waitForIdle()
+      assertThat(state.coverSurface).isFalse()
+
+      // Enable remotable timeline, strips period and window UIDs
+      remotableTimeline =
+        Timeline.fromBundle(
+          player.currentTimeline.toBundle(MediaLibraryInfo.INTERFACE_VERSION),
+          MediaLibraryInfo.INTERFACE_VERSION,
+        )
+
+      // Seek back to 0 (no tracks, different media item) -> should cover surface
+      // BUG: throws UnsupportedOperationException
+      player.seekToPrevious()
+      assertThrows(UnsupportedOperationException::class.java) { waitForIdle() }
+    }
 }

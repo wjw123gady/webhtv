@@ -31,9 +31,12 @@ import static androidx.media3.test.session.common.TestUtils.TIMEOUT_MS;
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
+import static com.google.common.util.concurrent.Futures.immediateFuture;
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertThrows;
 
+import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
@@ -59,6 +62,10 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.SdkSuppress;
+import androidx.test.platform.app.InstrumentationRegistry;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -69,7 +76,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -109,13 +115,13 @@ public class MediaSessionTest {
                 .setCallback(
                     new MediaSession.Callback() {
                       @Override
-                      public MediaSession.ConnectionResult onConnect(
+                      public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
                           MediaSession session, ControllerInfo controller) {
                         if (TextUtils.equals(
                             context.getPackageName(), controller.getPackageName())) {
-                          return MediaSession.Callback.super.onConnect(session, controller);
+                          return MediaSession.Callback.super.onConnectAsync(session, controller);
                         }
-                        return MediaSession.ConnectionResult.reject();
+                        return immediateFuture(MediaSession.ConnectionResult.reject());
                       }
                     })
                 .build());
@@ -138,6 +144,8 @@ public class MediaSessionTest {
     }
   }
 
+  @SuppressLint("MissingPermission") // Testing without the required permission as this does not
+  // create a MediaSession.
   @Test
   public void builder() {
     MediaSession.Builder builder;
@@ -167,13 +175,14 @@ public class MediaSessionTest {
     } catch (NullPointerException e) {
       // expected. pass-through
     }
+
     // Empty string as ID is allowed.
     sessionTestRule.ensureReleaseAfterTest(
         new MediaSession.Builder(context, player).setId("").build());
   }
 
   @Test
-  public void builderSetSessionActivity_activityIntent_accepted() {
+  public void builderSetSessionActivity_activityIntent_accepted() throws Exception {
     PendingIntent pendingIntent =
         PendingIntent.getActivity(
             ApplicationProvider.getApplicationContext(),
@@ -183,16 +192,18 @@ public class MediaSessionTest {
 
     MediaSession session =
         sessionTestRule.ensureReleaseAfterTest(
-            new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build())
+            new MediaSession.Builder(
+                    getApplicationContext(),
+                    new MockPlayer.Builder().setApplicationLooper(handler.getLooper()).build())
                 .setId("sessionActivity")
                 .setSessionActivity(pendingIntent)
                 .build());
 
-    assertThat(session.getSessionActivity()).isEqualTo(pendingIntent);
+    assertThat(handler.postAndSync(session::getSessionActivity)).isEqualTo(pendingIntent);
   }
 
   @Test
-  public void setSessionActivity_activityIntent_accepted() {
+  public void setSessionActivity_activityIntent_accepted() throws Exception {
     PendingIntent pendingIntent =
         PendingIntent.getActivity(
             ApplicationProvider.getApplicationContext(),
@@ -202,12 +213,14 @@ public class MediaSessionTest {
 
     MediaSession session =
         sessionTestRule.ensureReleaseAfterTest(
-            new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build())
+            new MediaSession.Builder(
+                    getApplicationContext(),
+                    new MockPlayer.Builder().setApplicationLooper(handler.getLooper()).build())
                 .setId("sessionActivity")
                 .build());
-    session.setSessionActivity(pendingIntent);
+    handler.postAndSync(() -> session.setSessionActivity(pendingIntent));
 
-    assertThat(session.getSessionActivity()).isEqualTo(pendingIntent);
+    assertThat(handler.postAndSync(session::getSessionActivity)).isEqualTo(pendingIntent);
   }
 
   @Test
@@ -224,13 +237,13 @@ public class MediaSessionTest {
         new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build())
             .setId("sessionActivity");
 
-    Assert.assertThrows(
-        IllegalArgumentException.class, () -> builder.setSessionActivity(pendingIntent));
+    assertThrows(IllegalArgumentException.class, () -> builder.setSessionActivity(pendingIntent));
   }
 
   @Test
   @SdkSuppress(minSdkVersion = 31)
-  public void setSessionActivity_nonActivityIntent_throwsIllegalArgumentException() {
+  public void setSessionActivity_nonActivityIntent_throwsIllegalArgumentException()
+      throws Exception {
     PendingIntent pendingIntent =
         PendingIntent.getBroadcast(
             ApplicationProvider.getApplicationContext(),
@@ -240,12 +253,64 @@ public class MediaSessionTest {
 
     MediaSession session =
         sessionTestRule.ensureReleaseAfterTest(
-            new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build())
+            new MediaSession.Builder(
+                    getApplicationContext(),
+                    new MockPlayer.Builder().setApplicationLooper(handler.getLooper()).build())
                 .setId("sessionActivity")
                 .build());
 
-    Assert.assertThrows(
-        IllegalArgumentException.class, () -> session.setSessionActivity(pendingIntent));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> handler.postAndSync(() -> session.setSessionActivity(pendingIntent)));
+  }
+
+  @SuppressLint("MissingPermission") // Testing without the permission required.
+  @Test
+  public void builderSetPackageNameOverride_nullPackageName_throwsIllegalArgumentException() {
+    MediaSession.Builder builder =
+        new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build());
+
+    assertThrows(IllegalArgumentException.class, () -> builder.setPackageNameOverride(null));
+  }
+
+  @SuppressLint("MissingPermission") // Testing without the permission required.
+  @Test
+  public void builderSetPackageNameOverride_callerPackageName_throwsIllegalArgumentException() {
+    String applicationPackageName = getApplicationContext().getPackageName();
+    MediaSession.Builder builder =
+        new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build());
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> builder.setPackageNameOverride(applicationPackageName));
+  }
+
+  @SuppressLint("MissingPermission") // Testing without the permission required.
+  @Test
+  public void setPackageNameOverride_withoutPermission_throwsSecurityException() {
+    MediaSession.Builder sessionBuilder =
+        new MediaSession.Builder(getApplicationContext(), new MockPlayer.Builder().build())
+            .setId("overridePackageName")
+            .setPackageNameOverride("com.test.app");
+
+    assertThrows(SecurityException.class, sessionBuilder::build);
+  }
+
+  @SuppressLint("MissingPermission") // Required permission is granted via Instrumentation.
+  @SdkSuppress(minSdkVersion = 37)
+  @Test
+  public void setPackageNameOverride_withPermission_createsSession() {
+    InstrumentationRegistry.getInstrumentation()
+        .getUiAutomation()
+        .adoptShellPermissionIdentity("android.permission.OVERRIDE_MEDIA_SESSION_OWNER");
+    MediaSession session =
+        sessionTestRule.ensureReleaseAfterTest(
+            new MediaSession.Builder(context, new MockPlayer.Builder().build())
+                .setId("overridePackageName")
+                .setPackageNameOverride("com.test.app")
+                .build());
+
+    assertThat(session.getToken().getPackageName()).isEqualTo("com.test.app");
   }
 
   @Test
@@ -415,7 +480,7 @@ public class MediaSessionTest {
     MediaSession.Callback testSessionCallback =
         new MediaSession.Callback() {
           @Override
-          public MediaSession.ConnectionResult onConnect(
+          public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
               MediaSession session, ControllerInfo controller) {
             Future<SessionResult> result =
                 session.sendCustomCommand(controller, testCommand, /* args= */ Bundle.EMPTY);
@@ -426,21 +491,33 @@ public class MediaSessionTest {
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
               assertWithMessage("Fail to get result of the returned future.").fail();
             }
-            return MediaSession.Callback.super.onConnect(session, controller);
+            return MediaSession.Callback.super.onConnectAsync(session, controller);
           }
 
           @Override
           public void onPostConnect(MediaSession session, ControllerInfo controller) {
-            Future<SessionResult> result =
+            ListenableFuture<SessionResult> result =
                 session.sendCustomCommand(controller, testCommand, /* args= */ Bundle.EMPTY);
-            try {
-              // The controller is connected but doesn't implement onCustomCommand.
-              assertThat(result.get(TIMEOUT_MS, MILLISECONDS).resultCode)
-                  .isEqualTo(SessionResult.RESULT_ERROR_NOT_SUPPORTED);
-            } catch (ExecutionException | InterruptedException | TimeoutException e) {
-              assertWithMessage("Fail to get result of the returned future.").fail();
-            }
-            latch.countDown();
+            Futures.addCallback(
+                result,
+                new FutureCallback<SessionResult>() {
+                  @Override
+                  public void onSuccess(SessionResult sessionResult) {
+                    try {
+                      assertThat(sessionResult.resultCode)
+                          .isEqualTo(SessionResult.RESULT_ERROR_NOT_SUPPORTED);
+                    } finally {
+                      latch.countDown();
+                    }
+                  }
+
+                  @Override
+                  public void onFailure(Throwable t) {
+                    assertWithMessage("Fail to get result of the returned future.").fail();
+                    latch.countDown();
+                  }
+                },
+                directExecutor());
           }
         };
     MediaSession session =
@@ -459,14 +536,14 @@ public class MediaSessionTest {
                 .setCallback(
                     new MediaSession.Callback() {
                       @Override
-                      public MediaSession.ConnectionResult onConnect(
+                      public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
                           MediaSession session, ControllerInfo controller) {
                         if (TextUtils.equals(
                             getControllerCallerPackageName(controller),
                             controller.getPackageName())) {
-                          return MediaSession.Callback.super.onConnect(session, controller);
+                          return MediaSession.Callback.super.onConnectAsync(session, controller);
                         }
-                        return MediaSession.ConnectionResult.reject();
+                        return immediateFuture(MediaSession.ConnectionResult.reject());
                       }
                     })
                 .build());
@@ -515,11 +592,11 @@ public class MediaSessionTest {
     MediaSession.Callback sessionCallback =
         new MediaSession.Callback() {
           @Override
-          public MediaSession.ConnectionResult onConnect(
+          public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
               MediaSession session, ControllerInfo controller) {
             controllerVersionRef.set(controller.getControllerVersion());
             connectedLatch.countDown();
-            return MediaSession.Callback.super.onConnect(session, controller);
+            return MediaSession.Callback.super.onConnectAsync(session, controller);
           }
         };
 
@@ -558,9 +635,19 @@ public class MediaSessionTest {
     TestHandler testHandler = new TestHandler(controller.getApplicationLooper());
 
     for (long bufferedPositionMs = 0; bufferedPositionMs < 5000; bufferedPositionMs += 1000) {
-      player.bufferedPosition = bufferedPositionMs;
-      Thread.sleep(50L);
-      bufferedPositionsMs.add(testHandler.postAndSync(controller::getBufferedPosition));
+      long targetPosition = bufferedPositionMs;
+      testHandler.postAndSync(
+          () -> {
+            player.bufferedPosition = targetPosition;
+          });
+      long startTimeMs = SystemClock.elapsedRealtime();
+      long controllerBufferedPosition = testHandler.postAndSync(controller::getBufferedPosition);
+      while (controllerBufferedPosition != targetPosition
+          && SystemClock.elapsedRealtime() - startTimeMs < TIMEOUT_MS) {
+        Thread.sleep(/* millis= */ 10);
+        controllerBufferedPosition = testHandler.postAndSync(controller::getBufferedPosition);
+      }
+      bufferedPositionsMs.add(controllerBufferedPosition);
     }
 
     assertThat(bufferedPositionsMs).containsExactly(0L, 1000L, 2000L, 3000L, 4000L).inOrder();
@@ -587,8 +674,13 @@ public class MediaSessionTest {
     TestHandler testHandler = new TestHandler(controller.getApplicationLooper());
 
     for (long bufferedPositionMs = 0; bufferedPositionMs < 5000; bufferedPositionMs += 1000) {
-      player.bufferedPosition = bufferedPositionMs;
-      Thread.sleep(50L);
+      long targetPosition = bufferedPositionMs;
+      testHandler.postAndSync(
+          () -> {
+            player.bufferedPosition = targetPosition;
+          });
+      // Sleep to ensure no periodic updates erroneously occur.
+      Thread.sleep(/* millis= */ 50);
       bufferedPositionsMs.add(testHandler.postAndSync(controller::getBufferedPosition));
     }
 
@@ -607,13 +699,13 @@ public class MediaSessionTest {
                 .setCallback(
                     new MediaSession.Callback() {
                       @Override
-                      public MediaSession.ConnectionResult onConnect(
+                      public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
                           MediaSession session, ControllerInfo controller) {
                         if (TextUtils.equals(
                             context.getPackageName(), controller.getPackageName())) {
-                          return MediaSession.Callback.super.onConnect(session, controller);
+                          return MediaSession.Callback.super.onConnectAsync(session, controller);
                         }
-                        return MediaSession.ConnectionResult.reject();
+                        return immediateFuture(MediaSession.ConnectionResult.reject());
                       }
                     })
                 .build()));
@@ -695,14 +787,14 @@ public class MediaSessionTest {
                 .setCallback(
                     new MediaSession.Callback() {
                       @Override
-                      public MediaSession.ConnectionResult onConnect(
+                      public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
                           MediaSession session, ControllerInfo controller) {
                         if (TextUtils.equals(
                             getControllerCallerPackageName(controller),
                             controller.getPackageName())) {
-                          return MediaSession.Callback.super.onConnect(session, controller);
+                          return MediaSession.Callback.super.onConnectAsync(session, controller);
                         }
-                        return MediaSession.ConnectionResult.reject();
+                        return immediateFuture(MediaSession.ConnectionResult.reject());
                       }
                     })
                 .build()));
@@ -785,14 +877,14 @@ public class MediaSessionTest {
                 .setCallback(
                     new MediaSession.Callback() {
                       @Override
-                      public MediaSession.ConnectionResult onConnect(
+                      public ListenableFuture<MediaSession.ConnectionResult> onConnectAsync(
                           MediaSession session, ControllerInfo controller) {
                         if (TextUtils.equals(
                             getControllerCallerPackageName(controller),
                             controller.getPackageName())) {
-                          return MediaSession.Callback.super.onConnect(session, controller);
+                          return MediaSession.Callback.super.onConnectAsync(session, controller);
                         }
-                        return MediaSession.ConnectionResult.reject();
+                        return immediateFuture(MediaSession.ConnectionResult.reject());
                       }
 
                       @Override
@@ -1003,25 +1095,27 @@ public class MediaSessionTest {
   }
 
   @Test
-  public void builderSetSessionExtras_doesNotKeepOriginalInstance() {
+  public void builderSetSessionExtras_doesNotKeepOriginalInstance() throws Exception {
     Bundle extras = new Bundle();
     extras.putString("key", "value");
 
     MediaSession session =
         new MediaSession.Builder(context, player).setSessionExtras(extras).build();
     extras.putString("key", "newValue");
-    String sessionExtraValue = session.getSessionExtras().getString("key");
+    String sessionExtraValue =
+        handler.postAndSync(() -> session.getSessionExtras().getString("key"));
     session.release();
 
     assertThat(sessionExtraValue).isEqualTo("value");
   }
 
   @Test
-  public void builder_defaultExtras_createsMutableInstance() {
+  public void builder_defaultExtras_createsMutableInstance() throws Exception {
     MediaSession session = new MediaSession.Builder(context, player).build();
 
-    session.getSessionExtras().putString("key", "value");
-    String sessionExtraValue = session.getSessionExtras().getString("key");
+    handler.postAndSync(() -> session.getSessionExtras().putString("key", "value"));
+    String sessionExtraValue =
+        handler.postAndSync(() -> session.getSessionExtras().getString("key"));
     session.release();
 
     assertThat(sessionExtraValue).isEqualTo("value");
@@ -1043,6 +1137,23 @@ public class MediaSessionTest {
         });
 
     assertThat(sessionExtraValue.get()).isEqualTo("value");
+  }
+
+  @Test
+  public void setSessionExtras_fromNonApplicationLooper_postsToHandler() throws Exception {
+    MediaSession session = new MediaSession.Builder(context, player).build();
+    Bundle extras = new Bundle();
+    extras.putString("key", "value");
+
+    // Call from test thread (non-application looper)
+    session.setSessionExtras(extras);
+
+    // Verify state on the application looper (handler.postAndSync ensures enqueuing after setter)
+    String sessionExtraValue =
+        handler.postAndSync(() -> session.getSessionExtras().getString("key"));
+    session.release();
+
+    assertThat(sessionExtraValue).isEqualTo("value");
   }
 
   @Test
@@ -1117,6 +1228,58 @@ public class MediaSessionTest {
         .isFalse();
     assertThat(capturedTimelines.get(0).getWindow(0, new Timeline.Window()).isDynamic).isTrue();
     assertThat(capturedTimelines.get(0).getWindow(0, new Timeline.Window()).isLive()).isTrue();
+  }
+
+  @Test
+  public void release_whenLooperThreadBlocked_completesViaEmergencyPath() throws Exception {
+    MockPlayer testPlayer =
+        new MockPlayer.Builder().setApplicationLooper(handler.getLooper()).build();
+    MediaSession testSession =
+        new MediaSession.Builder(context, testPlayer).setId("test_emergency_release").build();
+    CountDownLatch disconnectedLatch = new CountDownLatch(1);
+    MediaController testController =
+        new MediaController.Builder(context, testSession.getToken())
+            .setListener(
+                new MediaController.Listener() {
+                  @Override
+                  public void onDisconnected(MediaController controller) {
+                    disconnectedLatch.countDown();
+                  }
+                })
+            .setApplicationLooper(handler.getLooper())
+            .buildAsync()
+            .get(TIMEOUT_MS, MILLISECONDS);
+    assertThat(testController.isConnected()).isTrue();
+
+    // Block the session looper thread.
+    CountDownLatch looperBlockedLatch = new CountDownLatch(1);
+    CountDownLatch blockLooperLatch = new CountDownLatch(1);
+    handler.post(
+        () -> {
+          looperBlockedLatch.countDown();
+          try {
+            // Block for longer than RELEASE_TIMEOUT_MS (1_000 ms).
+            blockLooperLatch.await(3_000, MILLISECONDS);
+          } catch (InterruptedException e) {
+            // Ignore
+          }
+        });
+
+    // Wait until the looper is actually blocked.
+    assertThat(looperBlockedLatch.await(TIMEOUT_MS, MILLISECONDS)).isTrue();
+
+    try {
+      // Release the session on the main thread. Since the looper thread is blocked, the 1-second
+      // latch await in MediaSessionImpl.release() will timeout and force the emergency path.
+      testSession.release();
+    } finally {
+      // Unblock the looper thread so it can exit and process queued tasks.
+      blockLooperLatch.countDown();
+    }
+
+    // Verify that the controller receives the disconnect callback and is cleanly disconnected.
+    assertThat(disconnectedLatch.await(TIMEOUT_MS, MILLISECONDS)).isTrue();
+    assertThat(testController.isConnected()).isFalse();
   }
 
   private static Intent getMediaButtonIntent(int keyCode) {

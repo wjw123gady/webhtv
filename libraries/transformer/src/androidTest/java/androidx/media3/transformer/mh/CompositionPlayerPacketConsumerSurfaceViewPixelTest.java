@@ -15,9 +15,12 @@
  */
 package androidx.media3.transformer.mh;
 
+import static android.os.Build.VERSION.SDK_INT;
+import static androidx.media3.test.utils.AssetInfo.MP4_ASSET_COLOR_TEST_1080P_HLG10;
 import static androidx.media3.test.utils.AssetInfo.MP4_ASSET_WITH_INCREASING_TIMESTAMPS_320W_240H_5S;
 import static androidx.media3.test.utils.BitmapPixelTestUtil.maybeSaveTestBitmap;
 import static androidx.media3.test.utils.BitmapPixelTestUtil.readBitmap;
+import static androidx.media3.test.utils.FormatSupportAssumptions.assumeFormatsSupported;
 import static androidx.media3.test.utils.TestUtil.assertBitmapsAreSimilar;
 import static com.google.common.truth.Truth.assertThat;
 
@@ -25,8 +28,20 @@ import android.app.Instrumentation;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
+import android.graphics.Canvas;
+import android.graphics.PixelFormat;
+import android.graphics.Rect;
+import android.hardware.DataSpace;
+import android.media.Image;
+import android.media.ImageReader;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.PixelCopy;
+import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.media3.common.C;
 import androidx.media3.common.ColorInfo;
 import androidx.media3.common.Format;
@@ -34,8 +49,10 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.ConditionVariable;
-import androidx.media3.effect.PacketConsumer;
-import androidx.media3.effect.ProcessAndRenderToSurfaceConsumer;
+import androidx.media3.effect.DefaultHardwareBufferEffectsPipeline;
+import androidx.media3.effect.RenderingPacketConsumer;
+import androidx.media3.effect.ndk.HardwareBufferJni;
+import androidx.media3.effect.ndk.NdkCompositionPlayerBuilder;
 import androidx.media3.transformer.Composition;
 import androidx.media3.transformer.CompositionPlayer;
 import androidx.media3.transformer.EditedMediaItem;
@@ -48,8 +65,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.google.common.collect.ImmutableList;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.junit.After;
@@ -62,11 +81,12 @@ import org.junit.runner.RunWith;
 
 /**
  * Pixel tests for {@link
- * CompositionPlayer.Builder#setPacketConsumerFactory(PacketConsumer.Factory)} when outputting to a
- * {@link android.view.SurfaceView}.
+ * CompositionPlayer.Builder#setHardwareBufferEffectsPipeline(RenderingPacketConsumer)} when
+ * outputting to a {@link android.view.SurfaceView}.
  */
 @Ignore("Only intended to run on internal infra: b/396671260")
 @RunWith(AndroidJUnit4.class)
+@SdkSuppress(minSdkVersion = 28)
 public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
 
   private static final long TEST_TIMEOUT_MS = 10_000;
@@ -85,6 +105,7 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
 
   private @MonotonicNonNull CompositionPlayer compositionPlayer;
   private @MonotonicNonNull SurfaceView surfaceView;
+  private @MonotonicNonNull ImageReaderSurfaceHolder surfaceHolder;
 
   private String testId;
 
@@ -103,10 +124,12 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
           }
         });
     rule.getScenario().close();
+    if (surfaceHolder != null) {
+      surfaceHolder.release();
+    }
   }
 
   @Test
-  @SdkSuppress(minSdkVersion = 34)
   public void compositionPlayer_withPacketConsumer_reportsVideoSizeChanged()
       throws InterruptedException {
     ConditionVariable videoSizeReported = new ConditionVariable();
@@ -114,13 +137,13 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
 
     instrumentation.runOnMainSync(
         () -> {
-          ProcessAndRenderToSurfaceConsumer.Factory packetConsumerFactory =
-              new ProcessAndRenderToSurfaceConsumer.Factory();
-          packetConsumerFactory.setOutput(surfaceView.getHolder(), surfaceView::post);
+          DefaultHardwareBufferEffectsPipeline packetProcessor =
+              DefaultHardwareBufferEffectsPipeline.create(context, HardwareBufferJni.INSTANCE);
           compositionPlayer =
-              new CompositionPlayer.Builder(context)
-                  .setPacketConsumerFactory(packetConsumerFactory)
+              NdkCompositionPlayerBuilder.create(context)
+                  .setHardwareBufferEffectsPipeline(packetProcessor)
                   .build();
+          compositionPlayer.setVideoSurfaceView(surfaceView);
           compositionPlayer.addListener(
               new Player.Listener() {
                 @Override
@@ -154,27 +177,20 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
   }
 
   @Test
-  @SdkSuppress(minSdkVersion = 34)
   public void compositionPlayer_withPacketConsumer_rendersFirstFrameAndReturnsBitmap()
       throws Exception {
-    ConditionVariable firstFrameRendered = new ConditionVariable();
+    PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
 
     instrumentation.runOnMainSync(
         () -> {
-          ProcessAndRenderToSurfaceConsumer.Factory packetConsumerFactory =
-              new ProcessAndRenderToSurfaceConsumer.Factory();
-          packetConsumerFactory.setOutput(surfaceView.getHolder(), surfaceView::post);
+          DefaultHardwareBufferEffectsPipeline packetProcessor =
+              DefaultHardwareBufferEffectsPipeline.create(context, HardwareBufferJni.INSTANCE);
           compositionPlayer =
-              new CompositionPlayer.Builder(context)
-                  .setPacketConsumerFactory(packetConsumerFactory)
+              NdkCompositionPlayerBuilder.create(context)
+                  .setHardwareBufferEffectsPipeline(packetProcessor)
                   .build();
-          compositionPlayer.addListener(
-              new Player.Listener() {
-                @Override
-                public void onRenderedFirstFrame() {
-                  firstFrameRendered.open();
-                }
-              });
+          compositionPlayer.setVideoSurfaceView(surfaceView);
+          compositionPlayer.addListener(listener);
           compositionPlayer.setComposition(
               new Composition.Builder(
                       EditedMediaItemSequence.withVideoFrom(
@@ -192,7 +208,7 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
           compositionPlayer.setPlayWhenReady(true);
         });
 
-    assertThat(firstFrameRendered.block(TEST_TIMEOUT_MS)).isTrue();
+    listener.waitUntilFirstFrameRendered();
 
     Bitmap bitmap = Bitmap.createBitmap(/* width= */ 240, /* height= */ 270, Config.ARGB_8888);
     ConditionVariable pixelCopyFinished = new ConditionVariable();
@@ -220,7 +236,6 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
   }
 
   @Test
-  @SdkSuppress(minSdkVersion = 34)
   public void compositionPlayer_withPacketConsumer_usesMetadataListener() throws Exception {
     PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
     Queue<Long> videoTimestamps = new ConcurrentLinkedQueue<>();
@@ -228,14 +243,14 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
 
     instrumentation.runOnMainSync(
         () -> {
-          ProcessAndRenderToSurfaceConsumer.Factory packetConsumerFactory =
-              new ProcessAndRenderToSurfaceConsumer.Factory();
-          packetConsumerFactory.setOutput(surfaceView.getHolder(), surfaceView::post);
+          DefaultHardwareBufferEffectsPipeline packetProcessor =
+              DefaultHardwareBufferEffectsPipeline.create(context, HardwareBufferJni.INSTANCE);
           compositionPlayer =
-              new CompositionPlayer.Builder(context)
-                  .setPacketConsumerFactory(packetConsumerFactory)
+              NdkCompositionPlayerBuilder.create(context)
+                  .setHardwareBufferEffectsPipeline(packetProcessor)
                   .experimentalSetLateThresholdToDropInputUs(C.TIME_UNSET)
                   .build();
+          compositionPlayer.setVideoSurfaceView(surfaceView);
           compositionPlayer.setVideoFrameMetadataListener(
               (presentationTimeUs, releaseTimeNs, format, mediaFormat) -> {
                 videoTimestamps.add(presentationTimeUs);
@@ -287,5 +302,212 @@ public class CompositionPlayerPacketConsumerSurfaceViewPixelTest {
                 .setChromaBitdepth(8)
                 .setLumaBitdepth(8)
                 .build());
+  }
+
+  @Test
+  @SdkSuppress(minSdkVersion = 33)
+  public void compositionPlayer_withPacketConsumer_andSdrVideo_outputsCorrectDataSpace()
+      throws Exception {
+    PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
+    surfaceHolder = new ImageReaderSurfaceHolder();
+
+    instrumentation.runOnMainSync(
+        () -> {
+          compositionPlayer =
+              NdkCompositionPlayerBuilder.create(context)
+                  .setHardwareBufferEffectsPipeline(
+                      DefaultHardwareBufferEffectsPipeline.create(
+                          context, HardwareBufferJni.INSTANCE))
+                  .build();
+          compositionPlayer.setVideoSurfaceHolder(surfaceHolder);
+          compositionPlayer.addListener(listener);
+          compositionPlayer.setComposition(
+              new Composition.Builder(
+                      EditedMediaItemSequence.withVideoFrom(
+                          ImmutableList.of(
+                              new EditedMediaItem.Builder(
+                                      MediaItem.fromUri(
+                                          MP4_ASSET_WITH_INCREASING_TIMESTAMPS_320W_240H_5S.uri))
+                                  .setDurationUs(
+                                      MP4_ASSET_WITH_INCREASING_TIMESTAMPS_320W_240H_5S
+                                          .videoDurationUs)
+                                  .build())))
+                  .build());
+          compositionPlayer.prepare();
+          compositionPlayer.setPlayWhenReady(true);
+        });
+    listener.waitUntilFirstFrameRendered();
+
+    int actualDataSpace = surfaceHolder.getLatestDataSpace();
+    assertThat(DataSpace.getStandard(actualDataSpace)).isEqualTo(DataSpace.STANDARD_BT601_625);
+    assertThat(DataSpace.getTransfer(actualDataSpace)).isEqualTo(DataSpace.TRANSFER_SMPTE_170M);
+    assertThat(DataSpace.getRange(actualDataSpace)).isEqualTo(DataSpace.RANGE_FULL);
+  }
+
+  @Test
+  @SdkSuppress(minSdkVersion = 34) // RGBA_1010102 only supported in ImageReader from API 34.
+  public void compositionPlayer_withPacketConsumer_andHdrVideo_outputsCorrectDataSpace()
+      throws Exception {
+    assumeFormatsSupported(
+        context,
+        testId,
+        /* inputFormat= */ MP4_ASSET_COLOR_TEST_1080P_HLG10.videoFormat,
+        /* outputFormat= */ null);
+    PlayerTestListener listener = new PlayerTestListener(TEST_TIMEOUT_MS);
+    surfaceHolder = new ImageReaderSurfaceHolder();
+
+    instrumentation.runOnMainSync(
+        () -> {
+          compositionPlayer =
+              NdkCompositionPlayerBuilder.create(context)
+                  .setHardwareBufferEffectsPipeline(
+                      DefaultHardwareBufferEffectsPipeline.create(
+                          context, HardwareBufferJni.INSTANCE))
+                  .build();
+          compositionPlayer.setVideoSurfaceHolder(surfaceHolder);
+          compositionPlayer.addListener(listener);
+          compositionPlayer.setComposition(
+              new Composition.Builder(
+                      EditedMediaItemSequence.withVideoFrom(
+                          ImmutableList.of(
+                              new EditedMediaItem.Builder(
+                                      MediaItem.fromUri(MP4_ASSET_COLOR_TEST_1080P_HLG10.uri))
+                                  .setDurationUs(MP4_ASSET_COLOR_TEST_1080P_HLG10.videoDurationUs)
+                                  .build())))
+                  .build());
+          compositionPlayer.prepare();
+          compositionPlayer.setPlayWhenReady(true);
+        });
+    listener.waitUntilFirstFrameRendered();
+
+    int actualDataSpace = surfaceHolder.getLatestDataSpace();
+    assertThat(DataSpace.getStandard(actualDataSpace)).isEqualTo(DataSpace.STANDARD_BT2020);
+    assertThat(DataSpace.getTransfer(actualDataSpace)).isEqualTo(DataSpace.TRANSFER_HLG);
+    assertThat(DataSpace.getRange(actualDataSpace)).isEqualTo(DataSpace.RANGE_LIMITED);
+  }
+
+  /** An implementation of {@link SurfaceHolder} which is backed by an {@link ImageReader}. */
+  private static final class ImageReaderSurfaceHolder implements SurfaceHolder {
+    private final List<Callback> callbacks = new CopyOnWriteArrayList<>();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private int width;
+    private int height;
+    private int format;
+    private @MonotonicNonNull ImageReader imageReader;
+
+    @Override
+    public void addCallback(Callback callback) {
+      callbacks.add(callback);
+    }
+
+    @Override
+    public void removeCallback(Callback callback) {
+      callbacks.remove(callback);
+    }
+
+    @Override
+    public boolean isCreating() {
+      return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @deprecated implements a {@link SurfaceHolder} method in a test.
+     */
+    @Override
+    @Deprecated
+    public void setType(int type) {}
+
+    @Override
+    public void setFixedSize(int width, int height) {
+      this.width = width;
+      this.height = height;
+      handler.post(this::triggerCallbacks);
+    }
+
+    @Override
+    public void setSizeFromLayout() {}
+
+    @Override
+    public void setFormat(int format) {
+      this.format = format;
+      handler.post(this::triggerCallbacks);
+    }
+
+    @Override
+    public void setKeepScreenOn(boolean screenOn) {}
+
+    @Override
+    @Nullable
+    public Canvas lockCanvas() {
+      return null;
+    }
+
+    @Override
+    @Nullable
+    public Canvas lockCanvas(Rect dirty) {
+      return null;
+    }
+
+    @Override
+    public void unlockCanvasAndPost(Canvas canvas) {}
+
+    @Override
+    public Rect getSurfaceFrame() {
+      return new Rect(0, 0, width, height);
+    }
+
+    @Override
+    public Surface getSurface() {
+      if (imageReader == null) {
+        if (format == PixelFormat.RGBA_8888) {
+          // Old API versions, use an ImageReader constructor which supports fewer pixel formats.
+          imageReader =
+              ImageReader.newInstance(
+                  width == 0 ? 1 : width,
+                  height == 0 ? 1 : height,
+                  PixelFormat.RGBA_8888,
+                  /* maxImages= */ 2);
+        } else {
+          if (SDK_INT < 33) {
+            throw new IllegalStateException("HDR is only supported on API 33+");
+          }
+          // HDR is only supported on newer API versions, where a different constructor, with wider
+          // range of supported pixel formats exists.
+          imageReader =
+              new ImageReader.Builder(width, height)
+                  .setDefaultHardwareBufferFormat(format)
+                  .setMaxImages(2)
+                  .build();
+        }
+      }
+      return imageReader.getSurface();
+    }
+
+    @RequiresApi(33)
+    int getLatestDataSpace() {
+      Image image = imageReader.acquireLatestImage();
+      int dataSpace = image.getDataSpace();
+      image.close();
+      return dataSpace;
+    }
+
+    void release() {
+      if (imageReader != null) {
+        imageReader.close();
+      }
+    }
+
+    private void triggerCallbacks() {
+      if (imageReader != null
+          && (imageReader.getWidth() != width || imageReader.getHeight() != height)) {
+        imageReader.close();
+        imageReader = null;
+      }
+      for (Callback callback : callbacks) {
+        callback.surfaceChanged(/* holder= */ this, format, width, height);
+      }
+    }
   }
 }

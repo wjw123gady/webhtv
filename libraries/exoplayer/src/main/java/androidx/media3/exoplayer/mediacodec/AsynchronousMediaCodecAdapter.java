@@ -91,14 +91,10 @@ import java.util.List;
     }
 
     /**
-     * Sets whether to enable {@link MediaCodec#CONFIGURE_FLAG_USE_CRYPTO_ASYNC} on API 34 and
-     * above.
-     *
-     * <p>This method is experimental. Its default value may change, or it may be renamed or removed
-     * in a future release.
+     * Sets whether to enable {@link MediaCodec#CONFIGURE_FLAG_USE_CRYPTO_ASYNC} on API 36 and
+     * above. The default is {@code true}.
      */
-    @ExperimentalApi // TODO: b/470368123 - Remove method once flag usage once safe.
-    public void experimentalSetAsyncCryptoFlagEnabled(boolean enableAsyncCryptoFlag) {
+    public void setAsyncCryptoFlagEnabled(boolean enableAsyncCryptoFlag) {
       enableSynchronousBufferQueueingWithAsyncCryptoFlag = enableAsyncCryptoFlag;
     }
 

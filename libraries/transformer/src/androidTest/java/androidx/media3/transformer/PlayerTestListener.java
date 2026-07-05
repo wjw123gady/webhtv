@@ -33,6 +33,7 @@ public final class PlayerTestListener implements Player.Listener, AnalyticsListe
   private final ConditionVariable playerReady;
   private final ConditionVariable playerEnded;
   private final ConditionVariable firstFrameRendered;
+  private final ConditionVariable isPlaying;
   private final AtomicReference<@NullableType PlaybackException> playbackException;
   private final long testTimeoutMs;
   private @MonotonicNonNull DecoderCounters videoDecoderCounters;
@@ -48,6 +49,7 @@ public final class PlayerTestListener implements Player.Listener, AnalyticsListe
     playerReady = new ConditionVariable();
     playerEnded = new ConditionVariable();
     firstFrameRendered = new ConditionVariable();
+    isPlaying = new ConditionVariable();
     playbackException = new AtomicReference<>();
     this.testTimeoutMs = testTimeoutMs;
   }
@@ -60,6 +62,11 @@ public final class PlayerTestListener implements Player.Listener, AnalyticsListe
   /** Waits until the {@link Player player} is {@linkplain Player#STATE_READY ready}. */
   public void waitUntilPlayerReady() throws TimeoutException, PlaybackException {
     waitOrThrow(playerReady);
+  }
+
+  /** Waits until the {@link Player player} is {@linkplain Player#isPlaying() playing}. */
+  public void waitUntilIsPlaying() throws TimeoutException, PlaybackException {
+    waitOrThrow(isPlaying);
   }
 
   /** Waits until the {@link Player player} is {@linkplain Player#STATE_ENDED ended}. */
@@ -98,6 +105,13 @@ public final class PlayerTestListener implements Player.Listener, AnalyticsListe
   }
 
   @Override
+  public void onIsPlayingChanged(boolean isPlaying) {
+    if (isPlaying) {
+      this.isPlaying.open();
+    }
+  }
+
+  @Override
   public void onRenderedFirstFrame() {
     firstFrameRendered.open();
   }
@@ -109,6 +123,7 @@ public final class PlayerTestListener implements Player.Listener, AnalyticsListe
     playerReady.open();
     playerEnded.open();
     firstFrameRendered.open();
+    isPlaying.open();
   }
 
   // AnalyticsListener methods
@@ -128,6 +143,7 @@ public final class PlayerTestListener implements Player.Listener, AnalyticsListe
     playerReady.close();
     playerEnded.close();
     firstFrameRendered.close();
+    isPlaying.close();
     playbackException.set(null);
   }
 
