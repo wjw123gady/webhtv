@@ -281,6 +281,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private String playHealthKey;
     private long detailStartTime;
     private long playerStartTime;
+    private long mInitialPlaybackPosition = C.TIME_UNSET;
     private boolean pendingLutImport;
 
     private final ActivityResultLauncher<Intent> mLutDir = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -1017,11 +1018,19 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mSkipKaraokeTrackAutoLoad = isMusicLike() && !TextUtils.isEmpty(previousEpisodeKey) && !TextUtils.equals(previousEpisodeKey, mPlaybackEpisodeKey);
         SpiderDebug.log("video-flow", "player start key=%s flag=%s episode=%s url=%s", getKey(), playFlag, episode.getName(), episode.getUrl());
         mInlineLyrics = getEpisodeInlineLyrics(episode);
+        long step = System.currentTimeMillis();
         applyPlaybackArtwork(episode);
+        SpiderDebug.log("video-flow", "player artwork cost=%dms", System.currentTimeMillis() - step);
+        step = System.currentTimeMillis();
         clearLyrics();
         clearKaraokeState();
+        SpiderDebug.log("video-flow", "player clear audio state cost=%dms", System.currentTimeMillis() - step);
+        step = System.currentTimeMillis();
         if (isMusicLike()) setAudioStageVisible(true);
+        SpiderDebug.log("video-flow", "player audio stage cost=%dms visible=%s", System.currentTimeMillis() - step, isMusicLike());
+        step = System.currentTimeMillis();
         mViewModel.playerContent(getKey(), playFlag, episode.getUrl());
+        SpiderDebug.log("video-flow", "player content request dispatch cost=%dms", System.currentTimeMillis() - step);
         mBinding.widget.title.setSelected(true);
         updateHistory(episode);
         showProgress();
@@ -1049,7 +1058,12 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         if (result.hasPosition()) mHistory.setPosition(result.getPosition());
         mBinding.control.parse.setVisibility(isUseParse() ? View.VISIBLE : View.GONE);
         List<Danmaku> siteDanmakus = result.getDanmaku();
-        startPlayer(getHistoryKey(), result, isUseParse(), getSite().getTimeout(), buildMetadata());
+        mInitialPlaybackPosition = resolveInitialPlaybackPosition();
+        if (!isMusicLike() || service() == null || player().isIjk()) mInitialPlaybackPosition = C.TIME_UNSET;
+        SpiderDebug.log("video-flow", "startPlayer dispatch initialPosition=%d music=%s ijk=%s", mInitialPlaybackPosition, isMusicLike(), service() != null && player().isIjk());
+        long start = System.currentTimeMillis();
+        startPlayer(getHistoryKey(), result, isUseParse(), getSite().getTimeout(), buildMetadata(), mInitialPlaybackPosition);
+        SpiderDebug.log("video-flow", "startPlayer return cost=%dms sincePlayerStart=%dms", System.currentTimeMillis() - start, System.currentTimeMillis() - playerStartTime);
         if (DanmakuApi.canAutoSearch(siteDanmakus)) DanmakuApi.search(mHistory.getVodName(), getEpisode().getName(), player()::setDanmaku);
     }
 
@@ -3572,10 +3586,18 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     @Override
     protected void onPrepare() {
+        long start = System.currentTimeMillis();
         setDecode();
+        SpiderDebug.log("video-flow", "onPrepare decode cost=%dms sincePlayerStart=%dms", System.currentTimeMillis() - start, System.currentTimeMillis() - playerStartTime);
+        long step = System.currentTimeMillis();
         setLut();
+        SpiderDebug.log("video-flow", "onPrepare lut cost=%dms", System.currentTimeMillis() - step);
+        step = System.currentTimeMillis();
         setPosition();
+        SpiderDebug.log("video-flow", "onPrepare position cost=%dms", System.currentTimeMillis() - step);
+        step = System.currentTimeMillis();
         refreshLyrics();
+        SpiderDebug.log("video-flow", "onPrepare lyrics dispatch cost=%dms total=%dms", System.currentTimeMillis() - step, System.currentTimeMillis() - start);
     }
 
     @Override
@@ -5263,13 +5285,28 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void setPosition() {
         if (mHistory == null) return;
+        long position = resolveInitialPlaybackPosition();
+        if (position <= 0) return;
+        if (mInitialPlaybackPosition == position && isMusicLike() && service() != null && !player().isIjk()) {
+            SpiderDebug.log("video-flow", "skip duplicate restore seek position=%d key=%s", position, getHistoryKey());
+            mInitialPlaybackPosition = C.TIME_UNSET;
+            return;
+        }
+        long start = System.currentTimeMillis();
+        player().seekTo(position);
+        SpiderDebug.log("video-flow", "restore seek position=%d cost=%dms key=%s", position, System.currentTimeMillis() - start, getHistoryKey());
+        mInitialPlaybackPosition = C.TIME_UNSET;
+    }
+
+    private long resolveInitialPlaybackPosition() {
+        if (mHistory == null) return C.TIME_UNSET;
         if (mHistory.isNearEnding()) {
             SpiderDebug.log("video-flow", "reset near-end history position=%d duration=%d key=%s", mHistory.getPosition(), mHistory.getDuration(), getHistoryKey());
             mHistory.resetPlaybackPosition();
             syncHistory();
         }
         long position = Math.max(mHistory.getOpening(), mHistory.getPosition());
-        if (position > 0) player().seekTo(position);
+        return position > 0 ? position : C.TIME_UNSET;
     }
 
     private void checkEnded(boolean notify) {
