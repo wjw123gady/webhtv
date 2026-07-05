@@ -5289,6 +5289,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void setButtonEnabled(View button, boolean enabled) {
         button.setEnabled(enabled);
+        button.setFocusable(enabled);
         button.setAlpha(enabled ? 1f : 0.36f);
     }
 
