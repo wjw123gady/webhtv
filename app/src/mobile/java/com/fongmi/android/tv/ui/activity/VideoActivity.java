@@ -217,6 +217,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private boolean mAudioStageVisible;
     private boolean mAudioLightEffectAnimated;
     private boolean mKaraokeResultShown;
+    private boolean mSkipKaraokeTrackAutoLoad;
     private BottomSheetDialog mLyricsResultDialog;
     private BottomSheetDialog mAudioQueueDialog;
     private BottomSheetDialog mKaraokePitchDialog;
@@ -1072,11 +1073,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         playerStartTime = System.currentTimeMillis();
         beginPlayHealth();
         String playFlag = getEpisodePlayFlag(flag, episode);
+        String previousEpisodeKey = Objects.toString(mPlaybackEpisodeKey, "");
         mPlaybackEpisodeKey = audioQueueEpisodeKey(episode);
+        mSkipKaraokeTrackAutoLoad = isMusicLike() && !TextUtils.isEmpty(previousEpisodeKey) && !TextUtils.equals(previousEpisodeKey, mPlaybackEpisodeKey);
         SpiderDebug.log("video-flow", "player start key=%s flag=%s episode=%s url=%s", getKey(), playFlag, episode.getName(), episode.getUrl());
         mInlineLyrics = getEpisodeInlineLyrics(episode);
         applyPlaybackArtwork(episode);
         clearLyrics();
+        clearKaraokeState();
         if (isMusicLike()) setAudioStageVisible(true);
         mViewModel.playerContent(getKey(), playFlag, episode.getUrl());
         mBinding.control.title.setSelected(true);
@@ -3400,6 +3404,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         player().clear();
         mClock.setCallback(null);
         clearLyrics();
+        clearKaraokeState();
         if (mFlagAdapter.isEmpty()) return;
         if (mEpisodeAdapter.isEmpty()) return;
         Flag flag = getFlag();
@@ -4252,7 +4257,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void refreshKaraoke(boolean audioContent) {
-        if (mKaraoke != null && service() != null) mKaraoke.refresh(this, player(), audioContent);
+        if (mKaraoke == null || service() == null) return;
+        boolean loadTrack = !mSkipKaraokeTrackAutoLoad;
+        mKaraoke.refresh(this, player(), audioContent, loadTrack);
     }
 
     private void debugPlaybackControl(String event) {
@@ -4894,6 +4901,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (mLyrics != null) mLyrics.clear();
     }
 
+    private void clearKaraokeState() {
+        mKaraokeResultShown = false;
+        if (mKaraoke != null) mKaraoke.clear();
+    }
+
     private void dismissLyricsResultDialog() {
         if (mLyricsResultDialog == null) return;
         mLyricsResultDialog.dismiss();
@@ -4962,6 +4974,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         Track.delete(player().getKey());
         mClock.setCallback(null);
         clearLyrics();
+        clearKaraokeState();
         player().resetTrack();
         player().reset();
         player().stop();
@@ -5378,6 +5391,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     public void onCasted() {
         clearLyrics();
+        clearKaraokeState();
         player().stop();
     }
 

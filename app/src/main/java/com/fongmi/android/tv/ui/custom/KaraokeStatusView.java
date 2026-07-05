@@ -75,6 +75,8 @@ public class KaraokeStatusView extends LinearLayout {
 
     public void setState(KaraokeStatus status, KaraokeTrack track, KaraokePitchSample sample, KaraokeScoreSnapshot snapshot) {
         if (status == null || status == KaraokeStatus.INACTIVE) {
+            timeline.setLevel(0);
+            timeline.setState(null, null);
             setVisibility(PlayerSetting.isKaraokeMode() ? INVISIBLE : GONE);
             return;
         }

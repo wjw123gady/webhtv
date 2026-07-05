@@ -57,6 +57,10 @@ public class KaraokeController implements KaraokeMicRecorder.Listener {
     }
 
     public void refresh(FragmentActivity activity, PlayerManager player, boolean available) {
+        refresh(activity, player, available, true);
+    }
+
+    public void refresh(FragmentActivity activity, PlayerManager player, boolean available, boolean loadTrack) {
         boolean enabled = available && PlayerSetting.isKaraokeMode() && player != null && !player.isEmpty();
         if (!enabled) {
             clear();
@@ -77,6 +81,7 @@ public class KaraokeController implements KaraokeMicRecorder.Listener {
         freeScorer = new KaraokeFreeSingScorer(scoringConfig());
         snapshot = emptySnapshot(position);
         notifyUpdate();
+        if (!loadTrack) return;
         repository.load(player, result -> {
             if (current != sequence || !active) return;
             track = result;

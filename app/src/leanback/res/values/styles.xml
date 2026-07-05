@@ -98,6 +98,16 @@
         <item name="android:textSize">11sp</item>
     </style>
 
+    <style name="AudioActionIconButton">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:background">@drawable/selector_audio_action_icon</item>
+        <item name="android:focusable">true</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:tint">@color/white</item>
+    </style>
+
     <style name="ShapeAppearance.WebHTV.AudioCover" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>

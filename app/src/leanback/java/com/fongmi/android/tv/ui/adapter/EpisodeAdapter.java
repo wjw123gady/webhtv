@@ -39,7 +39,11 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
     }
 
     public void addAll(List<Episode> items) {
-        EpisodeTitleCompact.apply(items);
+        addAll(items, true);
+    }
+
+    public void addAll(List<Episode> items, boolean compactTitle) {
+        if (compactTitle) EpisodeTitleCompact.apply(items);
         mItems.clear();
         mItems.addAll(items);
         notifyDataSetChanged();
@@ -119,11 +123,15 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
     }
 
     public static int getColumn(List<Episode> items, int maxWidth) {
+        return getColumn(items, maxWidth, true);
+    }
+
+    public static int getColumn(List<Episode> items, int maxWidth, boolean compactTitle) {
         int maxTextWidth = 0;
         maxWidth = Math.max(ResUtil.dp2px(240), maxWidth);
         int spacing = ResUtil.dp2px(8);
         int padding = ResUtil.dp2px(40);
-        EpisodeTitleCompact.apply(items);
+        if (compactTitle) EpisodeTitleCompact.apply(items);
         for (Episode item : items) maxTextWidth = Math.max(maxTextWidth, ResUtil.getTextWidth(item.getDisplayName(), 16) + padding);
         for (int candidate : new int[]{8, 6, 5, 4, 3, 2}) {
             int width = (maxWidth - spacing * (candidate - 1)) / candidate;

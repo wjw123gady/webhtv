@@ -80,6 +80,7 @@ public class PlayerManager implements ParseCallback {
     private String currentDanmakuKey;
     private String loadingDanmakuKey;
     private long danmakuLoadStartedAtMs;
+    private long startPosition = C.TIME_UNSET;
     private boolean danmakuLoadInProgress;
 
     private boolean initTrack;
@@ -581,8 +582,13 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void start(PlaySpec spec, long timeout, boolean playWhenReady) {
+        start(spec, timeout, playWhenReady, C.TIME_UNSET);
+    }
+
+    public void start(PlaySpec spec, long timeout, boolean playWhenReady, long position) {
         this.spec = spec;
         this.playWhenReady = playWhenReady;
+        this.startPosition = position;
         retry = 0;
         exoFallbackTried = false;
         realtimeFallbackTried = false;
@@ -596,9 +602,14 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void parse(String key, Result result, boolean useParse, MediaMetadata metadata, boolean playWhenReady) {
+        parse(key, result, useParse, metadata, playWhenReady, C.TIME_UNSET);
+    }
+
+    public void parse(String key, Result result, boolean useParse, MediaMetadata metadata, boolean playWhenReady, long position) {
         stopParse();
         spec = PlaySpec.fromParse(result, key, metadata);
         this.playWhenReady = playWhenReady;
+        this.startPosition = position;
         retry = 0;
         exoFallbackTried = false;
         realtimeFallbackTried = false;
@@ -652,7 +663,10 @@ public class PlayerManager implements ParseCallback {
         prepareLutPipeline();
         initTrack = false;
         waitingLutBeforePlay = false;
-        engine.start(spec.checkUa(), playWhenReady);
+        long position = startPosition;
+        startPosition = C.TIME_UNSET;
+        if (position > 0) engine.start(spec.checkUa(), position, playWhenReady);
+        else engine.start(spec.checkUa(), playWhenReady);
         App.post(runnable, timeout);
         if (notifyPrepare) callback.onPrepare();
     }

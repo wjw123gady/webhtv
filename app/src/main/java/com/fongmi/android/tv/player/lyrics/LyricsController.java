@@ -117,6 +117,10 @@ public class LyricsController {
         return request.isValid() && repository.hasChoice(request);
     }
 
+    public boolean hasChoice(LyricsRequest request) {
+        return request != null && request.isValid() && repository.hasChoice(request);
+    }
+
     public void reload(PlayerManager player, boolean audioOnly, String keyword, Callback callback) {
         if (player == null || !audioOnly) {
             clear();
@@ -166,7 +170,11 @@ public class LyricsController {
             return;
         }
         LyricsRequest request = LyricsRequest.from(player).withKeyword(keyword);
-        if (!request.isValid()) {
+        search(request, callback);
+    }
+
+    public void search(LyricsRequest request, SearchCallback callback) {
+        if (request == null || !request.isValid()) {
             if (callback != null) callback.onResult(Collections.emptyList(), true);
             return;
         }

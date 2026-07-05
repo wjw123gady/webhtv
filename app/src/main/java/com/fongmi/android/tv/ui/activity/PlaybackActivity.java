@@ -14,6 +14,7 @@ import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
@@ -213,6 +214,10 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     protected void startPlayer(String key, Result result, boolean useParse, long timeout, MediaMetadata metadata) {
+        startPlayer(key, result, useParse, timeout, metadata, C.TIME_UNSET);
+    }
+
+    protected void startPlayer(String key, Result result, boolean useParse, long timeout, MediaMetadata metadata, long position) {
         if (result.getDrm() != null && !FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
             onError(ResUtil.getString(R.string.error_play_drm));
         } else if (result.hasMsg()) {
@@ -221,10 +226,10 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             onError(ResUtil.getString(R.string.error_play_url));
         } else if (result.needParse() || useParse) {
             attachSurface();
-            player().parse(key, result, useParse, metadata, PlayerSetting.isAutoPlay());
+            player().parse(key, result, useParse, metadata, PlayerSetting.isAutoPlay(), position);
         } else {
             attachSurface();
-            player().start(PlaySpec.from(result, key, metadata), timeout, PlayerSetting.isAutoPlay());
+            player().start(PlaySpec.from(result, key, metadata), timeout, PlayerSetting.isAutoPlay(), position);
         }
     }
 
