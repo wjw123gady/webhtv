@@ -189,7 +189,18 @@ public class Flag implements Parcelable, Diffable<Flag> {
 
     public void mergeEpisodes(List<Episode> items, boolean rev) {
         for (Episode item : items) {
-            if (getEpisodes().contains(item)) continue;
+            int existingIndex = getEpisodes().indexOf(item);
+            if (existingIndex != -1) {
+                // Episode 已存在，更新其 TMDB 数据（如果有）
+                Episode existing = getEpisodes().get(existingIndex);
+                if (item.getTmdbEpisode() != null && existing.getTmdbEpisode() == null) {
+                    existing.setTmdbEpisode(item.getTmdbEpisode());
+                    if (!android.text.TextUtils.isEmpty(item.getDisplayName())) {
+                        existing.setDisplayName(item.getDisplayName());
+                    }
+                }
+                continue;
+            }
             if (rev) getEpisodes().add(0, item);
             else getEpisodes().add(item);
         }
