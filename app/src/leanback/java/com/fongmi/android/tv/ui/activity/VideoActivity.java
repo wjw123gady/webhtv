@@ -720,7 +720,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private void setupAudioStageFocusFeedback() {
         View.OnFocusChangeListener listener = (view, hasFocus) -> {
             if (hasFocus) showAudioStageFocusHighlight(view);
-            else view.setActivated(false);
+            else if (isAudioStageIconButton(view)) view.setBackground(ResUtil.getDrawable(R.drawable.selector_audio_action_icon));
         };
         for (View view : audioStageFocusButtons()) view.setOnFocusChangeListener(listener);
     }
@@ -737,12 +737,29 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
     private void showAudioStageFocusHighlight(@Nullable View target) {
         if (target == null) return;
         App.removeCallbacks(mHideAudioFocusRunnable);
-        for (View view : audioStageFocusButtons()) view.setActivated(view == target);
+        resetAudioStageIconBackgrounds();
+        if (isAudioStageIconButton(target)) target.setBackground(ResUtil.getDrawable(R.drawable.shape_audio_action_icon_focused));
         App.post(mHideAudioFocusRunnable, 3000);
     }
 
     private void hideAudioStageFocusHighlight() {
-        for (View view : audioStageFocusButtons()) view.setActivated(false);
+        resetAudioStageIconBackgrounds();
+    }
+
+    private void resetAudioStageIconBackgrounds() {
+        for (View view : audioStageIconButtons()) view.setBackground(ResUtil.getDrawable(R.drawable.selector_audio_action_icon));
+    }
+
+    private boolean isAudioStageIconButton(View view) {
+        for (View item : audioStageIconButtons()) if (view == item) return true;
+        return false;
+    }
+
+    private View[] audioStageIconButtons() {
+        return new View[]{
+                mBinding.audioRepeatAction, mBinding.audioPrev, mBinding.audioPlay, mBinding.audioNext, mBinding.audioQueueAction,
+                mBinding.audioLyricsAction, mBinding.audioKaraokeAction, mBinding.audioMoreAction
+        };
     }
 
     private void setActionFocusScroll() {
