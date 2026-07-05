@@ -374,28 +374,80 @@
                             android:gravity="center"
                             android:orientation="horizontal">
 
-                            <com.google.android.material.textview.MaterialTextView
-                                android:id="@+id/audioLyricsAction"
-                                style="@style/AudioActionButton"
+                            <androidx.appcompat.widget.LinearLayoutCompat
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
                                 android:layout_marginEnd="4dp"
-                                android:text="@string/player_lyrics_search"
-                                android:textSize="12sp"
-                                app:drawableTopCompat="@drawable/ic_audio_lyrics" />
+                                android:layout_weight="1"
+                                android:gravity="center"
+                                android:orientation="vertical">
 
-                            <com.google.android.material.textview.MaterialTextView
-                                android:id="@+id/audioKaraokeAction"
-                                style="@style/AudioActionButton"
+                                <androidx.appcompat.widget.AppCompatImageView
+                                    android:id="@+id/audioLyricsAction"
+                                    style="@style/AudioActionIconButton"
+                                    android:src="@drawable/ic_audio_lyrics" />
+
+                                <com.google.android.material.textview.MaterialTextView
+                                    style="@style/Video.ContextText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="18dp"
+                                    android:gravity="center"
+                                    android:singleLine="true"
+                                    android:text="@string/player_lyrics_search"
+                                    android:textColor="@color/white_80"
+                                    android:textSize="12sp" />
+
+                            </androidx.appcompat.widget.LinearLayoutCompat>
+
+                            <androidx.appcompat.widget.LinearLayoutCompat
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
                                 android:layout_marginEnd="4dp"
-                                android:text="@string/player_karaoke_mode"
-                                android:textSize="12sp"
-                                app:drawableTopCompat="@drawable/ic_action_ktv" />
+                                android:layout_weight="1"
+                                android:gravity="center"
+                                android:orientation="vertical">
 
-                            <com.google.android.material.textview.MaterialTextView
-                                android:id="@+id/audioMoreAction"
-                                style="@style/AudioActionButton"
-                                android:text="@string/player_audio_more"
-                                android:textSize="12sp"
-                                app:drawableTopCompat="@drawable/ic_audio_more" />
+                                <androidx.appcompat.widget.AppCompatImageView
+                                    android:id="@+id/audioKaraokeAction"
+                                    style="@style/AudioActionIconButton"
+                                    android:src="@drawable/ic_action_ktv" />
+
+                                <com.google.android.material.textview.MaterialTextView
+                                    style="@style/Video.ContextText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="18dp"
+                                    android:gravity="center"
+                                    android:singleLine="true"
+                                    android:text="@string/player_karaoke_mode"
+                                    android:textColor="@color/white_80"
+                                    android:textSize="12sp" />
+
+                            </androidx.appcompat.widget.LinearLayoutCompat>
+
+                            <androidx.appcompat.widget.LinearLayoutCompat
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginEnd="4dp"
+                                android:layout_weight="1"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <androidx.appcompat.widget.AppCompatImageView
+                                    android:id="@+id/audioMoreAction"
+                                    style="@style/AudioActionIconButton"
+                                    android:src="@drawable/ic_audio_more" />
+
+                                <com.google.android.material.textview.MaterialTextView
+                                    style="@style/Video.ContextText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="18dp"
+                                    android:gravity="center"
+                                    android:singleLine="true"
+                                    android:text="@string/player_audio_more"
+                                    android:textColor="@color/white_80"
+                                    android:textSize="12sp" />
+
+                            </androidx.appcompat.widget.LinearLayoutCompat>
 
                         </androidx.appcompat.widget.LinearLayoutCompat>
 

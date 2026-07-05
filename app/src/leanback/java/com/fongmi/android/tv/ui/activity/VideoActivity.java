@@ -1020,15 +1020,25 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.control.action.episodes.setVisibility(items.size() < 2 ? View.GONE : View.VISIBLE);
         applyActionButtonVisibility();
         mBinding.episode.setVisibility(items.isEmpty() ? View.GONE : View.VISIBLE);
-        int column = EpisodeAdapter.getColumn(items);
+        boolean audioList = isMusicLike();
+        if (audioList) restoreAudioEpisodeDisplayNames(items);
+        int column = audioList ? 1 : EpisodeAdapter.getColumn(items);
         mBinding.episode.setNumColumns(column);
         mEpisodeAdapter.setColumn(column);
-        mEpisodeAdapter.addAll(items);
+        mEpisodeAdapter.addAll(items, !audioList);
         setArrayAdapter(items.size());
         updateFocus();
         updateEpisodeWindow();
         if (scrollToCurrent) scrollToCurrentEpisode();
         setR2Callback();
+    }
+
+    private void restoreAudioEpisodeDisplayNames(List<Episode> items) {
+        if (items == null) return;
+        for (Episode item : items) {
+            String title = mAudioQueueTitles.get(audioQueueEpisodeKey(item));
+            item.setDisplayName(TextUtils.isEmpty(title) ? item.getRawDisplayName() : title);
+        }
     }
 
     private void refreshEpisodeTitles() {
@@ -1371,7 +1381,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         chip.setEllipsize(TextUtils.TruncateAt.END);
         chip.setPadding(ResUtil.dp2px(10), 0, ResUtil.dp2px(10), 0);
         chip.setTextColor(SHEET_TEXT_SECONDARY);
-        chip.setBackground(roundRect(SHEET_CONTROL_BG_SUBTLE, SHEET_BUTTON_RADIUS_DP, 1, SHEET_CONTROL_STROKE));
+        chip.setBackground(audioSheetControlBackground(SHEET_CONTROL_BG_SUBTLE, SHEET_CONTROL_STROKE));
         chip.setOnClickListener(v -> {
             input.setText(text);
             if (input.getText() != null) input.setSelection(input.getText().length());
@@ -4092,7 +4102,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setGravity(Gravity.CENTER);
         view.setSingleLine(true);
         view.setTextColor(0xF2FFFFFF);
-        view.setBackground(roundRect(0x16FFFFFF, SHEET_BUTTON_RADIUS_DP, 1, 0x28FFFFFF));
+        view.setBackground(audioSheetControlBackground(0x16FFFFFF, 0x28FFFFFF));
         view.setOnClickListener(v -> action.run());
         return view;
     }
@@ -4221,7 +4231,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setEllipsize(TextUtils.TruncateAt.END);
         view.setPadding(ResUtil.dp2px(10), 0, ResUtil.dp2px(10), 0);
         view.setTextColor(0xF2FFFFFF);
-        view.setBackground(roundRect(0x14FFFFFF, SHEET_BUTTON_RADIUS_DP, 1, 0x22FFFFFF));
+        view.setBackground(audioSheetControlBackground(0x14FFFFFF, 0x22FFFFFF));
         view.setOnClickListener(v -> {
             if (dismissOnClick) dialog.dismiss();
             action.run();
@@ -4305,7 +4315,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setGravity(Gravity.CENTER);
         view.setSingleLine(true);
         view.setTextColor(SHEET_TEXT_PRIMARY);
-        view.setBackground(roundRect(primary ? SHEET_CONTROL_BG_SELECTED : SHEET_CONTROL_BG, SHEET_BUTTON_RADIUS_DP, 1, primary ? SHEET_CONTROL_STROKE_SELECTED : 0x32FFFFFF));
+        view.setBackground(audioSheetControlBackground(primary ? SHEET_CONTROL_BG_SELECTED : SHEET_CONTROL_BG, primary ? SHEET_CONTROL_STROKE_SELECTED : 0x32FFFFFF));
         view.setOnClickListener(v -> action.run());
         return view;
     }
@@ -4316,7 +4326,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setSingleLine(true);
         view.setEllipsize(TextUtils.TruncateAt.END);
         view.setTextColor(SHEET_TEXT_PRIMARY);
-        view.setBackground(roundRect(primary ? SHEET_CONTROL_BG_SELECTED : SHEET_CONTROL_BG, SHEET_BUTTON_RADIUS_DP, 1, primary ? SHEET_CONTROL_STROKE_SELECTED : SHEET_CONTROL_STROKE));
+        view.setBackground(audioSheetControlBackground(primary ? SHEET_CONTROL_BG_SELECTED : SHEET_CONTROL_BG, primary ? SHEET_CONTROL_STROKE_SELECTED : SHEET_CONTROL_STROKE));
         view.setOnClickListener(v -> action.run());
         return view;
     }
@@ -4326,7 +4336,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setImageResource(resId);
         view.setColorFilter(SHEET_TEXT_SECONDARY);
         view.setPadding(ResUtil.dp2px(12), ResUtil.dp2px(12), ResUtil.dp2px(12), ResUtil.dp2px(12));
-        view.setBackground(roundRect(0x16FFFFFF, SHEET_BUTTON_RADIUS_DP, 1, 0x32FFFFFF));
+        view.setBackground(audioSheetControlBackground(0x16FFFFFF, 0x32FFFFFF));
         view.setOnClickListener(v -> action.run());
         return view;
     }
@@ -4336,7 +4346,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         view.setImageResource(resId);
         view.setColorFilter(SHEET_TEXT_SECONDARY);
         view.setPadding(ResUtil.dp2px(9), ResUtil.dp2px(9), ResUtil.dp2px(9), ResUtil.dp2px(9));
-        view.setBackground(roundRect(0x10FFFFFF, SHEET_BUTTON_RADIUS_DP, 1, 0x22FFFFFF));
+        view.setBackground(audioSheetControlBackground(0x10FFFFFF, 0x22FFFFFF));
         view.setOnClickListener(v -> action.run());
         return view;
     }
@@ -4356,7 +4366,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             item.setEllipsize(TextUtils.TruncateAt.END);
             item.setPadding(ResUtil.dp2px(6), 0, ResUtil.dp2px(6), 0);
             item.setTextColor(selected ? SHEET_TEXT_PRIMARY : 0xE6FFFFFF);
-            item.setBackground(roundRect(selected ? SHEET_CONTROL_BG_SELECTED : 0x00000000, SHEET_SEGMENT_RADIUS_DP, 0, 0));
+            item.setBackground(audioSheetSegmentBackground(selected));
             item.setOnClickListener(v -> handler.onClick(index));
             row.addView(item, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
         }
@@ -4379,8 +4389,25 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return params;
     }
 
-    private GradientDrawable audioSheetItemBackground(boolean selected) {
-        return roundRect(selected ? SHEET_CONTROL_BG_SELECTED : 0x00000000, SHEET_BUTTON_RADIUS_DP, selected ? 1 : 0, selected ? SHEET_CONTROL_STROKE_SELECTED : 0);
+    private Drawable audioSheetItemBackground(boolean selected) {
+        return audioSheetSelectableBackground(selected ? SHEET_CONTROL_BG_SELECTED : 0x00000000, selected ? SHEET_CONTROL_STROKE_SELECTED : 0, SHEET_CONTROL_BG_SELECTED, SHEET_CONTROL_STROKE_SELECTED, SHEET_BUTTON_RADIUS_DP);
+    }
+
+    private Drawable audioSheetControlBackground(int normalColor, int normalStroke) {
+        return audioSheetSelectableBackground(normalColor, normalStroke, 0x3DFFFFFF, 0x80FFFFFF, SHEET_BUTTON_RADIUS_DP);
+    }
+
+    private Drawable audioSheetSegmentBackground(boolean selected) {
+        return audioSheetSelectableBackground(selected ? SHEET_CONTROL_BG_SELECTED : 0x00000000, 0, selected ? SHEET_CONTROL_BG_SELECTED : 0x2AFFFFFF, selected ? SHEET_CONTROL_STROKE_SELECTED : 0x66FFFFFF, SHEET_SEGMENT_RADIUS_DP);
+    }
+
+    private Drawable audioSheetSelectableBackground(int normalColor, int normalStroke, int focusedColor, int focusedStroke, int radiusDp) {
+        android.graphics.drawable.StateListDrawable drawable = new android.graphics.drawable.StateListDrawable();
+        drawable.addState(new int[]{android.R.attr.state_pressed}, roundRect(focusedColor, radiusDp, 1, focusedStroke));
+        drawable.addState(new int[]{android.R.attr.state_focused}, roundRect(focusedColor, radiusDp, 1, focusedStroke));
+        drawable.addState(new int[]{android.R.attr.state_selected}, roundRect(focusedColor, radiusDp, 1, focusedStroke));
+        drawable.addState(new int[]{}, roundRect(normalColor, radiusDp, normalStroke == 0 ? 0 : 1, normalStroke));
+        return drawable;
     }
 
     private void styleAudioSheetInput(TextInputLayout layout, String hint) {
@@ -4488,6 +4515,7 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         dialog.show();
         applyAudioSheetWindowGlass(dialog);
         hideSystemBarsForAudioSheet(dialog);
+        focusAudioSheetContent(dialog);
     }
 
     private void showCompactPlaybackSheet(BottomSheetDialog dialog) {
@@ -4537,6 +4565,17 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         dialog.show();
         applyAudioSheetWindowGlass(dialog);
         hideSystemBarsForAudioSheet(dialog);
+        focusAudioSheetContent(dialog);
+    }
+
+    private void focusAudioSheetContent(BottomSheetDialog dialog) {
+        if (dialog == null) return;
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        View decor = window.getDecorView();
+        decor.post(() -> focusFirstChild(decor));
+        decor.postDelayed(() -> focusFirstChild(decor), 160);
+        decor.postDelayed(() -> focusFirstChild(decor), 360);
     }
 
     private void applyAudioSheetWindowGlass(BottomSheetDialog dialog) {
@@ -4666,8 +4705,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         return item;
     }
 
-    private GradientDrawable lyricsResultItemBackground(boolean selected) {
-        return roundRect(selected ? SHEET_CONTROL_BG_SELECTED : SHEET_CONTROL_BG_SUBTLE, SHEET_BUTTON_RADIUS_DP, 1, selected ? SHEET_CONTROL_STROKE_SELECTED : SHEET_CONTROL_STROKE);
+    private Drawable lyricsResultItemBackground(boolean selected) {
+        return audioSheetSelectableBackground(selected ? SHEET_CONTROL_BG_SELECTED : SHEET_CONTROL_BG_SUBTLE, selected ? SHEET_CONTROL_STROKE_SELECTED : SHEET_CONTROL_STROKE, SHEET_CONTROL_BG_SELECTED, SHEET_CONTROL_STROKE_SELECTED, SHEET_BUTTON_RADIUS_DP);
     }
 
     private boolean showInlineLyrics() {
