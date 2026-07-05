@@ -409,7 +409,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     @Override
     protected boolean customWall() {
-        return false;
+        return true;
     }
 
     @Override
