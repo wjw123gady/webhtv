@@ -3588,7 +3588,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (mFusionThemeButton != null) {
             mFusionThemeButton.setOnClickListener(view -> cycleFusionTheme());
         }
-        updateFusionThemeButtonVisibility();
+        updateFusionThemeButton();
     }
 
     private RelativeLayout getFusionChromeRoot() {

@@ -118,6 +118,38 @@ public class TmdbDetailActivityLayoutTest {
     }
 
     @Test
+    public void themeActionButtonsHaveFallbackTextBeforeRuntimeThemeRefresh() throws Exception {
+        String detailLayout = readLayout("activity_tmdb_detail.xml");
+        String headerLayout = readLayout("view_tmdb_header.xml");
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        int init = source.indexOf("private void initPage()");
+        int labelRefresh = source.indexOf("updateThemeModeButtonLabels();", init);
+        int visibilityRefresh = source.indexOf("updateDetailThemeButtonVisibility();", init);
+
+        assertAndroidIdHasAttribute("top theme action", detailLayout, "themeModeTop", "android:text=\"@string/detail_theme_light\"");
+        assertAndroidIdHasAttribute("fusion theme action", detailLayout, "themeMode", "android:text=\"@string/detail_theme_light\"");
+        assertAndroidIdHasAttribute("panel theme action", detailLayout, "themeModeDetail", "android:text=\"@string/detail_theme_light\"");
+        assertAndroidIdHasAttribute("TMDB header theme action", headerLayout, "tmdbThemeToggle", "android:text=\"@string/detail_theme_light\"");
+        assertTrue("TMDB detail must set theme action labels before applying their initial visibility",
+                init >= 0 && labelRefresh > init && visibilityRefresh > labelRefresh);
+    }
+
+    @Test
+    public void playbackPageHidesThemeActionsWhileEnhancedDetailKeepsThem() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        int method = source.indexOf("private void updateDetailThemeButtonVisibility()");
+        int methodEnd = source.indexOf("private void applyTemplateCardChrome", method);
+        String body = source.substring(method, methodEnd);
+
+        assertTrue("playback page must be detected independently from the detail style",
+                body.contains("boolean playbackPage = isAutoPlayMode() || detailPlayerActive;"));
+        assertTrue("playback page must hide the fusion-row theme action",
+                body.contains("binding.themeMode.setVisibility(playbackPage ? View.GONE : (fusionMode ? (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE) : (showLargeScreenButton ? View.VISIBLE : View.GONE)));"));
+        assertTrue("enhanced detail page must keep its theme action, but playback pages must hide it",
+                body.contains("binding.themeModeDetail.setVisibility(fusionMode || playbackPage ? View.GONE : (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE));"));
+    }
+
+    @Test
     public void fusionInlineFullscreenConsoleMatchesNativeLeanbackStructure() throws Exception {
         String layout = readLayout("activity_tmdb_detail.xml");
         int bottom = layout.indexOf("android:id=\"@+id/playerBottom\"");
@@ -1681,6 +1713,12 @@ public class TmdbDetailActivityLayoutTest {
             assertTrue(label + " should keep @+id/" + id + " after the previous mapped control", index > previous);
             previous = index;
         }
+    }
+
+    private static void assertAndroidIdHasAttribute(String label, String layout, String id, String attribute) {
+        int index = layout.indexOf("android:id=\"@+id/" + id + "\"");
+        assertTrue(label + " is missing @+id/" + id, index >= 0);
+        assertTrue(label + " must include " + attribute, containsViewAttribute(layout, index, attribute));
     }
 
     private static void assertNativeControlButton(String layout, String id, String marginEnd) {

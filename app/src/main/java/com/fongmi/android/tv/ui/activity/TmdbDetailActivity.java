@@ -559,6 +559,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.overviewToggle.setVisibility(View.GONE);
         binding.play.setText(R.string.detail_play_now);
         binding.keep.setText(R.string.keep);
+        lightTheme = resolveLightTheme();
+        updateThemeModeButtonLabels();
         binding.playerPanel.setVisibility(isFusionMode() ? View.VISIBLE : View.GONE);
         binding.heroSpacer.setVisibility(isFusionMode() ? View.GONE : View.VISIBLE);
         binding.keepTop.setVisibility(View.GONE);
@@ -1262,9 +1264,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         else binding.personalAiReason.setShadowLayer(0f, 0f, 0f, 0x00000000);
         tintTmdbSectionTitles(colors);
         styleSourceValue();
-        binding.themeModeTop.setText(themeModeLabel());
-        binding.themeMode.setText(themeModeLabel());
-        binding.themeModeDetail.setText(themeModeLabel());
+        updateThemeModeButtonLabels();
         updateDetailThemeButtonVisibility();
         tintInlineGestureOverlay();
         if (isInlinePlayerMode()) {
@@ -1328,11 +1328,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         boolean showMobileButton = DetailThemeVisibility.showMobileThemeButton(mobile, inlineFullscreen, inlinePiPLayout, pictureInPicture);
         boolean showLargeScreenButton = DetailThemeVisibility.showLargeScreenThemeButton(mobile, inlineFullscreen, inlinePiPLayout, pictureInPicture);
         boolean fusionMode = isFusionMode();
+        boolean playbackPage = isAutoPlayMode() || detailPlayerActive;
         // 手机版也使用底部一排的主题按钮（themeModeDetail），不再使用右上角浮动按钮（themeModeTop）
         binding.themeModeTop.setVisibility(View.GONE);
         // 融合模式：主题按钮在 fusionActions 排；其他模式：在 detail 排
-        binding.themeMode.setVisibility(fusionMode ? (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE) : (showLargeScreenButton ? View.VISIBLE : View.GONE));
-        binding.themeModeDetail.setVisibility(fusionMode ? View.GONE : (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE));
+        binding.themeMode.setVisibility(playbackPage ? View.GONE : (fusionMode ? (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE) : (showLargeScreenButton ? View.VISIBLE : View.GONE)));
+        binding.themeModeDetail.setVisibility(fusionMode || playbackPage ? View.GONE : (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE));
     }
 
     private void applyTemplateCardChrome(ThemeColors colors) {
@@ -1566,6 +1567,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private int themeModeLabel() {
         return lightTheme ? R.string.detail_theme_light : R.string.detail_theme_dark;
+    }
+
+    private void updateThemeModeButtonLabels() {
+        binding.themeModeTop.setText(themeModeLabel());
+        binding.themeMode.setText(themeModeLabel());
+        binding.themeModeDetail.setText(themeModeLabel());
     }
 
     private void setCard(MaterialCardView card, int background, int stroke) {

@@ -1058,6 +1058,27 @@ public class VideoActivityLayoutTest {
     }
 
     @Test
+    public void tmdbHeaderThemeToggleIsHiddenUntilVideoActivityAllowsFusionThemeSwitching() throws Exception {
+        Path layoutPath = findMainResPath().resolve(Path.of("layout", "view_tmdb_header.xml"));
+        Element themeToggle = findAndroidId(layoutPath.toFile(), "tmdbThemeToggle");
+        Path headerPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "custom", "TmdbHeaderView.java"));
+        String headerSource = new String(Files.readAllBytes(headerPath), StandardCharsets.UTF_8);
+        Path videoPath = findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
+        String videoSource = new String(Files.readAllBytes(videoPath), StandardCharsets.UTF_8);
+        int styleFusion = headerSource.indexOf("private void styleFusionActions()");
+        int styleFusionEnd = headerSource.indexOf("private void clearFusionActionStyling()", styleFusion);
+        String styleFusionBody = headerSource.substring(styleFusion, styleFusionEnd);
+
+        assertTrue(layoutPath + " is missing @+id/tmdbThemeToggle", themeToggle != null);
+        assertTrue("TMDB header theme toggle must start hidden so colorful playback pages do not show it",
+                "gone".equals(themeToggle.getAttribute("android:visibility")));
+        assertFalse("TmdbHeaderView must not force the theme toggle visible; VideoActivity owns that mode decision",
+                styleFusionBody.contains("themeToggle.setVisibility(View.VISIBLE)"));
+        assertTrue("VideoActivity must still show the header theme toggle for the real fusion detail mode",
+                videoSource.contains("DetailThemeVisibility.showFusionThemeButton(Setting.isFusionDetailPage(), isFullscreen(), isInPictureInPictureMode())"));
+    }
+
+    @Test
     public void mobileVideoFusionPlaybackControlsRefreshAfterBeingMoved() throws Exception {
         Path sourcePath = findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
