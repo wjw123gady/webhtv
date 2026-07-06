@@ -96,6 +96,8 @@ public class TmdbHeaderView {
     public interface ActionListener {
         void onChangeSource();
 
+        void onChangeSourceLongClick();
+
         void onRematch();
 
         void onKeep();
@@ -517,8 +519,13 @@ public class TmdbHeaderView {
     }
 
     private void setupActions() {
-        headerRoot.findViewById(R.id.tmdbChangeSource).setOnClickListener(view -> {
+        View tmdbChangeSource = headerRoot.findViewById(R.id.tmdbChangeSource);
+        tmdbChangeSource.setOnClickListener(view -> {
             if (actionListener != null) actionListener.onChangeSource();
+        });
+        tmdbChangeSource.setOnLongClickListener(view -> {
+            if (actionListener != null) actionListener.onChangeSourceLongClick();
+            return true;
         });
         headerRoot.findViewById(R.id.tmdbRematch).setOnClickListener(view -> {
             if (actionListener != null) actionListener.onRematch();
@@ -532,7 +539,9 @@ public class TmdbHeaderView {
         if (headerRoot == null) return;
         View changeSource = headerRoot.findViewById(R.id.tmdbChangeSource);
         if (changeSource == null) return;
-        changeSource.setVisibility(Setting.isOriginalEnhancedDetailPage() ? View.GONE : View.VISIBLE);
+        // 原来：原生增强模式隐藏换源按钮
+        // 现在：所有模式都显示换源按钮
+        changeSource.setVisibility(View.VISIBLE);
     }
 
     /**

@@ -1911,6 +1911,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return true;
     }
 
+    private boolean onSearchGlobal() {
+        SearchActivity.start(this, mBinding.name.getText().toString());
+        return true;
+    }
+
     private boolean onCopy() {
         Util.copy(mBinding.content.getText().toString());
         return true;
@@ -3421,6 +3426,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
             @Override
             public void onChangeSource() {
                 onChange();
+            }
+
+            @Override
+            public void onChangeSourceLongClick() {
+                onSearchGlobal();
             }
 
             @Override
