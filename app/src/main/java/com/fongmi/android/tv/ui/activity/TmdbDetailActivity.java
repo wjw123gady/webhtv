@@ -1327,9 +1327,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         boolean pictureInPicture = isInPictureInPictureMode();
         boolean showMobileButton = DetailThemeVisibility.showMobileThemeButton(mobile, inlineFullscreen, inlinePiPLayout, pictureInPicture);
         boolean showLargeScreenButton = DetailThemeVisibility.showLargeScreenThemeButton(mobile, inlineFullscreen, inlinePiPLayout, pictureInPicture);
-        binding.themeModeTop.setVisibility(showMobileButton ? View.VISIBLE : View.GONE);
-        binding.themeMode.setVisibility(showLargeScreenButton ? View.VISIBLE : View.GONE);
-        binding.themeModeDetail.setVisibility(showLargeScreenButton ? View.VISIBLE : View.GONE);
+        boolean fusionMode = isFusionMode();
+        // 手机版也使用底部一排的主题按钮（themeModeDetail），不再使用右上角浮动按钮（themeModeTop）
+        binding.themeModeTop.setVisibility(View.GONE);
+        // 融合模式：主题按钮在 fusionActions 排；其他模式：在 detail 排
+        binding.themeMode.setVisibility(fusionMode ? (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE) : (showLargeScreenButton ? View.VISIBLE : View.GONE));
+        binding.themeModeDetail.setVisibility(fusionMode ? View.GONE : (showMobileButton || showLargeScreenButton ? View.VISIBLE : View.GONE));
     }
 
     private void applyTemplateCardChrome(ThemeColors colors) {

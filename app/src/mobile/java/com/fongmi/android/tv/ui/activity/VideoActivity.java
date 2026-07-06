@@ -3583,23 +3583,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void ensureFusionThemeButton() {
         if (mFusionThemeButton != null) return;
-        RelativeLayout chromeRoot = getFusionChromeRoot();
-        if (chromeRoot == null) return;
-        mFusionThemeButton = new MaterialButton(this);
-        mFusionThemeButton.setAllCaps(false);
-        mFusionThemeButton.setMinHeight(ResUtil.dp2px(40));
-        mFusionThemeButton.setMinWidth(ResUtil.dp2px(126));
-        mFusionThemeButton.setTextSize(14);
-        mFusionThemeButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        mFusionThemeButton.setCornerRadius(ResUtil.dp2px(24));
-        mFusionThemeButton.setStrokeWidth(ResUtil.dp2px(1));
-        mFusionThemeButton.setPadding(ResUtil.dp2px(16), 0, ResUtil.dp2px(16), 0);
-        mFusionThemeButton.setOnClickListener(view -> cycleFusionTheme());
-        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, ResUtil.dp2px(48));
-        params.addRule(RelativeLayout.ALIGN_PARENT_END);
-        params.addRule(RelativeLayout.BELOW, R.id.statusBar);
-        params.setMargins(0, ResUtil.dp2px(14), ResUtil.dp2px(24), 0);
-        chromeRoot.addView(mFusionThemeButton, params);
+        if (mTmdbHeaderView == null || mTmdbHeaderView.getHeaderRoot() == null) return;
+        mFusionThemeButton = mTmdbHeaderView.getHeaderRoot().findViewById(R.id.tmdbThemeToggle);
+        if (mFusionThemeButton != null) {
+            mFusionThemeButton.setOnClickListener(view -> cycleFusionTheme());
+        }
         updateFusionThemeButtonVisibility();
     }
 
@@ -3719,11 +3707,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void updateFusionThemeButton() {
         if (mFusionThemeButton == null) return;
-        boolean light = isFusionLightTheme();
         mFusionThemeButton.setText(fusionThemeLabel());
-        mFusionThemeButton.setTextColor(light ? 0xFF12202D : 0xFFE9F0F5);
-        mFusionThemeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(light ? 0xE6E7EDF3 : 0xCC252A32));
-        mFusionThemeButton.setStrokeColor(android.content.res.ColorStateList.valueOf(light ? 0x33424B57 : 0x42FFFFFF));
         updateFusionThemeButtonVisibility();
     }
 

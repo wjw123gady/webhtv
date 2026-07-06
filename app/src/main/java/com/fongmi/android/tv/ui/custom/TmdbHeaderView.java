@@ -1568,16 +1568,14 @@ public class TmdbHeaderView {
         ViewGroup row = headerRoot.findViewById(R.id.tmdbActions);
         MaterialButton rematch = headerRoot.findViewById(R.id.tmdbRematch);
         MaterialButton keep = headerRoot.findViewById(R.id.tmdbKeep);
-        if (row != null && rematch != null && keep != null && row.indexOfChild(rematch) > row.indexOfChild(keep)) {
-            ViewGroup.LayoutParams params = rematch.getLayoutParams();
-            row.removeView(rematch);
-            row.addView(rematch, 1, params);
-        }
+        MaterialButton themeToggle = headerRoot.findViewById(R.id.tmdbThemeToggle);
+        // 已在布局里按正确顺序排列（换源|收藏|TMDB|主题），不再动态重排
         if (row != null) {
             row.setBackground(null);
             row.setPadding(0, 0, 0, 0);
         }
         if (rematch != null) rematch.setText("重新匹配");
+        if (themeToggle != null) themeToggle.setVisibility(View.VISIBLE);
     }
 
     private void clearFusionActionStyling() {
@@ -1879,6 +1877,7 @@ public class TmdbHeaderView {
         tintAction(R.id.tmdbChangeSource, style);
         tintAction(R.id.tmdbKeep, style);
         tintAction(R.id.tmdbRematch, style);
+        tintAction(R.id.tmdbThemeToggle, style);
     }
 
     private void tintAction(int id, int style) {
