@@ -6179,11 +6179,13 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         String[] kernels = ResUtil.getStringArray(R.array.select_player_kernel);
         String[] items = Arrays.copyOf(kernels, kernels.length + 1);
         items[kernels.length] = "外调";
-        new MaterialAlertDialogBuilder(this).setItems(items, (dialog, which) -> {
-            if (which < kernels.length) switchInlinePlayer(which);
-            else openInlineExternal();
-        }).show();
+        new MaterialAlertDialogBuilder(this).setItems(items, (dialog, which) -> onInlinePlayerChoice(kernels, which)).show();
         return true;
+    }
+
+    private void onInlinePlayerChoice(String[] kernels, int which) {
+        if (which < kernels.length) switchInlinePlayer(which);
+        else openInlineExternal();
     }
 
     private void switchInlinePlayer(int playerType) {
