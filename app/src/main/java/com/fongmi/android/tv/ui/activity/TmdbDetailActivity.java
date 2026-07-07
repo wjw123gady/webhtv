@@ -164,6 +164,7 @@ import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -6181,8 +6182,15 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean showInlinePlayerChoice() {
         if (service() == null || player().isEmpty()) return false;
         String[] kernels = ResUtil.getStringArray(R.array.select_player_kernel);
-        new MaterialAlertDialogBuilder(this).setTitle(R.string.player_kernel).setItems(kernels, (dialog, which) -> switchInlinePlayer(which)).show();
+        String[] items = Arrays.copyOf(kernels, kernels.length + 1);
+        items[kernels.length] = "外调";
+        new MaterialAlertDialogBuilder(this).setItems(items, (dialog, which) -> onInlinePlayerChoice(kernels, which)).show();
         return true;
+    }
+
+    private void onInlinePlayerChoice(String[] kernels, int which) {
+        if (which < kernels.length) switchInlinePlayer(which);
+        else openInlineExternal();
     }
 
     private void switchInlinePlayer(int playerType) {
