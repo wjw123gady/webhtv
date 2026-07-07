@@ -7,6 +7,7 @@
 - `plans/安卓MPV播放器集成实现与踩坑记录.md`
 - `plans/安卓MPV相对Exo功能缺口TODO.md`
 - `plans/安卓libmpv二次开发指南.md`
+- `plans/mpv播放器项目仓库参考.md`
 
 ## 文档目标
 
@@ -36,8 +37,17 @@
 - `FongMi/mpv-android`：与官方 mpv-android 同源，适合确认 FongMi 生态里直接可复用的用法。
 - `sfsakhawat999/mpvRex`：现代 Android libmpv 播放器，参考价值集中在智能轨道选择、node 映射、网络流 Range 代理、Anime4K/HDR shader、Lua 自定义按钮、截图逐帧、字幕样式。
 - `busydoggo/mPlayer`：mpvRex 类似分支，参考价值集中在字幕面板、延迟、zoom/pan、shader UI、逐帧截图。
+- `sbenmeddour/libmpv-android`：可参考独立 AAR/JNI 封装，尤其是 `END_FILE reason/error` 结构化事件和 Kotlin track model。
+- `MakD/AFinity`：LibMPV + ExoPlayer 的 Jellyfin 客户端，可参考 `track-list` 到 Media3 `Tracks` 的映射、`aid/sid/vid` 选择和多引擎契约。
+- `raulshma/jellyplay`：可参考多播放引擎边界、服务端媒体流索引和播放器轨道索引不一致时的匹配，以及 Jellyfin device profile。
+- `kernoeb/telegramedia`：可参考本地 HTTP server 给 mpv 播放时的 `Range`、`206`、`Content-Range` 和渐进下载处理。
+- `Laskco/mpvNova`：Android TV-first mpv-android fork，可参考 D-pad 体验、decoder 诊断、双字幕、字幕记忆和 `hwdec-current` 展示。
+- `XBigTK13X/expo-libmpv`：React/Expo 场景不是主参考，但其 `LibmpvSession` 延迟应用 seek/音轨/字幕选择的思路可借鉴。
+- `dcs-studio/mpv-build-android`、`FortunasXP/mpv-android-libdovi`：适合后续 native 构建、codec 包、Dolby Vision/HDR 专项研究。
 - `media-kit/media-kit`：跨平台 libmpv 封装，参考价值在缓存、平台后端差异、Android TV 硬解问题讨论。
 - `Streamyfin/Findroid/Jellyfin` 相关 PR/issues：参考价值在服务端媒体轨道与 MPV 真实 `track-list` 不一致时，必须按身份匹配而不是按位置匹配。
+
+完整 117 个 GitHub 仓库的筛选结论见 `plans/mpv播放器项目仓库参考.md`。该清单已按 A 类主参考、B 类专题参考、C 类低价值/噪音分级；后续遇到 MPV 问题时先按功能缺口查对应项目，不只按 star 数判断。
 
 ### 用户提供项目
 
