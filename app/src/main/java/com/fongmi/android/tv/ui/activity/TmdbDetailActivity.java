@@ -4344,6 +4344,15 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         dialogBinding.panel.setStrokeColor(colors.line);
         tintTextTree(dialogBinding.getRoot(), colors);
         dialogBinding.title.setText(episodeDetailTitle(episode, episodeNumber, detail));
+        String sourceName = episode == null ? "" : episode.getName();
+        CharSequence titleText = dialogBinding.title.getText();
+        boolean titleHasSource = !TextUtils.isEmpty(titleText) && titleText.toString().contains(sourceName);
+        if (!TextUtils.isEmpty(sourceName) && !titleHasSource) {
+            dialogBinding.originalName.setText(getString(R.string.detail_episode_original_name, sourceName));
+            dialogBinding.originalName.setVisibility(View.VISIBLE);
+        } else {
+            dialogBinding.originalName.setVisibility(View.GONE);
+        }
         dialogBinding.meta.setText(episodeMeta(detail));
         dialogBinding.meta.setVisibility(TextUtils.isEmpty(dialogBinding.meta.getText()) ? View.GONE : View.VISIBLE);
         String overview = string(detail, "overview");

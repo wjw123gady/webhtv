@@ -1381,6 +1381,7 @@
     <string name="detail_episode_detail_title">第 %1$d 集 · %2$s</string>
     <string name="detail_episode_guests">客串演员</string>
     <string name="detail_episode_crew">职员</string>
+    <string name="detail_episode_original_name">原始名称：%1$s</string>
     <string name="detail_person_biography">简介</string>
     <string name="detail_person_empty">暂无人物信息</string>
     <string name="detail_person_info">个人信息</string>
