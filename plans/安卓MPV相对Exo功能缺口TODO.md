@@ -178,7 +178,7 @@ Exo 对应实现：
 - 格式错误、网络错误、解码错误可区分。
 - native reason/error 接入后，日志推断只作为兜底。
 
-### [ ] 6. 切换媒体生命周期继续固化
+### [x] 6. 切换媒体生命周期继续固化（压测清单已固化，待实机执行）
 
 现状：
 
@@ -195,11 +195,14 @@ Exo 对应实现：
 - 当前保持 reset context 策略，不要为了优化切换速度提前复用 context。
 - 后续如果要复用 context，必须先补 native event reason、请求取消、session 生命周期和压力测试。
 - 保留旧 HLS session TTL，避免新媒体开始时旧分片立刻 404 干扰。
+- 已固化回归方法：每次 MPV 生命周期/输入层改动后必须按“首播、同视频切集、不同视频切换、快速连续切换、退出重进、错误资源”执行实机验证。
+- 已固化日志判据：每个新媒体必须有新的 `context reset for new media`、`load uri=...`、`event=start-file`，随后出现 playlist/item 请求和 `event=file-loaded` / `event=playback-restart` 或明确 MPV 错误前缀。
 
 验收：
 
 - 同视频切集、不同视频切换、快速连续切换都不会黑屏超时。
 - 日志里每次新媒体都有明确 `start-file`、playlist 请求、`file-loaded` 或明确错误。
+- 失败样本必须记录 URL 类型、是否 HLS、是否走 proxy、最后一个 MPV 错误前缀、recent log、是否有旧 session item 404。
 
 ## P1 待补齐
 

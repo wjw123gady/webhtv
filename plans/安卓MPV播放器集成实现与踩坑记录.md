@@ -367,6 +367,45 @@ Exo 通过 Android MediaDrm 处理 `MediaItem.DrmConfiguration`，而当前 MPV/
 - ClearKey 或 HLS AES-128 如果要支持，应优先在 HLS proxy/key 输入层单独设计并实机验证。
 - DRM 资源仍然只能用户手动切换播放器，不能自动 fallback Exo。
 
+### 12. 切媒体/生命周期压测必须固定执行
+
+背景：
+
+MPV 之前的黑屏/连接超时主要出现在“首播成功后切集或切到另一个视频”。这类问题很容易被单次首播测试漏掉，因此后续只要改 MPV 生命周期、HLS proxy、Surface、错误处理、track/subtitle 时，都必须执行固定压测。
+
+当前稳定策略：
+
+- 新媒体 `setMediaItem` 时 reset libmpv context。
+- 重建后重新绑定 Surface。
+- HLS proxy 保留旧 session TTL，不在新视频开始时立即清空旧 item。
+- `loadfile` 启动重试只作为诊断兜底，不作为生命周期正确性的主要依赖。
+
+实机压测矩阵：
+
+- 首播 HLS VOD：进入播放，等待 `event=playback-restart`。
+- 同视频切集：连续切下一集 3 次。
+- 不同视频切换：从当前视频切到另一个 HLS 视频。
+- 快速连续切换：3 秒内连续触发 3 次切集/换线。
+- 返回退出再进入：退出播放页后重新进入同一集。
+- 错误资源：DRM、404 playlist、异常分片、没有音视频数据各至少一个样本。
+
+通过判据：
+
+- 每个新媒体都有新的 `context reset for new media`。
+- 每个新媒体都有新的 `load uri=...`。
+- 正常资源必须看到 `event=start-file`、playlist 请求、item 请求、`event=file-loaded`，最终 `event=playback-restart`。
+- 失败资源必须出现明确 MPV 错误前缀，例如 `MPV_LOAD_FAILED`、`MPV_HLS_PLAYBACK_FAILED`、`MPV_DRM_UNSUPPORTED`，不能只显示连接超时。
+- 快速切换期间允许旧 session item 自然过期，但旧请求不能阻止新 session 出现 `start-file`。
+
+失败样本记录：
+
+- URL 类型：普通 HTTP、HLS master、HLS media、fMP4、AES key、DRM。
+- 是否走 `MpvHlsProxy`。
+- 最后一个 MPV 错误前缀。
+- recent mpv log。
+- 是否出现旧 session item 404。
+- 是否有 video size、track-list、hwdec-current、vo 信息。
+
 ## 参考过的开源项目
 
 - `mpv-android-anime4k`：header 补齐、`http-header-fields`、`http-allow-redirect`、`hls-bitrate=max` 等 MPV option 有参考价值。
