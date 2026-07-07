@@ -14,6 +14,7 @@ import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.player.exo.ExoUtil;
+import com.fongmi.android.tv.player.exo.TrackUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.crawler.SpiderDebug;
 
@@ -124,20 +125,22 @@ public class MpvPlayerEngine implements PlayerEngine {
 
     @Override
     public void setTrack(List<Track> tracks) {
+        TrackUtil.setTrackSelection(player, tracks);
     }
 
     @Override
     public void resetTrack() {
+        TrackUtil.reset(player);
     }
 
     @Override
     public boolean haveTrack(int type) {
-        return false;
+        return TrackUtil.count(getCurrentTracks(), type) > 0;
     }
 
     @Override
     public Tracks getCurrentTracks() {
-        return Tracks.EMPTY;
+        return player.getCurrentTracks();
     }
 
     @Override

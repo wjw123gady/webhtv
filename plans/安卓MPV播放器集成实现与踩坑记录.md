@@ -30,8 +30,19 @@ MPV 作为独立播放器类型接入，不能自动切换到 Exo。播放失败
 - `play` / `pause` -> `pause` 属性
 - `seekTo` -> `seek absolute+exact`
 - `duration` / `position` -> `duration/full`、`time-pos/full`
+- `track-list` -> Media3 `Tracks`
+- Media3 `TrackSelectionParameters` -> MPV `vid`、`aid`、`sid`
 - Surface -> `attachSurface` / `detachSurface`
 - 状态 -> `STATE_BUFFERING`、`STATE_READY`、`STATE_ENDED`、`STATE_IDLE`
+
+2026-07-07 追加：
+
+- `MpvPlayer` 已声明 `COMMAND_GET_TRACKS` 和 `COMMAND_SET_TRACK_SELECTION_PARAMETERS`。
+- 轨道发现先尝试解析 MPV `track-list` 字符串 JSON；如果当前 JNI 没有返回 JSON，则回退读取 `track-list/count` 和 `track-list/N/*` 子属性。
+- 每个 MPV 轨道映射为一个 Media3 `Tracks.Group`，`Format.id` 保存 MPV 轨道 id，避免按 UI 顺序猜测音轨/字幕轨。
+- `MpvPlayerEngine` 复用 Exo 的 `TrackUtil`，让现有轨道弹窗、历史轨道恢复、关闭字幕逻辑继续走同一套上层契约。
+- 用户手动选轨时，MPV 只设置对应的 `vid`、`aid`、`sid`；重置时恢复 `auto`，字幕禁用时设置 `sid=no`。
+- `FILE_LOADED`、`PLAYBACK_RESTART`、`VIDEO_RECONFIG`、`AUDIO_RECONFIG` 和 `sub-add` 后都会刷新轨道列表。
 
 ### Header 处理
 
@@ -221,6 +232,36 @@ HLS 不一定都是“一个 URL 一个完整 TS 分片”。fMP4 HLS、`#EXT-X-
 对应 Exo：
 
 Exo 的 HLS/Extractor/DataSource 链路天然支持 byte range、init segment 和 seek 读。MPV 走本地代理时，代理必须承担这层 DataSource 责任，不能只重写 playlist URL。
+
+### 8. MPV 轨道列表不能只依赖一种 JNI 返回格式
+
+问题：
+
+MPV 官方的 `track-list` 是结构化属性。不同 Android libmpv 封装可能选择不同暴露方式：有的把 node/list 转成 JSON 字符串，有的只适合读取 `track-list/count` 和 `track-list/N/*` 子属性。如果只按一种格式写，轨道弹窗可能一直为空，进一步导致历史音轨/字幕恢复失效。
+
+处理：
+
+`MpvPlayer.refreshTracks()` 采用双路径：
+
+- 优先解析 `track-list` 字符串 JSON，兼容 AFinity 这类直接把 MPV track-list 映射成 Media3 `Tracks` 的实现。
+- JSON 不可用时，回退逐项读取 `track-list/count`、`track-list/N/id`、`type`、`lang`、`title`、`codec`、`selected`、`default`、`forced`、`external-filename` 等子属性。
+
+选择逻辑不按列表下标猜轨道，而是把 MPV 的真实轨道 id 存入 `Format.id`，用户手动选择后再映射到：
+
+- 视频：`vid`
+- 音频：`aid`
+- 字幕：`sid`
+- 关闭字幕：`sid=no`
+
+对应 Exo：
+
+Exo 的 `TrackUtil` 通过 `TrackSelectionOverride` 选中 `TrackGroup` 中的具体轨道，上层 UI 只认 Media3 `Tracks` 和 `PlayerHelper.describeFormat(format)`。MPV 这次保留同一套上层契约：UI、历史选择和关闭字幕仍走 `TrackUtil`，底层再把 Media3 selection 翻译成 MPV 属性。
+
+后续注意：
+
+- 外挂字幕 `sub-add` 后必须重新读取轨道列表，否则 UI 看不到新字幕。
+- 旧媒体的 `TrackSelectionOverride` 不能直接套到新媒体，必须确认 override 对应的 `TrackGroup` 仍在当前 `Tracks` 内。
+- 后续如果扩展第二字幕，要新增 `secondary-sid`，不要复用主字幕 `sid`。
 
 ## 参考过的开源项目
 

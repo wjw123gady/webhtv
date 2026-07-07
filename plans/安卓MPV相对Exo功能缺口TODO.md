@@ -27,15 +27,14 @@
 
 ## P0 待补齐
 
-### [ ] 1. MPV 轨道发现与选择
+### [x] 1. MPV 轨道发现与选择（代码完成，待实机验证）
 
 现状：
 
-- `MpvPlayerEngine.setTrack()` 是空实现。
-- `MpvPlayerEngine.resetTrack()` 是空实现。
-- `MpvPlayerEngine.haveTrack()` 固定返回 `false`。
-- `MpvPlayerEngine.getCurrentTracks()` 返回 `Tracks.EMPTY`。
-- `MpvPlayer.mediaItemData()` 也把 Tracks 固定成 `Tracks.EMPTY`。
+- `MpvPlayer` 已将 MPV `track-list` 映射为 Media3 `Tracks`。
+- `MpvPlayerEngine.setTrack()` / `resetTrack()` 已复用 Exo 同款 `TrackUtil`。
+- MPV 内部已处理 `TrackSelectionParameters`，把手动选择映射为 `vid`、`aid`、`sid`。
+- 字幕禁用映射为 `sid=no`，重置映射为 `auto`。
 
 Exo 对应实现：
 
@@ -45,19 +44,21 @@ Exo 对应实现：
 
 实施方向：
 
-- 先查 mpv 官方 properties：`track-list`、`aid`、`vid`、`sid`、`track-list/count`、`track-list/N/type`、`track-list/N/id`、`track-list/N/lang`、`track-list/N/title`。
-- 评估当前 JNI 是否能读取 node/list。当前 `MPVLib` 没有 `MPV_FORMAT_NODE` 的 Java 映射，可能需要新增 native node -> Java model。
-- 将 MPV track-list 映射为 Media3 `Tracks` 和项目内 `Track` 可识别的 `Format` 描述。
-- `setTrack()` 映射为设置 `aid`、`vid`、`sid`，禁用轨道映射为 `no` 或等价值。
-- `resetTrack()` 恢复自动选轨。
-- 播放开始、音视频重配、外挂字幕添加后都要触发 tracks 更新。
+已实施：
 
-验收：
+- 先尝试解析 `track-list` 字符串 JSON。
+- 若 JNI 不返回 JSON，则回退逐项读取 `track-list/count`、`track-list/N/type`、`track-list/N/id`、`track-list/N/lang`、`track-list/N/title`、`track-list/N/codec`、`track-list/N/selected` 等子属性。
+- 一个 MPV 轨道映射为一个 Media3 `Tracks.Group`，`Format.id` 保存 MPV 轨道 id，保证后续选择不按 UI 顺序猜测。
+- `handleSetTrackSelectionParameters()` 根据当前 override 设置 `vid`、`aid`、`sid`。
+- `FILE_LOADED`、`PLAYBACK_RESTART`、`VIDEO_RECONFIG`、`AUDIO_RECONFIG` 和 `sub-add` 后都会刷新轨道。
+
+后续验证：
 
 - 音轨/字幕轨弹窗在 MPV 下可见。
 - 选择音轨/字幕后立即生效。
 - 历史轨道选择可恢复。
 - 关闭字幕可生效。
+- 外挂字幕 `sub-add` 后能进入字幕列表。
 
 ### [ ] 2. 外挂字幕完整能力
 
