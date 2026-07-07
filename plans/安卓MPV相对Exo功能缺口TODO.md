@@ -60,13 +60,14 @@ Exo 对应实现：
 - 关闭字幕可生效。
 - 外挂字幕 `sub-add` 后能进入字幕列表。
 
-### [ ] 2. 外挂字幕完整能力
+### [ ] 2. 外挂字幕完整能力（字幕/音频延迟已补）
 
 现状：
 
 - `MpvPlayer.addSubtitleConfigurations()` 已调用 `sub-add`。
-- 但 MPV 字幕轨没有回填到 Media3 `Tracks`。
-- `PlayerManager.getTextOffsetMs()` / `setTextOffsetMs()` 依赖 Media3 command，MPV 目前未声明 `COMMAND_GET_TEXT_OFFSET` / `COMMAND_SET_TEXT_OFFSET`。
+- MPV 字幕轨已经通过 `track-list` 回填到 Media3 `Tracks`。
+- `COMMAND_GET_TEXT_OFFSET` / `COMMAND_SET_TEXT_OFFSET` 已映射到 MPV `sub-delay`。
+- `COMMAND_GET_AUDIO_OFFSET` / `COMMAND_SET_AUDIO_OFFSET` 已映射到 MPV `audio-delay`。
 - Exo 的字幕样式由 `ExoUtil.setPlayerView()` 配置 `SubtitleView`，MPV 走 libass/osd，不共享这套 UI 字幕渲染。
 
 Exo 对应实现：
@@ -77,8 +78,8 @@ Exo 对应实现：
 
 实施方向：
 
-- 保留 `sub-add`，但补齐轨道发现，确保外挂字幕加入后 UI 可选择。
-- MPV 字幕延迟映射到 `sub-delay`，音频延迟映射到 `audio-delay`。
+- 保留 `sub-add` 和轨道刷新，确保外挂字幕加入后 UI 可选择。
+- 已完成：MPV 字幕延迟映射到 `sub-delay`，音频延迟映射到 `audio-delay`。
 - 梳理 `PlayerSetting` 里的字幕字体大小、位置、系统 caption 设置，确认哪些能通过 mpv option/property 对齐，哪些需要标注“不共享 Exo SubtitleView”。
 - 对 ASS/SSA/SRT/VTT 分别测试。
 

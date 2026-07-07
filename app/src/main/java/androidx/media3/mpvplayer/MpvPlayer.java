@@ -85,6 +85,10 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             .add(COMMAND_SET_VIDEO_SURFACE)
             .add(COMMAND_GET_TRACKS)
             .add(COMMAND_SET_TRACK_SELECTION_PARAMETERS)
+            .add(COMMAND_GET_TEXT_OFFSET)
+            .add(COMMAND_SET_TEXT_OFFSET)
+            .add(COMMAND_GET_AUDIO_OFFSET)
+            .add(COMMAND_SET_AUDIO_OFFSET)
             .build();
 
     private final Context context;
@@ -112,6 +116,8 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private long cachedPositionMs;
     private long cachedDurationMs;
     private long cachedCacheDurationMs;
+    private long textOffsetMs;
+    private long audioOffsetMs;
     private boolean playWhenReady;
     private boolean loading;
     private boolean repeatOne;
@@ -168,6 +174,8 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 .setRepeatMode(repeatOne ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF)
                 .setPlaybackParameters(playbackParameters)
                 .setTrackSelectionParameters(trackSelectionParameters)
+                .setTextOffsetMs(textOffsetMs)
+                .setAudioOffsetMs(audioOffsetMs)
                 .setVideoSize(videoSize)
                 .setVolume(volume)
                 .setPlaylist(mediaItem == null ? ImmutableList.of() : ImmutableList.of(mediaItemData()))
@@ -334,6 +342,22 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     }
 
     @Override
+    protected ListenableFuture<?> handleSetTextOffsetMs(long offsetMs) {
+        textOffsetMs = offsetMs;
+        applyTextOffset();
+        invalidateState();
+        return Futures.immediateVoidFuture();
+    }
+
+    @Override
+    protected ListenableFuture<?> handleSetAudioOffsetMs(long offsetMs) {
+        audioOffsetMs = offsetMs;
+        applyAudioOffset();
+        invalidateState();
+        return Futures.immediateVoidFuture();
+    }
+
+    @Override
     protected ListenableFuture<?> handleSetVideoOutput(Object videoOutput) {
         this.videoOutput = videoOutput;
         setVideoOutput(videoOutput);
@@ -415,6 +439,8 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             safeSetPropertyString("loop-file", repeatOne ? "inf" : "no");
             safeSetPropertyDouble("speed", playbackParameters.speed);
             safeSetPropertyDouble("volume", volume * 100.0);
+            applyTextOffset();
+            applyAudioOffset();
             currentPlayableUri = playableUri(mediaItem.localConfiguration.uri);
             currentLikelyHls = isLikelyHls(mediaItem, currentPlayableUri);
             if (shouldProxyHls(currentPlayableUri, currentLikelyHls)) {
@@ -1096,6 +1122,14 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         safeSetPropertyString(property, TextUtils.isEmpty(selectedId) ? "auto" : selectedId);
     }
 
+    private void applyTextOffset() {
+        if (initialized) safeSetPropertyDouble("sub-delay", textOffsetMs / SECONDS_TO_MS);
+    }
+
+    private void applyAudioOffset() {
+        if (initialized) safeSetPropertyDouble("audio-delay", audioOffsetMs / SECONDS_TO_MS);
+    }
+
     @Nullable
     private String selectedTrackId(int type) {
         for (TrackSelectionOverride override : trackSelectionParameters.overrides.values()) {
@@ -1126,15 +1160,16 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     }
 
     private int media3TrackType(String mpvType) {
-        if ("video".equals(mpvType)) return C.TRACK_TYPE_VIDEO;
-        if ("audio".equals(mpvType)) return C.TRACK_TYPE_AUDIO;
-        if ("sub".equals(mpvType) || "subtitle".equals(mpvType)) return C.TRACK_TYPE_TEXT;
+        String value = mpvType == null ? "" : mpvType.trim().toLowerCase(Locale.US);
+        if ("video".equals(value)) return C.TRACK_TYPE_VIDEO;
+        if ("audio".equals(value)) return C.TRACK_TYPE_AUDIO;
+        if ("sub".equals(value) || "subtitle".equals(value)) return C.TRACK_TYPE_TEXT;
         return C.TRACK_TYPE_UNKNOWN;
     }
 
     @Nullable
     private String sampleMimeType(int type, @Nullable String codec) {
-        String value = codec == null ? "" : codec.toLowerCase(Locale.US);
+        String value = codec == null ? "" : codec.trim().toLowerCase(Locale.US);
         return switch (type) {
             case C.TRACK_TYPE_VIDEO -> switch (value) {
                 case "h264", "avc", "avc1" -> MimeTypes.VIDEO_H264;
