@@ -39,6 +39,7 @@ import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.UnstableApi;
 
 import com.github.catvod.crawler.SpiderDebug;
+import com.fongmi.android.tv.player.lut.MpvLutShader;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.HttpHeaders;
@@ -139,6 +140,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private TrackSelectionParameters trackSelectionParameters;
     private Tracks currentTracks;
     private List<MediaEdition> currentChapters;
+    private MpvLutShader lutShader;
     private VideoSize videoSize;
     private int playbackState;
     private long pendingSeekPositionMs;
@@ -171,6 +173,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private int currentChapter;
     private String lastFailureLog;
     private String secondarySubtitleId;
+    private String appliedLutShaderPath;
     private float subtitleTextSize;
     private float subtitlePosition;
     private float volume;
@@ -472,6 +475,11 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         return true;
     }
 
+    public void setLutShader(@Nullable MpvLutShader shader) {
+        lutShader = shader;
+        applyShaderPipeline(false);
+    }
+
     public String getRuntimeDiagnostics() {
         if (!initialized) return "";
         return join(" / ",
@@ -480,6 +488,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 "音频 " + emptyDash(stringProperty("audio-codec", "")),
                 "硬解 " + emptyDash(stringProperty("hwdec-current", "")),
                 "输出 " + emptyDash(stringProperty("current-vo", stringProperty("vo-configured", ""))),
+                "着色 " + (lutShader == null ? "-" : lutShader.diagnostics()),
                 "缓存 " + formatSeconds(doubleProperty("demuxer-cache-duration", 0)),
                 "代理 " + hlsProxy.diagnostics(),
                 "丢帧 " + Math.max(0, intProperty("frame-drop-count", 0)) + "/" + Math.max(0, intProperty("vo-drop-frame-count", 0)),
@@ -600,6 +609,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             } else {
                 hlsProxy.clear();
             }
+            applyShaderPipeline(true);
             Log.d(TAG, "load uri=" + currentPlayableUri + " hls=" + currentLikelyHls);
             SpiderDebug.log("mpv", "load uri=%s hls=%s surface=%s attached=%s hwdec=%s", currentPlayableUri, currentLikelyHls, surface != null && surface.isValid(), surfaceAttached, config.hwdec());
             loadCurrentUri();
@@ -627,6 +637,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         MPVLib.addObserver(this);
         MPVLib.addLogObserver(this);
         applyPostInitOptions();
+        applyShaderPipeline(true);
         observeProperties();
     }
 
@@ -2015,6 +2026,21 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         return ": " + recentLogs.get(recentLogs.size() - 1);
     }
 
+    private void applyShaderPipeline(boolean force) {
+        if (!initialized) return;
+        String target = lutShader == null ? "" : lutShader.getPath();
+        if (!force && TextUtils.equals(appliedLutShaderPath, target)) return;
+        if (!TextUtils.isEmpty(appliedLutShaderPath)) {
+            safeCommand(new String[]{"change-list", "glsl-shaders", "remove", appliedLutShaderPath});
+            SpiderDebug.log("mpv", "shader remove lut=%s", appliedLutShaderPath);
+        }
+        if (!TextUtils.isEmpty(target)) {
+            safeCommand(new String[]{"change-list", "glsl-shaders", "append", target});
+            SpiderDebug.log("mpv", "shader append lut=%s", target);
+        }
+        appliedLutShaderPath = target;
+    }
+
     private void postToMain(Runnable runnable) {
         if (Looper.myLooper() == Looper.getMainLooper()) runnable.run();
         else mainHandler.post(runnable);
@@ -2043,6 +2069,13 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private void observe(String property, int format) {
         try {
             MPVLib.observeProperty(property, format);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void safeCommand(String[] command) {
+        try {
+            MPVLib.command(command);
         } catch (Throwable ignored) {
         }
     }
