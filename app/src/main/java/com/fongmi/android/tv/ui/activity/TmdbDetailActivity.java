@@ -122,6 +122,7 @@ import com.fongmi.android.tv.ui.helper.PlayerControlFocusHelper;
 import com.fongmi.android.tv.ui.helper.TmdbCinemaTheme;
 import com.fongmi.android.tv.ui.helper.TmdbDetailLabels;
 import com.fongmi.android.tv.ui.helper.TmdbEpisodeGridPolicy;
+import com.fongmi.android.tv.ui.helper.TmdbEpisodeMatcher;
 import com.fongmi.android.tv.ui.helper.TmdbMatchPolicy;
 import com.fongmi.android.tv.ui.helper.TmdbRecommendationRows;
 import com.fongmi.android.tv.ui.player.VodPlayerChrome;
@@ -4065,7 +4066,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             int index = indices.getOrDefault(episode, -1);
             if (index < 0) index = sourceEpisodes.indexOf(episode);
             EpisodePosition position = episodePosition(episode, sourceEpisodes, index);
-            if (position.season() == tmdbSeason) episode.setTmdbEpisode(tmdbEpisodes.get(position.number()));
+            if (position.season() == tmdbSeason) {
+                TmdbEpisode tmdbEpisode = tmdbEpisodes.get(position.number());
+                episode.setTmdbEpisode(TmdbEpisodeMatcher.shouldApply(episode, tmdbEpisode) ? tmdbEpisode : null);
+            }
         }
     }
 
@@ -7101,7 +7105,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private String inlineEpisodeTitle(Episode episode, List<Episode> episodes) {
         EpisodePosition position = episodePosition(episode, episodes);
         String title = tmdbEpisodeTitle(position.season(), position.number());
-        if (TextUtils.isEmpty(title)) return EpisodeAdapter.getTitle(episode);
+        if (TextUtils.isEmpty(title) || !TmdbEpisodeMatcher.shouldApply(episode, position.number(), title)) return EpisodeAdapter.getTitle(episode);
         return TmdbEpisodeAdapter.getTitle(episode, position.number(), title);
     }
 

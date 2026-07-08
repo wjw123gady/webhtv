@@ -1584,7 +1584,8 @@ public class TmdbDetailActivityLayoutTest {
 
         assertTrue("detail episodes should bind matched TMDB objects back onto source Episode items for playback cards and dialogs",
                 bindBody.contains("bindTmdbEpisodes(sourceEpisodes, tmdbSeason);")
-                        && activity.contains("episode.setTmdbEpisode(tmdbEpisodes.get(position.number()));"));
+                        && activity.contains("TmdbEpisode tmdbEpisode = tmdbEpisodes.get(position.number());")
+                        && activity.contains("episode.setTmdbEpisode(TmdbEpisodeMatcher.shouldApply(episode, tmdbEpisode) ? tmdbEpisode : null);"));
         assertTrue("season fetch completion should refresh against the active TMDB data season, not only the selected source season",
                 fetchBody.contains("seasonNumber == tmdbEpisodeDataSeason(selectedFlag == null ? null : selectedFlag.getEpisodes())"));
         assertTrue("stale split-season TMDB caches should trigger a one-shot fresh first-season probe for long single-season shows",
