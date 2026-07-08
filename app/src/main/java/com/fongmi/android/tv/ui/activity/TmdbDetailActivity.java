@@ -76,6 +76,7 @@ import com.fongmi.android.tv.databinding.ActivityTmdbDetailBinding;
 import com.fongmi.android.tv.databinding.DialogTmdbEpisodeBinding;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.ui.host.TmdbDetailHost;
 import com.fongmi.android.tv.playback.PlaybackOrientation;
 import com.fongmi.android.tv.player.IntroSkipPlayback;
 import com.fongmi.android.tv.player.PlayerManager;
@@ -186,7 +187,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.Listener, Clock.Callback, PlayerGesture.Listener, SubtitlePlaybackSession.Host {
+public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.Listener, Clock.Callback, PlayerGesture.Listener, SubtitlePlaybackSession.Host, TmdbDetailHost {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.getDefault());
     private static final int FOCUS_STROKE = 0xFFFFD166;
@@ -341,6 +342,16 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private String backdropSlidePrimary = "";
     private ImageView backdropSlideVisibleView;
     private ImageView backdropSlideLoadingView;
+
+    @Override
+    public TmdbItem getMatchedTmdbItem() {
+        return matchedTmdbItem;
+    }
+
+    @Override
+    public JsonObject getMatchedTmdbDetail() {
+        return matchedTmdbDetail;
+    }
 
     public static void start(Activity activity, String key, String id, String name, String pic, String mark) {
         start(activity, key, id, name, pic, mark, null);
@@ -4411,6 +4422,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void showTmdbEpisodeDetail(Episode episode, int episodeNumber) {
+        // 电影场景：直接展示影片详情
+        if (matchedTmdbItem != null && matchedTmdbItem.isMovie()) {
+            showMovieDialog(episode);
+            return;
+        }
+        // 剧集场景：原有逻辑
         if (matchedTmdbItem == null || !"tv".equalsIgnoreCase(matchedTmdbItem.getMediaType()) || selectedSeasonNumber < 0 || episodeNumber <= 0 || !canMatchTmdb()) {
             Notify.show(R.string.detail_tmdb_empty);
             return;
@@ -4443,6 +4460,124 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 });
             }
         });
+    }
+
+    /**
+     * 电影场景：炫彩详情长按线路展示影片 TMDB 详情
+     */
+    private void showMovieDialog(Episode episode) {
+        DialogTmdbEpisodeBinding dialogBinding = DialogTmdbEpisodeBinding.inflate(getLayoutInflater());
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this).setView(dialogBinding.getRoot()).create();
+        ThemeColors colors = lightTheme ? ThemeColors.light() : ThemeColors.dark();
+        dialogBinding.panel.setCardBackgroundColor(colors.panel);
+        dialogBinding.panel.setStrokeColor(colors.line);
+        tintTextTree(dialogBinding.getRoot(), colors);
+
+        // 标题：影片名
+        String movieTitle = matchedTmdbItem.getTitle();
+        dialogBinding.title.setText(TextUtils.isEmpty(movieTitle) ? episode.getName() : movieTitle);
+
+        // 原始名称：源站文件名，完整多行展示
+        String sourceName = episode == null ? "" : episode.getName();
+        if (!TextUtils.isEmpty(sourceName) && !sourceName.equals(movieTitle)) {
+            dialogBinding.originalName.setText(getString(R.string.detail_episode_original_name, sourceName));
+            dialogBinding.originalName.setVisibility(View.VISIBLE);
+        } else {
+            dialogBinding.originalName.setVisibility(View.GONE);
+        }
+
+        // meta：评分 / 上映日期 / 时长
+        dialogBinding.meta.setText(movieMeta(matchedTmdbItem, matchedTmdbDetail));
+        dialogBinding.meta.setVisibility(TextUtils.isEmpty(dialogBinding.meta.getText()) ? View.GONE : View.VISIBLE);
+
+        // 简介
+        String movieOverview = matchedTmdbItem.getOverview();
+        if (TextUtils.isEmpty(movieOverview) && matchedTmdbDetail != null) movieOverview = string(matchedTmdbDetail, "overview");
+        dialogBinding.overview.setText(TextUtils.isEmpty(movieOverview) ? getString(R.string.detail_tmdb_empty) : movieOverview);
+
+        // crew 区域：电影无分集制作人员信息，隐藏
+        dialogBinding.crewTitle.setVisibility(View.GONE);
+        dialogBinding.crew.setVisibility(View.GONE);
+
+        // 剧照区域：隐藏（或改用第一张背景图）
+        dialogBinding.still.setVisibility(View.GONE);
+
+        // 剧照列表与演员：异步加载
+        TmdbPhotoAdapter photoAdapter = new TmdbPhotoAdapter((position, url) -> showPhotoDialog(position, url, new ArrayList<>()));
+        photoAdapter.setLight(lightTheme);
+        dialogBinding.photoList.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        dialogBinding.photoList.setNestedScrollingEnabled(false);
+        dialogBinding.photoList.setAdapter(photoAdapter);
+        dialogBinding.photoTitle.setVisibility(View.GONE);
+        dialogBinding.photoList.setVisibility(View.GONE);
+
+        TmdbPersonAdapter guestAdapter = new TmdbPersonAdapter(this::loadPersonDetail);
+        guestAdapter.setItems(new ArrayList<>());
+        dialogBinding.guestList.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        dialogBinding.guestList.setNestedScrollingEnabled(false);
+        dialogBinding.guestList.setAdapter(guestAdapter);
+        dialogBinding.guestTitle.setText(R.string.detail_tmdb_cast); // 改成"演员"而非"客串演员"
+        dialogBinding.guestTitle.setVisibility(View.GONE);
+        dialogBinding.guestList.setVisibility(View.GONE);
+
+        dialogBinding.close.setOnClickListener(view -> dialog.dismiss());
+        setButton(dialogBinding.close, colors.control, colors.line, colors.primary);
+
+        dialog.show();
+        dialogBinding.close.post(dialogBinding.close::requestFocus);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setDimAmount(0.56f);
+            int width = getResources().getDisplayMetrics().widthPixels;
+            window.setLayout((int) (width * (width >= 1200 ? 0.78f : 0.94f)), WindowManager.LayoutParams.WRAP_CONTENT);
+        }
+
+        // 异步加载影片剧照与演员
+        if (matchedTmdbDetail != null) {
+            Task.execute(() -> {
+                try {
+                    List<String> photos = tmdbService.photos(matchedTmdbDetail, tmdbConfig);
+                    List<TmdbPerson> cast = tmdbService.cast(matchedTmdbDetail, tmdbConfig);
+                    runOnAliveUi(() -> {
+                        if (!photos.isEmpty()) {
+                            photoAdapter.setItems(photos);
+                            dialogBinding.photoTitle.setVisibility(View.VISIBLE);
+                            dialogBinding.photoList.setVisibility(View.VISIBLE);
+                        }
+                        if (!cast.isEmpty()) {
+                            guestAdapter.setItems(cast);
+                            dialogBinding.guestTitle.setVisibility(View.VISIBLE);
+                            dialogBinding.guestList.setVisibility(View.VISIBLE);
+                        }
+                    });
+                } catch (Exception e) {
+                    android.util.Log.w("TmdbDetailActivity", "load movie media failed", e);
+                }
+            });
+        }
+    }
+
+    private String movieMeta(TmdbItem movieItem, JsonObject detail) {
+        List<String> metas = new ArrayList<>();
+        double rating = movieItem.getRating();
+        if (rating <= 0 && detail != null) rating = doubleValue(detail, "vote_average");
+        if (rating > 0) metas.add(String.format(Locale.US, "%.1f", rating));
+        if (detail != null) {
+            String date = string(detail, "release_date");
+            if (!TextUtils.isEmpty(date)) metas.add(date);
+            int runtime = (int) doubleValue(detail, "runtime");
+            if (runtime > 0) metas.add(getString(R.string.detail_runtime_format, runtime));
+        }
+        return TextUtils.join(" · ", metas);
+    }
+
+    private double doubleValue(JsonObject obj, String key) {
+        try {
+            if (obj != null && obj.has(key) && !obj.get(key).isJsonNull()) return obj.get(key).getAsDouble();
+        } catch (Exception ignored) {
+        }
+        return 0;
     }
 
     private void showTmdbEpisodeDialog(Episode episode, int episodeNumber, JsonObject detail, List<String> photos, List<TmdbPerson> guests) {

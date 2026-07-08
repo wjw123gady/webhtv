@@ -147,7 +147,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, ArrayAdapter.OnClickListener, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, Clock.Callback, SubtitlePlaybackSession.Host {
+public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, ArrayAdapter.OnClickListener, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, Clock.Callback, SubtitlePlaybackSession.Host, com.fongmi.android.tv.ui.host.TmdbDetailHost {
 
     private static final int SHORT_DRAMA_SCALE = 0; // 0=原始(适合TV), 4=裁剪(适合手机)
     private static final int TMDB_DETAIL_LOAD_TIMEOUT = 8000;
@@ -274,6 +274,17 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
             }
         });
     });
+
+    @Override
+    public com.fongmi.android.tv.bean.TmdbItem getMatchedTmdbItem() {
+        return mTmdbUIAdapter == null ? null : mTmdbUIAdapter.getTmdbItem();
+    }
+
+    @Override
+    public com.google.gson.JsonObject getMatchedTmdbDetail() {
+        // leanback VideoActivity 不持有 detail JSON，只有 TmdbItem
+        return null;
+    }
 
     public static void push(FragmentActivity activity, String text) {
         PushParser.Parsed push = PushParser.fromText(text);
