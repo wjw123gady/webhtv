@@ -648,7 +648,7 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("compact immersive/cinema title area must share the row with the poster instead of occupying full width",
                 body.contains("new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)")
                         && body.contains("infoParams.setMarginStart(compact ? ResUtil.dp2px(14) : 0);")
-                        && body.contains("if (compact) setWidthMatch(binding.detailActions);"));
+                        && body.contains("if (compact) TmdbDetailLayoutUtils.setWidthMatch(binding.detailActions);"));
     }
 
     @Test
