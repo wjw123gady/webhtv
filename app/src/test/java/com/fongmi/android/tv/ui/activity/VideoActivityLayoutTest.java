@@ -782,6 +782,18 @@ public class VideoActivityLayoutTest {
     }
 
     @Test
+    public void leanbackTmdbPlaybackOverviewWrapsWithinRightPane() throws Exception {
+        Path layoutFile = findLeanbackResPath().resolve(Path.of("layout", "activity_video.xml"));
+        Element overview = findAndroidId(layoutFile.toFile(), "tmdbOverview");
+
+        assertTrue(layoutFile + " is missing @+id/tmdbOverview", overview != null);
+        assertTrue("TMDB playback overview must be measured between the title column and screen edge so it wraps instead of ellipsizing as one long line",
+                "match_parent".equals(overview.getAttribute("android:layout_width"))
+                        && "@+id/name".equals(overview.getAttribute("android:layout_alignStart"))
+                        && "true".equals(overview.getAttribute("android:layout_alignParentEnd")));
+    }
+
+    @Test
     public void leanbackDetailActionButtonsPreferSourceLineBeforeRecommendations() throws Exception {
         Path sourcePath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);

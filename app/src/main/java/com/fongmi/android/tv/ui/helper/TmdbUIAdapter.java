@@ -3,6 +3,7 @@ package com.fongmi.android.tv.ui.helper;
 import android.app.Activity;
 import android.text.TextUtils;
 
+import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.Flag;
 import com.fongmi.android.tv.bean.TmdbConfig;
@@ -25,6 +26,7 @@ import com.fongmi.android.tv.title.MediaTitleResolver;
 import com.fongmi.android.tv.utils.EpisodeTitleFormatter;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Task;
+import com.fongmi.android.tv.utils.TmdbDetailCache;
 import com.fongmi.android.tv.utils.TmdbImageSelector;
 import com.fongmi.android.tv.utils.Util;
 import com.github.catvod.crawler.SpiderDebug;
@@ -49,10 +51,14 @@ import java.util.Locale;
  */
 public class TmdbUIAdapter {
 
+    private static final long VOD_REFRESH_COALESCE_MS = 240;
+    private static final long TMDB_STARTUP_BACKGROUND_DELAY_MS = 1200;
+
     private final Activity activity;
     private final TmdbService tmdbService;
     private final TmdbMatcher tmdbMatcher;
     private final TmdbConfig tmdbConfig;
+    private final Runnable pendingVodRefresh = this::dispatchPendingVodRefresh;
 
     private TmdbItem tmdbItem;
     private JsonObject tmdbDetail;
@@ -74,6 +80,9 @@ public class TmdbUIAdapter {
     private boolean personalAiLoading;
     private boolean loaded;
     private volatile int loadGeneration;
+    private volatile int pendingVodRefreshGeneration;
+    private volatile Vod pendingVodRefreshVod;
+    private Runnable pendingStartupBackgroundLoads;
     private PersonalAiUpdateListener personalAiUpdateListener;
 
     public interface LoadMoreCallback {
@@ -149,6 +158,11 @@ public class TmdbUIAdapter {
         int generation = resetLoadState();
         this.tmdbItem = item;
         saveMatch(vod, item);
+        TmdbDetailCache.Entry cached = takeTmdbDetailCache(item);
+        if (cached != null) {
+            Task.execute(() -> loadDetailSync(vod, cached.getItem(), cached.getDetail(), cached.getCast(), generation));
+            return;
+        }
         loadDetail(vod, item, generation);
     }
 
@@ -268,6 +282,13 @@ public class TmdbUIAdapter {
         Task.execute(() -> loadDetailSync(vod, item, generation));
     }
 
+    private TmdbDetailCache.Entry takeTmdbDetailCache(TmdbItem item) {
+        if (activity == null || activity.getIntent() == null || item == null) return null;
+        TmdbDetailCache.Entry cached = TmdbDetailCache.take(activity.getIntent().getStringExtra(TmdbDetailCache.EXTRA_KEY), item);
+        if (cached != null) SpiderDebug.log("tmdb", "detail core memory-cache hit title=%s media=%s id=%d", cached.getItem().getTitle(), cached.getItem().getMediaType(), cached.getItem().getTmdbId());
+        return cached;
+    }
+
     private int resetLoadState() {
         int generation = ++loadGeneration;
         tmdbItem = null;
@@ -289,6 +310,11 @@ public class TmdbUIAdapter {
         personalRefreshLoading = false;
         personalAiLoading = false;
         loaded = false;
+        pendingVodRefreshVod = null;
+        pendingVodRefreshGeneration = generation;
+        App.removeCallbacks(pendingVodRefresh);
+        if (pendingStartupBackgroundLoads != null) App.removeCallbacks(pendingStartupBackgroundLoads);
+        pendingStartupBackgroundLoads = null;
         return generation;
     }
 
@@ -297,16 +323,22 @@ public class TmdbUIAdapter {
     }
 
     private void loadDetailSync(Vod vod, TmdbItem item, int generation) {
+        loadDetailSync(vod, item, null, null, generation);
+    }
+
+    private void loadDetailSync(Vod vod, TmdbItem item, JsonObject cachedDetail, List<TmdbPerson> cachedCast, int generation) {
         long start = System.currentTimeMillis();
         try {
             SpiderDebug.log("tmdb", "detail core start title=%s media=%s id=%d", item.getTitle(), item.getMediaType(), item.getTmdbId());
             long detailStart = System.currentTimeMillis();
-            JsonObject detail = tmdbService.detail(item, tmdbConfig, false);
+            JsonObject detail = cachedDetail;
+            if (detail == null) detail = tmdbService.detail(item, tmdbConfig, false);
             item = normalizeLoadedItem(item, detail);
-            SpiderDebug.log("tmdb", "detail core tmdbDetail cost=%dms title=%s", System.currentTimeMillis() - detailStart, item.getTitle());
+            SpiderDebug.log("tmdb", "detail core tmdbDetail source=%s cost=%dms title=%s", cachedDetail == null ? "service" : "memory-cache", System.currentTimeMillis() - detailStart, item.getTitle());
             long castStart = System.currentTimeMillis();
-            List<TmdbPerson> cast = tmdbService.cast(detail, tmdbConfig);
-            SpiderDebug.log("tmdb", "detail core castParse cost=%dms count=%d title=%s", System.currentTimeMillis() - castStart, cast.size(), item.getTitle());
+            List<TmdbPerson> cast = cachedCast == null ? new ArrayList<>() : new ArrayList<>(cachedCast);
+            if (cast.isEmpty()) cast = tmdbService.cast(detail, tmdbConfig);
+            SpiderDebug.log("tmdb", "detail core castParse source=%s cost=%dms count=%d title=%s", cachedCast == null || cachedCast.isEmpty() ? "service" : "memory-cache", System.currentTimeMillis() - castStart, cast.size(), item.getTitle());
             if (!isCurrentGeneration(generation)) return;
             this.vod = vod;
             tmdbItem = item;
@@ -332,9 +364,7 @@ public class TmdbUIAdapter {
                 notifyVodChanged(vod, generation);
                 SpiderDebug.log("tmdb", "detail core first refresh queued cost=%dms title=%s", System.currentTimeMillis() - start, item.getTitle());
             }
-            loadEpisodeTitlesAsync(vod, item, generation);
-            loadRelatedRecommendationsAsync(vod, item, detail, generation);
-            loadPersonalRecommendationsAsync(vod, item, detail, generation);
+            scheduleStartupBackgroundLoads(vod, item, detail, generation);
             SpiderDebug.log("tmdb", "detail core loaded title=%s cast=%d total=%dms", item.getTitle(), getCast().size(), System.currentTimeMillis() - start);
         } catch (Exception e) {
             SpiderDebug.log("tmdb", "detail load failed cost=%dms error=%s", System.currentTimeMillis() - start, e.getMessage());
@@ -380,9 +410,30 @@ public class TmdbUIAdapter {
 
     private void notifyVodChanged(Vod vod, int generation) {
         if (vod == null || !isCurrentGeneration(generation)) return;
-        activity.runOnUiThread(() -> {
-            if (isCurrentGeneration(generation)) RefreshEvent.vod(vod);
-        });
+        pendingVodRefreshVod = vod;
+        pendingVodRefreshGeneration = generation;
+        App.post(pendingVodRefresh, VOD_REFRESH_COALESCE_MS);
+    }
+
+    private void dispatchPendingVodRefresh() {
+        Vod vod = pendingVodRefreshVod;
+        int generation = pendingVodRefreshGeneration;
+        pendingVodRefreshVod = null;
+        if (vod == null || !isCurrentGeneration(generation)) return;
+        SpiderDebug.log("tmdb", "vod refresh coalesced dispatch title=%s", vod.getName());
+        RefreshEvent.vod(vod);
+    }
+
+    private void scheduleStartupBackgroundLoads(Vod vod, TmdbItem item, JsonObject detail, int generation) {
+        if (pendingStartupBackgroundLoads != null) App.removeCallbacks(pendingStartupBackgroundLoads);
+        pendingStartupBackgroundLoads = () -> {
+            if (!isCurrentGeneration(generation)) return;
+            SpiderDebug.log("tmdb", "startup background loads begin title=%s delay=%dms", item == null ? "" : item.getTitle(), TMDB_STARTUP_BACKGROUND_DELAY_MS);
+            loadEpisodeTitlesAsync(vod, item, generation);
+            loadRelatedRecommendationsAsync(vod, item, detail, generation);
+            loadPersonalRecommendationsAsync(vod, item, detail, generation);
+        };
+        App.post(pendingStartupBackgroundLoads, TMDB_STARTUP_BACKGROUND_DELAY_MS);
     }
 
     private void loadEpisodeTitlesAsync(Vod vod, TmdbItem item, int generation) {
@@ -427,7 +478,7 @@ public class TmdbUIAdapter {
                 recommendations = loadedItems;
                 recommendationPage = 1;
                 recommendationHasMore = hasMore;
-                if (vod != null && !loadedItems.isEmpty()) RefreshEvent.vod(vod);
+                if (vod != null && !loadedItems.isEmpty()) notifyVodChanged(vod, generation);
             });
         });
     }
@@ -453,7 +504,7 @@ public class TmdbUIAdapter {
                 personalDoubanPage = loadedPages.getDouban();
                 personalTmdbRecommendations = personalTmdbPage.getItems();
                 personalDoubanRecommendations = personalDoubanPage.getItems();
-                if (vod != null && (!personalTmdbRecommendations.isEmpty() || !personalDoubanRecommendations.isEmpty())) RefreshEvent.vod(vod);
+                if (vod != null && (!personalTmdbRecommendations.isEmpty() || !personalDoubanRecommendations.isEmpty())) notifyVodChanged(vod, generation);
             });
         });
         loadPersonalAiRecommendationsAsync(vod, item, generation);
@@ -518,9 +569,7 @@ public class TmdbUIAdapter {
 
     private void notifyLoadComplete(Vod vod, int generation) {
         // TMDB 加载失败或跳过时，仍然发送 RefreshEvent 让 UI 继续
-        if (vod != null && isCurrentGeneration(generation)) {
-            activity.runOnUiThread(() -> RefreshEvent.vod(vod));
-        }
+        if (vod != null && isCurrentGeneration(generation)) notifyVodChanged(vod, generation);
     }
 
     private TmdbItem getCachedMatch(Vod vod) {
