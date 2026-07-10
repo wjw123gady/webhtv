@@ -153,8 +153,10 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Sniffer;
 import com.fongmi.android.tv.utils.Task;
 import com.fongmi.android.tv.utils.Timer;
+import com.fongmi.android.tv.utils.TmdbDetailCache;
 import com.fongmi.android.tv.utils.Traffic;
 import com.fongmi.android.tv.utils.Util;
+import com.fongmi.android.tv.utils.VodDetailCache;
 import com.github.catvod.crawler.SpiderDebug;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.android.material.button.MaterialButton;
@@ -183,6 +185,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private static final String EXTRA_TMDB_PLAY_FLAG = "tmdb_play_flag";
     private static final String EXTRA_TMDB_PLAY_EPISODE_NAME = "tmdb_play_episode_name";
     private static final String EXTRA_TMDB_PLAY_EPISODE_URL = "tmdb_play_episode_url";
+    private static final String EXTRA_TMDB_VOD_CACHE_KEY = "tmdb_vod_cache_key";
     private static final String EXTRA_TMDB_DETAIL_THEME = "tmdb_detail_theme";
     private static final int TMDB_TABLET_PLAYER_MIN_WIDTH_DP = 440;
     private static final int TMDB_TABLET_PLAYER_MAX_WIDTH_DP = 640;
@@ -191,6 +194,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private static final int TMDB_TABLET_PLAYER_TOP_MARGIN_DP = 16;
     private static final int TMDB_TABLET_SUMMARY_MIN_WIDTH_DP = 280;
     private static final int TMDB_DETAIL_LOAD_TIMEOUT = 15000;
+    private static final int TMDB_CACHED_DETAIL_APPLY_DELAY_MS = 16;
 
     private ActivityVideoBinding mBinding;
     private ViewGroup.LayoutParams mFrameParams;
@@ -472,6 +476,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     public static void startDirectTmdb(Activity activity, String key, String id, String name, String pic, String mark, ArrayList<String> episodeTitles, TmdbItem item, Vod tmdbVod, String playFlag, String playEpisodeName, String playEpisodeUrl) {
+        startDirectTmdb(activity, key, id, name, pic, mark, episodeTitles, item, tmdbVod, null, playFlag, playEpisodeName, playEpisodeUrl);
+    }
+
+    public static void startDirectTmdb(Activity activity, String key, String id, String name, String pic, String mark, ArrayList<String> episodeTitles, TmdbItem item, Vod tmdbVod, Vod detailVod, String playFlag, String playEpisodeName, String playEpisodeUrl) {
+        startDirectTmdb(activity, key, id, name, pic, mark, episodeTitles, item, tmdbVod, detailVod, "", playFlag, playEpisodeName, playEpisodeUrl);
+    }
+
+    public static void startDirectTmdb(Activity activity, String key, String id, String name, String pic, String mark, ArrayList<String> episodeTitles, TmdbItem item, Vod tmdbVod, Vod detailVod, String tmdbDetailCacheKey, String playFlag, String playEpisodeName, String playEpisodeUrl) {
         if (AudioActivity.startSite(activity, key, id, name, pic, mark)) return;
         Intent intent = new Intent(activity, VideoActivity.class);
         intent.putExtra("tmdbMode", item != null);
@@ -486,6 +498,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         intent.putStringArrayListExtra("tmdb_episode_titles", episodeTitles);
         putIntentPlaybackSelection(intent, playFlag, playEpisodeName, playEpisodeUrl);
         putTmdbVod(intent, tmdbVod);
+        putDetailVodCache(intent, detailVod);
+        if (!TextUtils.isEmpty(tmdbDetailCacheKey)) intent.putExtra(TmdbDetailCache.EXTRA_KEY, tmdbDetailCacheKey);
         activity.startActivity(intent);
     }
 
@@ -506,6 +520,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         intent.putExtra("tmdb_vod_director", vod.getDirector());
         intent.putExtra("tmdb_vod_actor", vod.getActor());
         intent.putExtra("tmdb_vod_remark", vod.getRemarks());
+    }
+
+    private static void putDetailVodCache(Intent intent, Vod vod) {
+        String key = VodDetailCache.put(vod);
+        if (!TextUtils.isEmpty(key)) intent.putExtra(EXTRA_TMDB_VOD_CACHE_KEY, key);
     }
 
     private static boolean dispatchToContentHandler(Activity activity, String key, String id, String name, String pic, String mark) {
@@ -566,6 +585,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private String getIntentPlaybackEpisodeUrl() {
         return Objects.toString(getIntent().getStringExtra(EXTRA_TMDB_PLAY_EPISODE_URL), "");
+    }
+
+    private String getTmdbVodCacheKey() {
+        return Objects.toString(getIntent().getStringExtra(EXTRA_TMDB_VOD_CACHE_KEY), "");
     }
 
     private String getKey() {
@@ -1143,7 +1166,23 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void checkId() {
         if (getId().startsWith("push://")) getIntent().putExtra("key", SiteApi.PUSH).putExtra("id", getId().substring(7));
         if (getId().isEmpty() || getId().startsWith("msearch:")) setEmpty(false);
-        else getDetail();
+        else if (!setCachedTmdbDetail()) getDetail();
+    }
+
+    private boolean setCachedTmdbDetail() {
+        Vod cached = VodDetailCache.take(getTmdbVodCacheKey());
+        if (cached == null) return false;
+        detailStartTime = System.currentTimeMillis();
+        detailHealthRecorded = true;
+        mBinding.progressLayout.showProgress();
+        SpiderDebug.log("video-flow", "detail cache hit queued key=%s id=%s name=%s", getKey(), getId(), cached.getName());
+        mBinding.getRoot().postDelayed(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            long start = System.currentTimeMillis();
+            setDetail(Result.vod(cached));
+            SpiderDebug.log("video-flow", "detail cache apply cost=%dms key=%s id=%s name=%s", System.currentTimeMillis() - start, getKey(), getId(), cached.getName());
+        }, TMDB_CACHED_DETAIL_APPLY_DELAY_MS);
+        return true;
     }
 
     private void checkLand() {
