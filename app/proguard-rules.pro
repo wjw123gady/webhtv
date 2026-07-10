@@ -14,6 +14,19 @@
 -keep class com.fongmi.android.tv.remote.** { *; }
 -keep class com.fongmi.android.tv.gitcloud.** { *; }
 
+# Gson generic deserialization safety (R8 fullMode may strip Signature on classes
+# outside the kept packages; classes below are persisted & reloaded and hold object/
+# numeric generic collection fields, so keep them to preserve generic type info).
+# SiteHealthStore.Health - Map<String,Integer> fields, no @SerializedName (root cause of the crash)
+-keep class com.fongmi.android.tv.setting.SiteHealthStore { *; }
+-keep class com.fongmi.android.tv.setting.SiteHealthStore$** { *; }
+# LoginStateSync.Snapshot/Entry - persisted List<Entry>, private inner classes
+-keep class com.fongmi.android.tv.utils.LoginStateSync$Snapshot { *; }
+-keep class com.fongmi.android.tv.utils.LoginStateSync$Entry { *; }
+# CustomCspSetting.Registry/Item - persisted List<Item> (has manual reparse fallback; kept for consistency)
+-keep class com.fongmi.android.tv.setting.CustomCspSetting$Registry { *; }
+-keep class com.fongmi.android.tv.setting.CustomCspSetting$Item { *; }
+
 # SimpleXML
 -keep interface org.simpleframework.xml.core.Label { public *; }
 -keep class * implements org.simpleframework.xml.core.Label { public *; }
