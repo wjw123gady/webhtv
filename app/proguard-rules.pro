@@ -8,6 +8,8 @@
 -keep class is.xyz.mpv.MPVLib$* { *; }
 
 # Gson
+-keepattributes Signature
+-keepattributes *Annotation*
 -keep class com.google.gson.** { *; }
 -keep class com.fongmi.android.tv.remote.** { *; }
 -keep class com.fongmi.android.tv.gitcloud.** { *; }

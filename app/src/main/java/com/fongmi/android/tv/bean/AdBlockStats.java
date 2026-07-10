@@ -88,15 +88,24 @@ public class AdBlockStats {
     public void incrementSiteBlocked(String siteKey) {
         if (siteKey == null || siteKey.isEmpty()) return;
         Map<String, Long> map = getSiteBlocked();
-        map.put(siteKey, map.getOrDefault(siteKey, 0L) + 1);
+        map.put(siteKey, toLong(map.get(siteKey)) + 1);
         this.siteBlocked = map;
     }
 
     public void incrementRuleCount(String ruleId) {
         if (ruleId == null || ruleId.isEmpty()) return;
         Map<String, Long> map = getRuleCounts();
-        map.put(ruleId, map.getOrDefault(ruleId, 0L) + 1);
+        map.put(ruleId, toLong(map.get(ruleId)) + 1);
         this.ruleCounts = map;
+    }
+
+    /**
+     * 安全地将 Map 中的值转为 long。
+     * Gson 在泛型签名缺失时可能把数字反序列化为 Double，直接拆箱会 ClassCastException，此处兼容处理。
+     */
+    private static long toLong(Object value) {
+        if (value instanceof Number) return ((Number) value).longValue();
+        return 0L;
     }
 
     public void incrementAiFeedback() {
@@ -128,7 +137,7 @@ public class AdBlockStats {
      */
     public long getSiteBlockedCount(String siteKey) {
         if (siteKey == null || siteKey.isEmpty()) return 0;
-        return getSiteBlocked().getOrDefault(siteKey, 0L);
+        return toLong(getSiteBlocked().get(siteKey));
     }
 
     public int getAiAnalysisTotal() {

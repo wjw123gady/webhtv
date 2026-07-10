@@ -133,7 +133,7 @@ public class AdBlockStatsStore {
         Map<String, RuleHitRecord> records = new HashMap<>();
         for (Map.Entry<String, Long> entry : ruleCounts.entrySet()) {
             String ruleId = entry.getKey();
-            long count = entry.getValue();
+            long count = toLong(entry.getValue());
 
             RuleHitRecord record = new RuleHitRecord();
             record.setRuleId(ruleId);
@@ -196,5 +196,14 @@ public class AdBlockStatsStore {
      */
     public static void clearCache() {
         cache = null;
+    }
+
+    /**
+     * 安全地将 Map 中的值转为 long。
+     * Gson 在泛型签名缺失时可能把数字反序列化为 Double，直接拆箱会 ClassCastException，此处兼容处理。
+     */
+    private static long toLong(Object value) {
+        if (value instanceof Number) return ((Number) value).longValue();
+        return 0L;
     }
 }
