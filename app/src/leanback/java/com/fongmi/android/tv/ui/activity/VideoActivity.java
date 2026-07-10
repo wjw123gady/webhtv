@@ -1615,14 +1615,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         mBinding.video.requestFocus();
         App.removeCallbacks(mR4);
         checkHistory(item);
-        if (item.getFlags().isEmpty()) {
-            mBinding.flag.setVisibility(View.GONE);
-            mBinding.episode.setVisibility(View.GONE);
-            showError(getString(R.string.error_play_flag));
-            setText(item);
-            updateKeep();
-            return;
-        }
         checkFlag(item);
         checkKeepImg();
         setText(item);
@@ -1857,10 +1849,6 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
 
     private void setPlayer(Result result) {
         if (isFinishing() || isDestroyed()) return;
-        if (result == null) {
-            onError(getString(R.string.error_play_url));
-            return;
-        }
         SpiderDebug.log("video-flow", "player finish cost=%dms useParse=%s multi=%s msg=%s", System.currentTimeMillis() - playerStartTime, result.shouldUseParse(), result.getUrl().isMulti(), result.getMsg());
         if (service() == null) {
             mPendingPlayer = result;
