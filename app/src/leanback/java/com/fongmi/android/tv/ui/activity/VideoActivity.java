@@ -5466,6 +5466,8 @@ public class VideoActivity extends PlaybackActivity implements CustomKeyDownVod.
         super.onStop();
         mPlayerUi.onStop();
         if (PlayerSetting.isBackgroundOff()) mClock.stop();
+        // 取消延迟播放，防止 Activity 进入后台后才触发播放导致声音残留
+        App.removeCallbacks(mPendingFastTmdbPlaybackStart);
     }
 
     @Override
