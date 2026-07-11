@@ -3709,6 +3709,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean focusDetailEpisodeToolButton(int direction) {
         if (binding == null || binding.episodeHeader.getVisibility() != View.VISIBLE) return false;
         return focusDetailButton(binding.episodeReverse, direction)
+                || focusDetailButton(binding.episodeFileName, direction)
                 || focusDetailButton(binding.episodeViewMode, direction);
     }
 
@@ -3734,7 +3735,11 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private boolean isEpisodeToolFocusedOtherThan(View button) {
         View focus = getCurrentFocus();
-        return focus != null && focus != button && (focus == binding.episodeReverse || focus == binding.episodeViewMode);
+        return focus != null && focus != button && isEpisodeToolButton(focus);
+    }
+
+    private boolean isEpisodeToolButton(View view) {
+        return binding != null && (view == binding.episodeReverse || view == binding.episodeFileName || view == binding.episodeViewMode);
     }
 
     private boolean focusDetailFlagButton() {
@@ -3907,7 +3912,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void toggleEpisodeFileName() {
         boolean showScraped = !Setting.getTmdbEpisodeShowScrapedName();
         Setting.putTmdbEpisodeShowScrapedName(showScraped);
-        rerenderEpisodeViewportOnly(false, false, true);
+        updateEpisodeFileNameButton();
+        updatePlayLabel();
+        // AlertDialog 返回时 RecyclerView 可能仍在恢复布局，下一帧再补刷可见卡片。
+        binding.episodeContainer.post(() -> episodeAdapter.refreshDisplaySettings(binding.episodeContainer));
     }
 
     private void updateEpisodeViewModeButton() {
@@ -7827,7 +7835,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         View focus = getCurrentFocus();
         if (focus == null) return false;
         if (isFocusInside(focus, binding.flagScroll)) return onDetailFlagKey(event.getKeyCode(), event);
-        if (focus == binding.episodeReverse || focus == binding.episodeViewMode) return onDetailEpisodeToolKey(focus, event.getKeyCode(), event);
+        if (isEpisodeToolButton(focus)) return onDetailEpisodeToolKey(focus, event.getKeyCode(), event);
         if (isFocusInside(focus, binding.episodeRangeScroll)) return onDetailEpisodeRangeKey(focus, event.getKeyCode(), event);
         if (isFocusInside(focus, binding.episodeContainer)) return onDetailEpisodeContainerKey(focus, event);
         RecyclerView tmdbRow = detailTmdbRecyclerContainingFocus(focus);
