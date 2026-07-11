@@ -1,7 +1,6 @@
 # TV
 -keep class androidx.leanback.widget.** { *; }
 -keep class com.fongmi.quickjs.method.** { *; }
--keep class com.fongmi.android.tv.bean.** { *; }
 
 # MPV JNI bridge
 -keep class is.xyz.mpv.MPVLib { *; }
@@ -11,21 +10,18 @@
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class com.google.gson.** { *; }
--keep class com.fongmi.android.tv.remote.** { *; }
--keep class com.fongmi.android.tv.gitcloud.** { *; }
 
-# Gson generic deserialization safety (R8 fullMode may strip Signature on classes
-# outside the kept packages; classes below are persisted & reloaded and hold object/
-# numeric generic collection fields, so keep them to preserve generic type info).
-# SiteHealthStore.Health - Map<String,Integer> fields, no @SerializedName (root cause of the crash)
--keep class com.fongmi.android.tv.setting.SiteHealthStore { *; }
--keep class com.fongmi.android.tv.setting.SiteHealthStore$** { *; }
-# LoginStateSync.Snapshot/Entry - persisted List<Entry>, private inner classes
--keep class com.fongmi.android.tv.utils.LoginStateSync$Snapshot { *; }
--keep class com.fongmi.android.tv.utils.LoginStateSync$Entry { *; }
-# CustomCspSetting.Registry/Item - persisted List<Item> (has manual reparse fallback; kept for consistency)
--keep class com.fongmi.android.tv.setting.CustomCspSetting$Registry { *; }
--keep class com.fongmi.android.tv.setting.CustomCspSetting$Item { *; }
+# App code: keep everything, no obfuscation.
+# R8 fullMode strips generic Signature from obfuscated classes, so any persisted
+# class holding an object/numeric generic collection field (Map<String,Integer>,
+# List<Entry>, ...) without an explicit TypeToken would have its generics erased,
+# making Gson deserialize numbers as Double and objects as LinkedTreeMap -> later
+# casts crash with ClassCastException. Obfuscation also renames fields lacking
+# @SerializedName, silently breaking persisted JSON key lookups. Keeping the whole
+# app package eliminates both classes of failure globally instead of patching each
+# offending class one by one. The dex size cost is a few MB; total APK size is
+# dominated by native .so libraries, so this is negligible.
+-keep class com.fongmi.android.tv.** { *; }
 
 # SimpleXML
 -keep interface org.simpleframework.xml.core.Label { public *; }
