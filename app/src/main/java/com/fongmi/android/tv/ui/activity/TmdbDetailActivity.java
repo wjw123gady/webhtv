@@ -8619,6 +8619,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.keep.setText(text);
         binding.keepTop.setText(text);
         binding.keepFusion.setText(text);
+        updateInlineKeepImg(kept);
+    }
+
+    private void updateInlineKeepImg(boolean kept) {
+        if (!Util.isMobile() || detailControlRoot == null) return;
+        detailControlView(R.id.keep, ImageView.class).setImageResource(kept ? R.drawable.ic_control_keep_on : R.drawable.ic_control_keep_off);
     }
 
     private void changeSource() {
