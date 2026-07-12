@@ -250,7 +250,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private boolean mNativePersonalTmdbLoading;
     private boolean mNativePersonalDoubanLoading;
     private boolean mEpisodeGridMode = Setting.getTmdbEpisodeGridMode();
-    private boolean playerKernelSwitchRefreshing;
+    private int playerKernelSwitchRequestId;
     private boolean decodeSwitchRefreshing;
     private int mEpisodeSpanCount;
     private int mEpisodeBottomInset;
@@ -2475,10 +2475,13 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         items[kernel.length] = "外调";
         new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setItems(items, (dialog, which) -> {
             if (which < kernel.length) {
-                player().switchPlayerManually(which);
-                setPlayer();
-                setDecode();
+                if (!refreshAndSwitchPlayerKernel(which)) {
+                    player().switchPlayerManually(which);
+                    setPlayer();
+                    setDecode();
+                }
             } else {
+                playerKernelSwitchRequestId++;
                 PlayerHelper.choose(this, player().getUrl(), player().getHeaders(), player().isVod(), player().getPosition(), mBinding.control.title.getText());
                 setRedirect(true);
             }
@@ -2486,7 +2489,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void onPlayerKernel() {
-        if (refreshAndSwitchPlayerKernel()) return;
         mClock.setCallback(null);
         onChoose();
         setR1Callback();
@@ -2497,12 +2499,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return true;
     }
 
-    private boolean refreshAndSwitchPlayerKernel() {
-        if (playerKernelSwitchRefreshing) return true;
+    private boolean refreshAndSwitchPlayerKernel(int type) {
+        int requestId = ++playerKernelSwitchRequestId;
         Flag currentFlag = getFlag();
         Episode currentEpisode = getEpisode();
         if (currentFlag == null || currentEpisode == null || TextUtils.isEmpty(currentFlag.getFlag()) || TextUtils.isEmpty(currentEpisode.getUrl())) return false;
-        int nextType = PlayerSetting.nextPlayer(player().getPlayerType());
         long position = player().getPosition();
         float speed = player().getSpeed();
         boolean repeat = player().isRepeatOne();
@@ -2510,17 +2511,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         String flag = currentFlag.getFlag();
         String episode = currentEpisode.getUrl();
         MediaMetadata metadata = buildMetadata();
-        playerKernelSwitchRefreshing = true;
         mClock.setCallback(null);
-        SpiderDebug.log("video-flow", "switch player refresh start type=%d key=%s flag=%s episode=%s", nextType, key, flag, episode);
+        SpiderDebug.log("video-flow", "switch player refresh start type=%d key=%s flag=%s episode=%s", type, key, flag, episode);
         Task.execute(() -> {
             try {
                 Result result = SiteApi.playerContent(key, flag, episode);
-                App.post(() -> switchPlayerKernelWithResult(nextType, result, position, speed, repeat, metadata));
+                App.post(() -> switchPlayerKernelWithResult(requestId, type, result, position, speed, repeat, metadata));
             } catch (Throwable e) {
                 App.post(() -> {
-                    playerKernelSwitchRefreshing = false;
-                    player().togglePlayer();
+                    if (requestId != playerKernelSwitchRequestId) return;
+                    player().switchPlayerManually(type);
                     setPlayerKernel();
                     setDecode();
                     setR1Callback();
@@ -2531,10 +2531,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         return true;
     }
 
-    private void switchPlayerKernelWithResult(int type, Result result, long position, float speed, boolean repeat, MediaMetadata metadata) {
-        playerKernelSwitchRefreshing = false;
+    private void switchPlayerKernelWithResult(int requestId, int type, Result result, long position, float speed, boolean repeat, MediaMetadata metadata) {
+        if (requestId != playerKernelSwitchRequestId) return;
         if (result == null || result.hasMsg() || result.getRealUrl().isEmpty()) {
-            player().togglePlayer();
+            player().switchPlayerManually(type);
         } else {
             player().switchPlayer(type, result, getHistoryKey(), metadata, isUseParse(), position, speed, repeat);
         }

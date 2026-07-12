@@ -149,6 +149,41 @@ public class VideoActivityLayoutTest {
     }
 
     @Test
+    public void mobilePlayerKernelClickOpensChooserBeforeSwitching() throws Exception {
+        Path sourcePath = findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        int clickMethod = source.indexOf("private void onPlayerKernel()");
+        int clickMethodEnd = source.indexOf("private boolean onPlayerKernelLong()", clickMethod);
+        String clickBody = clickMethod >= 0 && clickMethodEnd > clickMethod ? source.substring(clickMethod, clickMethodEnd) : "";
+        int chooseMethod = source.indexOf("private void onChoose()");
+        int chooseMethodEnd = source.indexOf("private void onPlayerKernel()", chooseMethod);
+        String chooseBody = chooseMethod >= 0 && chooseMethodEnd > chooseMethod ? source.substring(chooseMethod, chooseMethodEnd) : "";
+        int invalidateInternalRefresh = chooseBody.indexOf("playerKernelSwitchRequestId++;");
+        int launchExternalPlayer = chooseBody.indexOf("PlayerHelper.choose", invalidateInternalRefresh);
+
+        assertTrue(sourcePath + " is missing onPlayerKernel", clickMethod >= 0);
+        assertTrue("player kernel click must open the shared chooser", clickBody.contains("onChoose();"));
+        assertFalse("player kernel click must not switch to the next core before user selection", clickBody.contains("refreshAndSwitchPlayerKernel"));
+        assertTrue("the selected core must retain the refreshed-source switch path", chooseBody.contains("refreshAndSwitchPlayerKernel(which)"));
+        assertFalse("a later core selection must not be discarded while an earlier refresh is running", source.contains("if (playerKernelSwitchRefreshing) return true;"));
+        assertTrue("only the latest core selection may apply its refreshed result", source.contains("if (requestId != playerKernelSwitchRequestId) return;"));
+        assertTrue("external playback selection must invalidate an in-flight internal core refresh", invalidateInternalRefresh >= 0 && launchExternalPlayer > invalidateInternalRefresh);
+        assertTrue("an internal selection without refresh metadata must still invalidate an older request", source.indexOf("int requestId = ++playerKernelSwitchRequestId;") < source.indexOf("Flag currentFlag = getFlag();"));
+    }
+
+    @Test
+    public void refreshedPlayerKernelSwitchKeepsManualFailureSemantics() throws Exception {
+        Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "player", "PlayerManager.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        int method = source.indexOf("public void switchPlayer(int type, Result result");
+        int methodEnd = source.indexOf("private void switchPlayer(int type, boolean persist)", method);
+        String methodBody = method >= 0 && methodEnd > method ? source.substring(method, methodEnd) : "";
+
+        assertTrue(sourcePath + " is missing refreshed-result player switching", method >= 0);
+        assertTrue("a user-selected refreshed core must stop instead of auto-falling back on its first failure", methodBody.contains("manualPlayerSwitchPending = true;"));
+    }
+
+    @Test
     public void videoActivitiesDelegateSharedPlayerUiSetup() throws Exception {
         String leanback = new String(Files.readAllBytes(findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"))), StandardCharsets.UTF_8);
         String mobile = new String(Files.readAllBytes(findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"))), StandardCharsets.UTF_8);
