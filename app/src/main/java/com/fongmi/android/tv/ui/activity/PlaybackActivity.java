@@ -67,6 +67,22 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         return mService == null ? null : mService.player();
     }
 
+    protected boolean isServiceReady() {
+        return mService != null && mService.player() != null && !mService.player().isReleased();
+    }
+
+    protected View.OnClickListener guarded(Runnable action) {
+        return v -> {
+            if (isServiceReady()) action.run();
+        };
+    }
+
+    protected View.OnClickListener guardedView(java.util.function.Consumer<View> action) {
+        return v -> {
+            if (isServiceReady()) action.accept(v);
+        };
+    }
+
     protected boolean isRedirect() {
         return redirect;
     }
