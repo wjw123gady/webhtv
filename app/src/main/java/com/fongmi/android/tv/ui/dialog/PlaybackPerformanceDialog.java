@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,6 +18,7 @@ import android.widget.ScrollView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.widget.TextViewCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
@@ -40,11 +42,15 @@ import com.google.android.material.textview.MaterialTextView;
 
 import is.xyz.mpv.MPVLib;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class PlaybackPerformanceDialog extends DialogFragment {
 
     private Runnable callback;
     private Dialog helpDialog;
     private LinearLayout list;
+    private final List<MaterialButton> profileButtons = new ArrayList<>();
 
     public static void show(Fragment fragment, Runnable callback) {
         PlaybackPerformanceDialog dialog = new PlaybackPerformanceDialog();
@@ -114,10 +120,10 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
         LinearLayout actions = new LinearLayout(requireContext());
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER);
-        actions.addView(actionButton(R.string.player_performance_recommended, view -> apply(PlaybackPerformanceSetting.PROFILE_RECOMMENDED)), actionParams(true));
-        actions.addView(actionButton(R.string.player_performance_compatible, view -> apply(PlaybackPerformanceSetting.PROFILE_COMPATIBLE)), actionParams(false));
-        actions.addView(actionButton(R.string.player_performance_lightweight, view -> apply(PlaybackPerformanceSetting.PROFILE_LIGHTWEIGHT)), actionParams(false));
-        actions.addView(actionButton(R.string.player_performance_original, view -> apply(PlaybackPerformanceSetting.PROFILE_ORIGINAL)), actionParams(false));
+        actions.addView(profileButton(R.string.player_performance_recommended, PlaybackPerformanceSetting.PROFILE_RECOMMENDED), actionParams(true));
+        actions.addView(profileButton(R.string.player_performance_compatible, PlaybackPerformanceSetting.PROFILE_COMPATIBLE), actionParams(false));
+        actions.addView(profileButton(R.string.player_performance_lightweight, PlaybackPerformanceSetting.PROFILE_LIGHTWEIGHT), actionParams(false));
+        actions.addView(profileButton(R.string.player_performance_original, PlaybackPerformanceSetting.PROFILE_ORIGINAL), actionParams(false));
         LinearLayout.LayoutParams actionLayout = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
         actionLayout.topMargin = dp(14);
         root.addView(actions, actionLayout);
@@ -132,6 +138,7 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
         scrollParams.topMargin = dp(16);
         root.addView(scroll, scrollParams);
         refreshRows();
+        refreshProfileButtons();
         return root;
     }
 
@@ -215,6 +222,7 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
     public void onDestroyView() {
         if (helpDialog != null) helpDialog.dismiss();
         helpDialog = null;
+        profileButtons.clear();
         super.onDestroyView();
     }
 
@@ -263,8 +271,12 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
         button.setAllCaps(false);
         button.setText(text);
         button.setSingleLine(true);
+        button.setMaxLines(1);
         button.setGravity(Gravity.CENTER);
         button.setTextSize(14);
+        button.setIncludeFontPadding(false);
+        button.setPadding(dp(6), 0, dp(6), 0);
+        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(button, 10, 14, 1, TypedValue.COMPLEX_UNIT_SP);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setMinHeight(dp(38));
@@ -277,16 +289,31 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
         button.setBackgroundTintList(ColorStateList.valueOf(Color.WHITE));
         button.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#8AB4F8")));
         button.setStrokeWidth(dp(1));
-        button.setOnFocusChangeListener((view, hasFocus) -> styleAction(button, hasFocus));
+        button.setOnFocusChangeListener((view, hasFocus) -> styleAction(button, hasFocus, button.isSelected()));
         button.setOnClickListener(listener);
         return button;
     }
 
-    private void styleAction(MaterialButton button, boolean focused) {
+    private MaterialButton profileButton(int text, int profile) {
+        MaterialButton button = actionButton(text, view -> apply(profile));
+        button.setTag(profile);
+        profileButtons.add(button);
+        return button;
+    }
+
+    private void refreshProfileButtons() {
+        int profile = PlaybackPerformanceSetting.getProfile();
+        for (MaterialButton button : profileButtons) {
+            button.setSelected((int) button.getTag() == profile);
+            styleAction(button, button.hasFocus(), button.isSelected());
+        }
+    }
+
+    private void styleAction(MaterialButton button, boolean focused, boolean selected) {
         button.setTextColor(ColorStateList.valueOf(Color.parseColor(focused ? "#FFFFFF" : "#174EA6")));
-        button.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(focused ? "#1A73E8" : "#FFFFFF")));
-        button.setStrokeColor(ColorStateList.valueOf(Color.parseColor(focused ? "#1A73E8" : "#8AB4F8")));
-        button.setStrokeWidth(dp(1));
+        button.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(focused ? "#1A73E8" : selected ? "#D2E3FC" : "#FFFFFF")));
+        button.setStrokeColor(ColorStateList.valueOf(Color.parseColor(focused || selected ? "#1A73E8" : "#8AB4F8")));
+        button.setStrokeWidth(dp(selected && !focused ? 2 : 1));
     }
 
     private LinearLayout.LayoutParams actionParams(boolean first) {
@@ -312,6 +339,7 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
 
     private void refresh() {
         refreshRows();
+        refreshProfileButtons();
         if (callback != null) callback.run();
     }
 
