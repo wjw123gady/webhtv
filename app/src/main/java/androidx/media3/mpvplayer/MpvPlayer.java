@@ -799,11 +799,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             case "pause" -> {
                 if (value instanceof Boolean paused) playWhenReady = !paused;
             }
-            case "paused-for-cache" -> {
-                loading = Boolean.TRUE.equals(value);
-                if (loading) playbackState = Player.STATE_BUFFERING;
-                else if (playbackState == Player.STATE_BUFFERING && fileLoaded && playbackRestarted) playbackState = Player.STATE_READY;
-            }
+            case "paused-for-cache" -> applyPausedForCache(Boolean.TRUE.equals(value));
             case "eof-reached" -> {
                 eofReached = Boolean.TRUE.equals(value);
                 if (eofReached) {
@@ -1674,9 +1670,15 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         if (released || mediaItem == null || playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED || playerError != null) return;
         cachedPositionMs = positionMs();
         cachedDurationMs = durationMs();
+        if (fileLoaded && playbackRestarted && !stopping) applyPausedForCache(booleanProperty("paused-for-cache", loading));
         refreshCacheState();
         invalidateState();
         startStateRefresh();
+    }
+
+    private void applyPausedForCache(boolean pausedForCache) {
+        loading = pausedForCache;
+        playbackState = MpvPlaybackState.resolveAfterCachePoll(playbackState, fileLoaded, playbackRestarted, stopping, pausedForCache);
     }
 
     private void refreshCacheState() {

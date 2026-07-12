@@ -3283,6 +3283,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     @Override
+    protected void onControllerReadyReconciled() {
+        showPlaybackContent();
+    }
+
+    @Override
     protected void onPrepare() {
         android.util.Log.d("VideoActivity", "onPrepare: setting Clock callback");
         setPlayerKernel();

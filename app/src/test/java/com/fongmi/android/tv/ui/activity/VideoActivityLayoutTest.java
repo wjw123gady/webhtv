@@ -502,6 +502,7 @@ public class VideoActivityLayoutTest {
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
         int handle = source.indexOf("private void handleControllerConnected()");
         int addListener = source.indexOf("mController.addListener(this);", handle);
+        int reconcile = source.indexOf("reconcileControllerReadyState();", addListener);
         int seekListener = source.indexOf("getSeekView().setSeekListener(this::onSeekStarted);", handle);
         int controllerHook = source.indexOf("onControllerConnected();", addListener);
         int serviceConnected = source.indexOf("public void onServiceConnected");
@@ -510,10 +511,13 @@ public class VideoActivityLayoutTest {
         assertTrue(sourcePath + " is missing handleControllerConnected", handle >= 0);
         assertTrue("controller seek events must be bridged to playback activities", seekListener > handle && seekListener < addListener);
         assertTrue("controller listener must be registered before the controller hook", addListener > handle && addListener < controllerHook);
+        assertTrue("current-item READY must be reconciled after listener registration", reconcile > addListener && reconcile < controllerHook);
         assertTrue("controller-specific hook must still run", controllerHook > addListener);
         assertTrue("service-specific hook must still run", serviceHook > serviceConnected);
         assertFalse("controller connection must not replay stale READY/playing state and hide loading early",
                 source.contains("syncControllerPlaybackState()"));
+        assertFalse("READY reconciliation must not replay the full state callback with side effects",
+                source.contains("onStateChanged(mController.getPlaybackState())"));
     }
 
     @Test
