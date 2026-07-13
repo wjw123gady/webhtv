@@ -960,6 +960,7 @@
     <string name="player_preload_time_value">%1$d seconds</string>
     <string name="player_auto_play">Auto play</string>
     <string name="player_auto_change">Auto source change</string>
+    <string name="player_failure_fallback">Failure fallback</string>
     <string name="player_speed">Press speed</string>
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">On-screen display</string>
@@ -1210,6 +1211,13 @@
     <string-array name="select_decode">
         <item>Soft</item>
         <item>Hard</item>
+    </string-array>
+
+    <string-array name="select_player_failure_fallback">
+        <item>Decoder, then core</item>
+        <item>Decoder only</item>
+        <item>Core only</item>
+        <item>Off</item>
     </string-array>
 
     <string-array name="select_render">

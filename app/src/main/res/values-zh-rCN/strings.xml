@@ -957,6 +957,7 @@
     <string name="player_preload_time_value">%1$d 秒</string>
     <string name="player_auto_play">自动播放</string>
     <string name="player_auto_change">自动换源</string>
+    <string name="player_failure_fallback">播放失败回退</string>
     <string name="player_speed">长按倍速</string>
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">屏显设置</string>
@@ -1197,6 +1198,13 @@
     <string-array name="select_decode">
         <item>软解</item>
         <item>硬解</item>
+    </string-array>
+
+    <string-array name="select_player_failure_fallback">
+        <item>软解后切核心</item>
+        <item>仅切软硬解</item>
+        <item>仅切播放核心</item>
+        <item>关闭</item>
     </string-array>
 
     <string-array name="select_player_kernel">
