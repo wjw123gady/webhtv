@@ -280,7 +280,7 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
         button.setMinimumWidth(0);
         button.setMinHeight(dp(36));
         button.setMinimumHeight(dp(36));
-        button.setPaddingRelative(dp(10), 0, dp(10), 0);
+        button.setPadding(dp(6), 0, dp(6), 0);
         button.setInsetLeft(0);
         button.setInsetRight(0);
         button.setInsetTop(0);
