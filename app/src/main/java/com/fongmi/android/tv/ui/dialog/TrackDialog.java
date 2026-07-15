@@ -31,7 +31,10 @@ import com.fongmi.android.tv.databinding.DialogTrackBinding;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.service.AiSubtitleTranslationService;
+import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
+import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.subtitle.RealtimeSubtitleController;
 import com.fongmi.android.tv.subtitle.model.SubtitleAsset;
 import com.fongmi.android.tv.subtitle.translate.SubtitleTranslationRequest;
 import com.fongmi.android.tv.subtitle.translate.SubtitleTranslationResult;
@@ -53,7 +56,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class TrackDialog extends BaseBottomSheetDialog implements TrackAdapter.OnClickListener {
+public final class TrackDialog extends BaseBottomSheetDialog implements TrackAdapter.OnClickListener, RealtimeSubtitleController.Listener {
 
     private static WeakReference<TrackDialog> activeAiDialog = new WeakReference<>(null);
 
@@ -63,6 +66,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     private PlayerManager player;
     private Runnable searchAction;
     private boolean aiTranslating;
+    private RealtimeSubtitleController.State realtimeState = RealtimeSubtitleController.State.OFF;
     private long aiStartedAt;
     private boolean secondarySubtitle;
     private int type;
@@ -116,6 +120,10 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
         return !secondarySubtitle && type == C.TRACK_TYPE_TEXT && player.isVod();
     }
 
+    private boolean hasRealtimeAi() {
+        return !secondarySubtitle && type == C.TRACK_TYPE_TEXT && player.isExo();
+    }
+
     private boolean hasAiRegenerate() {
         return hasAi() && isAiTranslatedSubtitle(player.getSelectedSubtitleSub());
     }
@@ -136,6 +144,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
         binding.recycler.setAdapter(adapter);
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 16));
         refreshTrackList();
+        RealtimeSubtitleController.get().setListener(this);
     }
 
     @Override
@@ -145,6 +154,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
         binding.choose.setOnClickListener(this::onChoose);
         binding.search.setOnClickListener(this::onSearch);
         binding.ai.setOnClickListener(this::onAiTranslate);
+        binding.realtimeAi.setOnClickListener(this::onRealtimeAi);
         binding.aiRegenerate.setOnClickListener(this::onAiRegenerate);
         binding.subtitle.setOnClickListener(this::onSubtitle);
     }
@@ -161,6 +171,8 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
         binding.choose.setVisibility(hasChoose() ? View.VISIBLE : View.GONE);
         binding.search.setVisibility(hasSearch() ? View.VISIBLE : View.GONE);
         binding.ai.setVisibility(hasAi() ? View.VISIBLE : View.GONE);
+        binding.realtimeAi.setVisibility(hasRealtimeAi() ? View.VISIBLE : View.GONE);
+        updateRealtimeButton();
         binding.aiRegenerate.setVisibility(hasAiRegenerate() ? View.VISIBLE : View.GONE);
         binding.aiStatus.setVisibility(View.GONE);
         binding.subtitle.setVisibility(hasText() ? View.VISIBLE : View.GONE);
@@ -183,6 +195,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     @Override
     public void onDestroyView() {
         if (activeAiDialog.get() == this) activeAiDialog.clear();
+        RealtimeSubtitleController.get().setListener(null);
         super.onDestroyView();
         binding = null;
     }
@@ -192,14 +205,122 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     }
 
     private void onChoose(View view) {
+        stopRealtimeAi();
         FileChooser.from(launcher).show(new String[]{MimeTypes.APPLICATION_SUBRIP, MimeTypes.TEXT_SSA, MimeTypes.TEXT_VTT, MimeTypes.APPLICATION_TTML, "audio/*", "text/*", "application/octet-stream"});
         player.pause();
     }
 
     private void onSearch(View view) {
         if (searchAction == null) return;
+        stopRealtimeAi();
         App.post(searchAction::run, 100);
         dismiss();
+    }
+
+    private void stopRealtimeAi() {
+        RealtimeSubtitleController controller = RealtimeSubtitleController.get();
+        if (!controller.isEnabled() && !controller.isPreparing()) return;
+        controller.disable();
+    }
+
+    private void onRealtimeAi(View view) {
+        RealtimeSubtitleController controller = RealtimeSubtitleController.get();
+        if (controller.isEnabled() || controller.isPreparing()) {
+            stopRealtimeAi();
+            showAiMessage(R.string.subtitle_realtime_off);
+            return;
+        }
+        if (!controller.isModelReady()) {
+            showRealtimeModelSelection();
+            return;
+        }
+        enableRealtimeAi();
+    }
+
+    private void showRealtimeModelSelection() {
+        String[] labels = ResUtil.getStringArray(R.array.select_realtime_subtitle_model);
+        String[] values = ResUtil.getStringArray(R.array.select_realtime_subtitle_model_value);
+        int checked = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (TextUtils.equals(values[i], Setting.getRealtimeSubtitleModel())) {
+                checked = i;
+                break;
+            }
+        }
+        SubtitleSettingsDialog.showRealtimeModel(requireActivity(), labels, checked, false, index -> {
+            if (index < 0 || index >= values.length) return;
+            Setting.putRealtimeSubtitleModel(values[index]);
+            enableRealtimeAi();
+        }, null);
+    }
+
+    private void enableRealtimeAi() {
+        if (PlayerSetting.isAudioPassThrough(player.getPlayerType()) || PlayerSetting.isTunnelingEnabled()) {
+            SubtitleSettingsDialog.showRealtimeCompatibility(requireActivity(), this::disableIncompatibleAudioModes);
+            return;
+        }
+        if (Math.abs(player.getSpeed() - 1f) > 0.001f) {
+            SubtitleSettingsDialog.showRealtimeSpeedCompatibility(requireActivity(), () -> {
+                player.setSpeed(1f);
+                if (Math.abs(player.getSpeed() - 1f) <= 0.001f) startRealtimeAi();
+            });
+            return;
+        }
+        startRealtimeAi();
+    }
+
+    private void startRealtimeAi() {
+        RealtimeSubtitleController controller = RealtimeSubtitleController.get();
+        controller.requestAudioPipeline();
+        if (!controller.isAudioPipelineReady()) player.rebuildAudioPipeline();
+        controller.enable(player);
+    }
+
+    private void disableIncompatibleAudioModes() {
+        if (!isUiAlive() || player == null || player.isReleased()) return;
+        int playerType = player.getPlayerType();
+        boolean changed = PlayerSetting.isAudioPassThrough(playerType) || PlayerSetting.isTunnelingEnabled();
+        PlayerSetting.putAudioPassThrough(playerType, false);
+        PlayerSetting.putTunnel(false);
+        PlaybackPerformanceSetting.markCustom();
+        RealtimeSubtitleController controller = RealtimeSubtitleController.get();
+        controller.requestAudioPipeline();
+        if (changed || !controller.isAudioPipelineReady()) player.rebuildAudioPipeline();
+        enableRealtimeAi();
+    }
+
+    @Override
+    public void onStateChanged(RealtimeSubtitleController.State state, String message) {
+        realtimeState = state;
+        updateRealtimeButton();
+        if (!isUiAlive()) return;
+        switch (state) {
+            case PREPARING -> {
+                int progress = parseProgress(message);
+                if (progress > 0) showAiStatus(getString(R.string.subtitle_realtime_preparing_progress, progress));
+                else showAiStatus(R.string.subtitle_realtime_preparing);
+            }
+            case ON -> showAiStatus(R.string.subtitle_realtime_on);
+            case ERROR -> showAiMessage(getString(R.string.subtitle_realtime_failed, message));
+            case OFF -> {
+                if (!aiTranslating) showAiStatus("");
+            }
+        }
+    }
+
+    private int parseProgress(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private void updateRealtimeButton() {
+        if (binding == null) return;
+        boolean active = realtimeState == RealtimeSubtitleController.State.ON || realtimeState == RealtimeSubtitleController.State.PREPARING;
+        binding.realtimeAi.setActivated(active);
+        binding.realtimeAi.setAlpha(active ? 1f : 0.7f);
     }
 
     private void onAiTranslate(View view) {
@@ -211,6 +332,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     }
 
     private void startAiTranslation(boolean useCache) {
+        stopRealtimeAi();
         String playbackKey = player.getKey();
         AiTaskState state = AiTaskState.get(playbackKey);
         if (aiTranslating || state != null && state.isTranslating()) {
@@ -623,6 +745,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
 
     @Override
     public void onItemClick(Track item) {
+        if (type == C.TRACK_TYPE_TEXT) stopRealtimeAi();
         if (secondarySubtitle) {
             player.setSecondarySubtitleTrack(item);
             dismiss();
@@ -644,6 +767,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
 
     private final ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
+        stopRealtimeAi();
         player.setSub(Sub.from(FileChooser.getPathFromUri(result.getData().getData())));
         dismiss();
     });

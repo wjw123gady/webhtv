@@ -999,6 +999,41 @@
     <string name="subtitle_manual_applied">Subtitle applied: %1$s</string>
     <string name="subtitle_manual_apply_failed">Subtitle found but could not be applied</string>
     <string name="subtitle_manual_inactive">Start playback before searching subtitles</string>
+    <string name="player_subtitle_realtime_model">Real-time recognition language</string>
+    <string name="subtitle_realtime_model_status">%1$s · %2$s</string>
+    <string name="subtitle_realtime_model_select_title">Select audio source language</string>
+    <string name="subtitle_realtime_model_delete_action">Delete model</string>
+    <string name="subtitle_realtime_model_missing">Not downloaded (tap to download)</string>
+    <string name="subtitle_realtime_model_ready">Downloaded (tap to delete)</string>
+    <string name="subtitle_realtime_model_downloading">Downloading...</string>
+    <string name="subtitle_realtime_model_downloading_progress">Downloading %1$d%%</string>
+    <string name="subtitle_realtime_model_deleting">Deleting...</string>
+    <string name="subtitle_realtime_model_download_success">Real-time subtitle model downloaded</string>
+    <string name="subtitle_realtime_model_download_failed">Model download failed: %1$s</string>
+    <string name="subtitle_realtime_model_delete_title">Delete real-time subtitle model</string>
+    <string name="subtitle_realtime_model_delete_message">Delete the downloaded model and disable real-time AI subtitles?</string>
+    <string name="subtitle_realtime_model_delete_success">Real-time subtitle model deleted</string>
+    <string name="subtitle_realtime_model_delete_failed">Model deletion failed: %1$s</string>
+    <string name="subtitle_realtime_action">Real-time AI subtitles</string>
+    <string name="subtitle_realtime_preparing">Preparing the selected real-time subtitle model...</string>
+    <string name="subtitle_realtime_preparing_progress">Preparing subtitle model %1$d%%</string>
+    <string name="subtitle_realtime_on">Real-time AI subtitles enabled</string>
+    <string name="subtitle_realtime_off">Real-time AI subtitles disabled</string>
+    <string name="subtitle_realtime_failed">Real-time subtitle failed: %1$s</string>
+    <string name="subtitle_realtime_pcm_title">Disable incompatible audio modes</string>
+    <string name="subtitle_realtime_pcm_required">Real-time AI subtitles require PCM audio. Disable audio passthrough and tunnel mode now, then continue?</string>
+    <string name="subtitle_realtime_speed_title">Reset playback speed</string>
+    <string name="subtitle_realtime_speed_required">Synchronized real-time subtitles currently require 1x playback. Reset the speed and continue?</string>
+    <string name="subtitle_realtime_speed_disabled">Real-time subtitles were disabled because playback speed changed</string>
+    <string name="subtitle_realtime_model_delete_error">Cannot delete the subtitle model</string>
+    <string name="subtitle_realtime_model_directory_error">Cannot create the subtitle model directory</string>
+    <string name="subtitle_realtime_model_partial_error">Cannot replace the partial model download</string>
+    <string name="subtitle_realtime_model_incomplete">Incomplete model file: %1$s</string>
+    <string name="subtitle_realtime_model_checksum_error">Model file checksum failed: %1$s</string>
+    <string name="subtitle_realtime_model_install_error">Cannot install model file: %1$s</string>
+    <string name="subtitle_realtime_model_memory_low">This model requires at least %1$d MB of device memory</string>
+    <string name="subtitle_realtime_model_memory_available_low">Available memory is low. Close background apps and try again</string>
+    <string name="subtitle_realtime_model_storage_low">At least %1$d MB of free storage is required</string>
     <string name="subtitle_ai_translate_title">AI subtitle translation</string>
     <string name="subtitle_ai_translate_message">Translate this subtitle to Chinese with the current AI configuration?</string>
     <string name="subtitle_ai_translate_action">AI translate to Chinese</string>
@@ -1362,6 +1397,26 @@
         <item>System</item>
     </string-array>
 
+    <string-array name="select_realtime_subtitle_model">
+        <item>Mandarin (about 31 MB)</item>
+        <item>Cantonese (about 135 MB)</item>
+        <item>English (about 45 MB)</item>
+        <item>German (about 71 MB)</item>
+        <item>French (about 71 MB)</item>
+        <item>Spanish (about 156 MB)</item>
+        <item>Japanese (about 73 MB)</item>
+        <item>Chinese + English (about 199 MB)</item>
+    </string-array>
+    <string-array name="select_realtime_subtitle_model_value">
+        <item>zh</item>
+        <item>yue</item>
+        <item>en</item>
+        <item>de</item>
+        <item>fr</item>
+        <item>es</item>
+        <item>ja</item>
+        <item>zh-en</item>
+    </string-array>
     <string-array name="select_subtitle_language">
         <item>Chinese first</item>
         <item>Simplified Chinese</item>
