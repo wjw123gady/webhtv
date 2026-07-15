@@ -4148,7 +4148,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             int index = indices.getOrDefault(episode, -1);
             if (index < 0 && allEpisodes != null) index = allEpisodes.indexOf(episode);
             EpisodePosition position = episodePosition(episode, allEpisodes, index);
-            int finalNumber = position.number() > 0 ? position.number() : i + 1;
+            // 修正：fallback 时使用 allEpisodes 的索引而不是 visibleEpisodes 的索引
+            int finalNumber = position.number() > 0 ? position.number() : (index >= 0 ? index + 1 : i + 1);
             numbers.put(episode, finalNumber);
         }
         return numbers;
