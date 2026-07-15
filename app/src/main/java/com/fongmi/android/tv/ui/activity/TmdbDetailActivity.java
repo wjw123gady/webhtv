@@ -3471,6 +3471,11 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private List<EpisodeRangePolicy.Range> buildCardEpisodeRanges(List<Episode> episodes, Episode selected) {
         List<EpisodeRangePolicy.Range> ranges = EpisodeRangePolicy.build(episodes.size(), episodes.indexOf(selected), episodeReverse, episodeCardPageMaxSize());
+        // DEBUG: 显示原始分组
+        StringBuilder originalRanges = new StringBuilder("原始分组: ");
+        for (EpisodeRangePolicy.Range r : ranges) originalRanges.append(r.label()).append(" ");
+        App.post(() -> Notify.show(originalRanges.toString()));
+
         // 修正分组范围标签：用实际集号而非列表索引
         List<Episode> allEpisodes = selectedFlag == null ? null : selectedFlag.getEpisodes();
         if (allEpisodes != null && !allEpisodes.isEmpty()) {
@@ -3491,6 +3496,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 App.post(() -> Notify.show(String.format("分组修正: %s → %s", range.label(), correctedLabel)));
                 correctedRanges.add(new EpisodeRangePolicy.Range(correctedLabel, range.start(), range.end(), range.selected()));
             }
+
+            // DEBUG: 显示修正后的分组
+            StringBuilder corrected = new StringBuilder("修正后分组: ");
+            for (EpisodeRangePolicy.Range r : correctedRanges) corrected.append(r.label()).append(" ");
+            App.post(() -> Notify.show(corrected.toString()));
+
             return correctedRanges;
         }
         return ranges;
