@@ -7373,12 +7373,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         }
         int titleSeason = sourceTitleSeasonNumber();
         if (!hasExplicitSeasonNumbers(episodes) && seasonNumbers.contains(titleSeason)) {
-            android.util.Log.d("EPPOS", "[" + epName + "] idx=" + index + " src=" + sourceNumber + " branch=titleSeasonIndexPlus1 -> s" + titleSeason + "e" + (index + 1));
-            return new EpisodePosition(titleSeason, index + 1);
+            int number = linearEpisodeNumber(sourceNumber, index);
+            android.util.Log.d("EPPOS", "[" + epName + "] idx=" + index + " src=" + sourceNumber + " branch=titleSeasonLinear -> s" + titleSeason + "e" + number);
+            return new EpisodePosition(titleSeason, number);
         }
         if (!EpisodeSeasonPolicy.canSliceBySeasonCounts(episodes.size(), seasonNumbers, seasonEpisodeCounts)) {
-            android.util.Log.d("EPPOS", "[" + epName + "] idx=" + index + " src=" + sourceNumber + " branch=noSliceIndexPlus1 -> s" + selectedSeasonNumber + "e" + (index + 1));
-            return new EpisodePosition(selectedSeasonNumber, index + 1);
+            int number = linearEpisodeNumber(sourceNumber, index);
+            android.util.Log.d("EPPOS", "[" + epName + "] idx=" + index + " src=" + sourceNumber + " branch=noSliceLinear -> s" + selectedSeasonNumber + "e" + number);
+            return new EpisodePosition(selectedSeasonNumber, number);
         }
         int start = 0;
         for (int i = 0; i < seasonNumbers.size(); i++) {
@@ -7392,8 +7394,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             }
             start += count;
         }
-        android.util.Log.d("EPPOS", "[" + epName + "] idx=" + index + " src=" + sourceNumber + " branch=fallbackIndexPlus1 -> s" + selectedSeasonNumber + "e" + (index + 1));
-        return new EpisodePosition(selectedSeasonNumber, index + 1);
+        int number = linearEpisodeNumber(sourceNumber, index);
+        android.util.Log.d("EPPOS", "[" + epName + "] idx=" + index + " src=" + sourceNumber + " branch=fallbackLinear -> s" + selectedSeasonNumber + "e" + number);
+        return new EpisodePosition(selectedSeasonNumber, number);
     }
 
     private boolean useSourceEpisodeNumber(int sourceNumber, int sourceSeason) {
