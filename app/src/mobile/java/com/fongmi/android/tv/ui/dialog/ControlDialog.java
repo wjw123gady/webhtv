@@ -168,6 +168,18 @@ public class ControlDialog extends BaseBottomSheetDialog implements ParseAdapter
             public void onCodecCapabilityPanel() {
                 CodecCapabilityDialog.show(activity, player);
             }
+
+            @Override
+            public void onImmersiveAudioModeChanged() {
+            }
+
+            @Override
+            public void onKaraokeModeChanged() {
+            }
+
+            @Override
+            public void onKaraokeTrackPanel() {
+            }
         };
         return this;
     }
