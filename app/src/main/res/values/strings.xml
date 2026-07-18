@@ -1537,7 +1537,7 @@
     <string name="dialog_tmdb_api_host_label">API host</string>
     <string name="dialog_tmdb_api_host_hint">For example https://api.tmdb.org</string>
     <string name="dialog_tmdb_image_host_label">Image host</string>
-    <string name="dialog_tmdb_image_host_hint">For example https://image.tmdb.org</string>
+    <string name="dialog_tmdb_image_host_hint">For example https://images.tmdb.org</string>
     <string name="dialog_tmdb_section_data">Data source</string>
     <string name="dialog_tmdb_section_ratings">Ratings</string>
     <string name="dialog_tmdb_section_rules">Source rules</string>
